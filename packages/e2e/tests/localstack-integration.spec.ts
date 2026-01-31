@@ -36,7 +36,7 @@ test.describe('LocalStack S3 Integration', () => {
     test('should proxy S3 requests through backend API', async ({ request }) => {
       // Test backend health endpoint
       const healthResponse = await request.get(
-        process.env.BACKEND_URL || 'http://localhost:3000' + '/health'
+        (process.env.BACKEND_URL || 'http://localhost:3000') + '/health'
       );
       expect(healthResponse.ok()).toBe(true);
 
@@ -46,7 +46,7 @@ test.describe('LocalStack S3 Integration', () => {
 
     test('should return transcript data in JSONL format', async ({ request }) => {
       const response = await request.get(
-        process.env.BACKEND_URL || 'http://localhost:3000' + '/api/transcript/main-transcript.jsonl'
+        (process.env.BACKEND_URL || 'http://localhost:3000') + '/api/transcript/main-transcript.jsonl'
       );
 
       expect(response.ok()).toBe(true);
@@ -75,7 +75,7 @@ test.describe('LocalStack S3 Integration', () => {
 
       for (const filename of invalidFilenames) {
         const response = await request.get(
-          process.env.BACKEND_URL || 'http://localhost:3000' + `/api/transcript/${filename}`
+          (process.env.BACKEND_URL || 'http://localhost:3000') + `/api/transcript/${filename}`
         );
 
         expect(response.status()).toBe(400);
@@ -84,7 +84,7 @@ test.describe('LocalStack S3 Integration', () => {
 
     test('should return 404 for non-existent transcripts', async ({ request }) => {
       const response = await request.get(
-        process.env.BACKEND_URL || 'http://localhost:3000' + '/api/transcript/non-existent.jsonl'
+        (process.env.BACKEND_URL || 'http://localhost:3000') + '/api/transcript/non-existent.jsonl'
       );
 
       expect(response.status()).toBe(404);
