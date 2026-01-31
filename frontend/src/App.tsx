@@ -113,11 +113,10 @@ function App() {
             </div>
           )}
 
-          {currentTranscript && !loading && (
-            <div data-testid="transcript-content" className="transcript-content">
-              <h2 data-testid="transcript-title">{getTranscriptTitle()}</h2>
-
-              <div data-testid="transcript-list" className="message-list">
+          <div data-testid="transcript-list" className="message-list">
+            {currentTranscript && !loading ? (
+              <>
+                <h2 data-testid="transcript-title">{getTranscriptTitle()}</h2>
                 {currentTranscript.messages.map((message, index) => (
                   <div
                     key={index}
@@ -140,9 +139,9 @@ function App() {
                     )}
                   </div>
                 ))}
-              </div>
-            </div>
-          )}
+              </>
+            ) : null}
+          </div>
         </div>
       </div>
     </div>
