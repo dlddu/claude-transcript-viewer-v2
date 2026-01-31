@@ -1,0 +1,25 @@
+{
+  "name": "claude-transcript-viewer-v2",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Claude Code transcript viewer with subagent support",
+  "scripts": {
+    "dev": "pnpm --parallel dev",
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "test:e2e": "pnpm --filter e2e test",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck"
+  },
+  "keywords": [
+    "claude",
+    "transcript",
+    "viewer"
+  ],
+  "author": "",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  }
+}

@@ -1,0 +1,264 @@
+{
+  "success": true,
+  "tests_created": [
+    {
+      "file": "/tmp/claude-transcript-viewer-v2/packages/e2e/tests/transcript-viewer.spec.ts",
+      "action": "created",
+      "type": "e2e",
+      "test_cases": [
+        {
+          "name": "should load and display transcript from S3",
+          "description": "Verifies that the application can fetch and display transcript data from S3 via backend API",
+          "category": "happy_path"
+        },
+        {
+          "name": "should display loading state initially",
+          "description": "Checks that a loading indicator is shown while transcript is being fetched",
+          "category": "happy_path"
+        },
+        {
+          "name": "should handle transcript fetch errors gracefully",
+          "description": "Ensures error messages are displayed when API requests fail",
+          "category": "error_case"
+        },
+        {
+          "name": "should display transcript entries with correct structure",
+          "description": "Validates that each transcript entry contains role, content, and timestamp",
+          "category": "happy_path"
+        },
+        {
+          "name": "should display subagent link when present in transcript",
+          "description": "Verifies subagent references are displayed for entries that have subagent_id",
+          "category": "happy_path"
+        },
+        {
+          "name": "should not display subagent link when not present",
+          "description": "Ensures subagent link is not shown for entries without subagent_id",
+          "category": "edge_case"
+        },
+        {
+          "name": "should display page title",
+          "description": "Checks that the main page title is rendered correctly",
+          "category": "happy_path"
+        },
+        {
+          "name": "should apply correct styling to user and assistant messages",
+          "description": "Validates that different role types have appropriate CSS classes",
+          "category": "happy_path"
+        },
+        {
+          "name": "should successfully fetch transcript via backend proxy",
+          "description": "Verifies that frontend makes API calls to backend endpoint",
+          "category": "happy_path"
+        },
+        {
+          "name": "should handle 404 errors when transcript not found",
+          "description": "Tests error handling for non-existent transcript files",
+          "category": "error_case"
+        }
+      ]
+    },
+    {
+      "file": "/tmp/claude-transcript-viewer-v2/packages/e2e/tests/localstack-integration.spec.ts",
+      "action": "created",
+      "type": "integration",
+      "test_cases": [
+        {
+          "name": "should retrieve main transcript from S3 bucket",
+          "description": "Tests end-to-end flow of fetching transcript from LocalStack S3",
+          "category": "happy_path"
+        },
+        {
+          "name": "should handle S3 connection errors gracefully",
+          "description": "Simulates S3 connection failure and verifies error handling",
+          "category": "error_case"
+        },
+        {
+          "name": "should proxy S3 requests through backend API",
+          "description": "Verifies backend health endpoint is accessible",
+          "category": "happy_path"
+        },
+        {
+          "name": "should return transcript data in JSONL format",
+          "description": "Validates that backend returns correct content-type and valid JSONL data",
+          "category": "happy_path"
+        },
+        {
+          "name": "should validate filename and prevent path traversal",
+          "description": "Security test to ensure path traversal attacks are blocked",
+          "category": "edge_case"
+        },
+        {
+          "name": "should return 404 for non-existent transcripts",
+          "description": "Tests proper error response for missing files",
+          "category": "error_case"
+        },
+        {
+          "name": "should load fixture data with expected structure",
+          "description": "Validates that test fixtures are correctly loaded and displayed",
+          "category": "happy_path"
+        },
+        {
+          "name": "should include subagent references in fixture data",
+          "description": "Verifies that fixture data contains subagent_id fields",
+          "category": "happy_path"
+        }
+      ]
+    }
+  ],
+  "test_summary": {
+    "total_files": 2,
+    "total_test_cases": 18,
+    "new_test_cases": 18,
+    "modified_test_cases": 0
+  },
+  "workflow_changes": {
+    "file": "/tmp/claude-transcript-viewer-v2/.github/workflows/ci.yml",
+    "action": "created",
+    "changes": [
+      "Added LocalStack service container for S3 testing",
+      "Added Playwright installation step",
+      "Added S3 bucket creation and fixture upload",
+      "Added backend and frontend server startup",
+      "Added E2E test execution",
+      "Added test report and log artifact upload",
+      "Added type check and lint jobs"
+    ]
+  },
+  "test_commands": {
+    "run_all": "pnpm test",
+    "run_e2e": "pnpm test:e2e",
+    "run_specific": "pnpm --filter e2e test",
+    "run_headed": "pnpm --filter e2e test:headed",
+    "run_ui": "pnpm --filter e2e test:ui",
+    "run_debug": "pnpm --filter e2e test:debug",
+    "typecheck": "pnpm typecheck",
+    "lint": "pnpm lint"
+  },
+  "dependencies_needed": [
+    {
+      "package": "frontend",
+      "dependencies": [
+        {
+          "name": "react",
+          "version": "^18.3.1",
+          "type": "dependency",
+          "reason": "Core UI framework"
+        },
+        {
+          "name": "react-dom",
+          "version": "^18.3.1",
+          "type": "dependency",
+          "reason": "React DOM rendering"
+        },
+        {
+          "name": "@vitejs/plugin-react",
+          "version": "^4.3.4",
+          "type": "devDependency",
+          "reason": "Vite plugin for React support"
+        },
+        {
+          "name": "vite",
+          "version": "^6.0.5",
+          "type": "devDependency",
+          "reason": "Build tool and dev server"
+        },
+        {
+          "name": "typescript",
+          "version": "^5.7.2",
+          "type": "devDependency",
+          "reason": "TypeScript compiler"
+        }
+      ]
+    },
+    {
+      "package": "backend",
+      "dependencies": [
+        {
+          "name": "express",
+          "version": "^4.21.2",
+          "type": "dependency",
+          "reason": "Web server framework"
+        },
+        {
+          "name": "cors",
+          "version": "^2.8.5",
+          "type": "dependency",
+          "reason": "CORS middleware"
+        },
+        {
+          "name": "@aws-sdk/client-s3",
+          "version": "^3.709.0",
+          "type": "dependency",
+          "reason": "AWS S3 client for fetching transcripts"
+        },
+        {
+          "name": "tsx",
+          "version": "^4.19.2",
+          "type": "devDependency",
+          "reason": "TypeScript execution for development"
+        },
+        {
+          "name": "typescript",
+          "version": "^5.7.2",
+          "type": "devDependency",
+          "reason": "TypeScript compiler"
+        }
+      ]
+    },
+    {
+      "package": "e2e",
+      "dependencies": [
+        {
+          "name": "@playwright/test",
+          "version": "^1.49.1",
+          "type": "devDependency",
+          "reason": "End-to-end testing framework"
+        }
+      ]
+    }
+  ],
+  "fixtures": [
+    {
+      "file": "/tmp/claude-transcript-viewer-v2/fixtures/main-transcript.jsonl",
+      "description": "Main conversation transcript with 5 entries including subagent references",
+      "format": "JSONL",
+      "entries": 5
+    },
+    {
+      "file": "/tmp/claude-transcript-viewer-v2/fixtures/subagent-transcript.jsonl",
+      "description": "Subagent conversation transcript with 5 entries",
+      "format": "JSONL",
+      "entries": 5
+    }
+  ],
+  "infrastructure": {
+    "localstack": {
+      "enabled": true,
+      "services": ["s3"],
+      "port": 4566,
+      "configuration": "docker-compose.yml"
+    },
+    "docker_compose": {
+      "services": ["localstack", "backend", "frontend"],
+      "file": "/tmp/claude-transcript-viewer-v2/docker-compose.yml"
+    },
+    "github_actions": {
+      "workflows": ["ci.yml"],
+      "jobs": ["typecheck-and-lint", "test-e2e"],
+      "service_containers": ["localstack"]
+    }
+  },
+  "notes": [
+    "Tests are currently in FAILING state - this is expected for TDD Red Phase",
+    "Implementation needs to be completed to make tests pass (Green Phase)",
+    "All tests follow AAA pattern (Arrange, Act, Assert)",
+    "Tests use data-testid attributes for reliable element selection",
+    "LocalStack is configured for local S3 testing",
+    "GitHub Actions workflow includes LocalStack service container",
+    "Fixtures follow Claude Code transcript JSONL format",
+    "Security test included for path traversal prevention",
+    "Tests cover happy path, edge cases, and error cases",
+    "Next step: Run 'pnpm install' to install dependencies"
+  ]
+}
