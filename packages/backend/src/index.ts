@@ -1,8 +1,8 @@
-import express from 'express';
+import express, { Express } from 'express';
 import cors from 'cors';
 import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
 
-const app = express();
+const app: Express = express();
 const port = process.env.PORT || 3000;
 
 // Configure S3 client (supports LocalStack)
@@ -24,7 +24,7 @@ app.use(cors());
 app.use(express.json());
 
 // Health check endpoint
-app.get('/health', (req, res) => {
+app.get('/health', (_req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
