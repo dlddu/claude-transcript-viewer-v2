@@ -53,10 +53,10 @@ app.get('/api/transcript/:filename', async (req, res) => {
 
     res.setHeader('Content-Type', 'application/x-ndjson');
     res.send(bodyContents);
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error('Error fetching transcript:', error);
 
-    if (error.name === 'NoSuchKey') {
+    if (error && typeof error === 'object' && 'name' in error && error.name === 'NoSuchKey') {
       return res.status(404).json({ error: 'Transcript not found' });
     }
 
