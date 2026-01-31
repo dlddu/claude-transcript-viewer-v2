@@ -1,0 +1,8 @@
+{"type":"human","content":"Hello Claude, I need help analyzing a large dataset.","timestamp":"2026-01-31T10:00:00Z"}
+{"type":"assistant","content":"I'd be happy to help you analyze your dataset. Could you tell me more about the data you're working with?","timestamp":"2026-01-31T10:00:05Z"}
+{"type":"human","content":"It's a CSV file with sales data from the past year. About 50,000 rows.","timestamp":"2026-01-31T10:00:30Z"}
+{"type":"assistant","content":"I'll help you analyze that. Let me use a specialized data analysis agent to process this efficiently.","timestamp":"2026-01-31T10:00:35Z","subagent":"data-analyst"}
+{"type":"system","content":"Subagent 'data-analyst' started","timestamp":"2026-01-31T10:00:36Z","subagent":"data-analyst"}
+{"type":"assistant","content":"The data analyst has completed the analysis. Here are the key findings:\n\n1. Total sales: $2.5M\n2. Average order value: $125\n3. Peak sales month: December 2025\n4. Top product category: Electronics (35% of revenue)","timestamp":"2026-01-31T10:02:15Z"}
+{"type":"human","content":"Great! Can you create some visualizations for these findings?","timestamp":"2026-01-31T10:02:45Z"}
+{"type":"assistant","content":"Absolutely! I'll create several visualizations showing sales trends, category distribution, and monthly patterns.","timestamp":"2026-01-31T10:02:50Z"}

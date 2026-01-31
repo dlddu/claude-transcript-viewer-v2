@@ -1,0 +1,31 @@
+{
+  "name": "claude-transcript-viewer-v2",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Claude transcript viewer with monorepo structure",
+  "workspaces": [
+    "frontend",
+    "backend",
+    "e2e"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev --workspace=frontend\" \"npm run dev --workspace=backend\"",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "dev:backend": "npm run dev --workspace=backend",
+    "build": "npm run build --workspaces --if-present",
+    "build:frontend": "npm run build --workspace=frontend",
+    "build:backend": "npm run build --workspace=backend",
+    "test": "npm run test:e2e",
+    "test:e2e": "npm run test --workspace=e2e",
+    "test:e2e:ui": "npm run test:ui --workspace=e2e",
+    "setup:localstack": "npm run setup:localstack --workspace=e2e",
+    "clean": "rm -rf frontend/dist backend/dist e2e/playwright-report e2e/test-results"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  }
+}
