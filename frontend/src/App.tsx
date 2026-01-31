@@ -113,34 +113,36 @@ function App() {
             </div>
           )}
 
-          <div data-testid="transcript-list" className="message-list">
-            {currentTranscript && !loading ? (
-              <>
-                <h2 data-testid="transcript-title">{getTranscriptTitle()}</h2>
-                {currentTranscript.messages.map((message, index) => (
-                  <div
-                    key={index}
-                    data-testid={`message-${index}`}
-                    className={`message message-${message.type}`}
-                  >
-                    <div data-testid="message-type" className="message-type">
-                      {message.type}
-                      {message.agent && ` (${message.agent})`}
-                      {message.subagent && ` (${message.subagent})`}
-                      {message.tool && ` - ${message.tool}`}
-                    </div>
-                    <div data-testid="message-content" className="message-content">
-                      {message.content}
-                    </div>
-                    {message.timestamp && (
-                      <div className="message-timestamp">
-                        {new Date(message.timestamp).toLocaleString()}
+          <div data-testid="transcript-content" className="transcript-content">
+            <div data-testid="transcript-list" className="message-list">
+              {currentTranscript && !loading ? (
+                <>
+                  <h2 data-testid="transcript-title">{getTranscriptTitle()}</h2>
+                  {currentTranscript.messages.map((message, index) => (
+                    <div
+                      key={index}
+                      data-testid={`message-${index}`}
+                      className={`message message-${message.type}`}
+                    >
+                      <div data-testid="message-type" className="message-type">
+                        {message.type}
+                        {message.agent && ` (${message.agent})`}
+                        {message.subagent && ` (${message.subagent})`}
+                        {message.tool && ` - ${message.tool}`}
                       </div>
-                    )}
-                  </div>
-                ))}
-              </>
-            ) : null}
+                      <div data-testid="message-content" className="message-content">
+                        {message.content}
+                      </div>
+                      {message.timestamp && (
+                        <div className="message-timestamp">
+                          {new Date(message.timestamp).toLocaleString()}
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </>
+              ) : null}
+            </div>
           </div>
         </div>
       </div>
