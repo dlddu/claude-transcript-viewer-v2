@@ -1,0 +1,19 @@
+{
+  "name": "claude-transcript-viewer-v2",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Claude transcript viewer with monorepo structure",
+  "scripts": {
+    "test": "pnpm -r test",
+    "test:unit": "pnpm -r test:unit",
+    "test:e2e": "pnpm --filter e2e test",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "build": "pnpm -r build"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "pnpm": ">=8.0.0"
+  },
+  "packageManager": "pnpm@8.15.0"
+}

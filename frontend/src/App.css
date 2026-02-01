@@ -1,0 +1,89 @@
+.app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+header {
+  margin-bottom: 30px;
+}
+
+.transcript-viewer {
+  background: #f5f5f5;
+  border-radius: 8px;
+  padding: 20px;
+}
+
+.loading,
+.error-message,
+.no-transcript {
+  padding: 20px;
+  text-align: center;
+}
+
+.error-message {
+  color: #d32f2f;
+}
+
+.main-content {
+  white-space: pre-wrap;
+  margin-bottom: 20px;
+}
+
+.metadata {
+  display: flex;
+  gap: 15px;
+  margin: 15px 0;
+  font-size: 0.9em;
+  color: #666;
+}
+
+.metadata-item {
+  padding: 5px 10px;
+  background: #fff;
+  border-radius: 4px;
+}
+
+.tools-used {
+  margin: 20px 0;
+}
+
+.tool-item {
+  padding: 5px 0;
+}
+
+.subagents {
+  margin-top: 30px;
+}
+
+.subagent {
+  margin-bottom: 10px;
+}
+
+.subagent-header {
+  width: 100%;
+  text-align: left;
+  padding: 12px 15px;
+  background: #2196f3;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1em;
+}
+
+.subagent-header:hover {
+  background: #1976d2;
+}
+
+.subagent-expanded {
+  padding: 15px;
+  background: white;
+  border-radius: 0 0 4px 4px;
+  margin-top: -4px;
+}
+
+.subagent-content {
+  white-space: pre-wrap;
+  margin-bottom: 10px;
+}

@@ -1,0 +1,207 @@
+name: Test
+
+on:
+  push:
+    branches: [main, dld-247-infra-test-setup]
+  pull_request:
+    branches: [main]
+
+jobs:
+  unit-tests:
+    name: Unit Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run frontend unit tests
+        run: pnpm --filter @claude-transcript-viewer/frontend test:unit
+
+      - name: Run backend unit tests
+        run: pnpm --filter @claude-transcript-viewer/backend test:unit
+
+      - name: Type check
+        run: pnpm typecheck
+
+  integration-tests:
+    name: Integration Tests with LocalStack
+    runs-on: ubuntu-latest
+
+    services:
+      localstack:
+        image: localstack/localstack:latest
+        env:
+          SERVICES: s3
+          DEBUG: 1
+          DATA_DIR: /tmp/localstack/data
+        ports:
+          - 4566:4566
+        options: >-
+          --health-cmd "awslocal s3 ls || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Wait for LocalStack to be ready
+        run: |
+          timeout 60 bash -c 'until curl -f http://localhost:4566/_localstack/health; do sleep 2; done'
+
+      - name: Create S3 bucket and upload test fixtures
+        env:
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          AWS_DEFAULT_REGION: us-east-1
+          AWS_ENDPOINT_URL: http://localhost:4566
+        run: |
+          # Install AWS CLI
+          pip install awscli-local
+
+          # Create bucket
+          awslocal s3 mb s3://test-transcripts
+
+          # Upload test fixtures
+          awslocal s3 cp e2e/fixtures/sample-main-transcript.json s3://test-transcripts/transcript-20260201-001.json
+          awslocal s3 cp e2e/fixtures/subagent-data-analyzer-20260201-001.json s3://test-transcripts/subagent-data-analyzer-20260201-001.json
+          awslocal s3 cp e2e/fixtures/subagent-visualizer-20260201-001.json s3://test-transcripts/subagent-visualizer-20260201-001.json
+
+          # Verify upload
+          awslocal s3 ls s3://test-transcripts/
+
+      - name: Run integration tests
+        env:
+          AWS_ENDPOINT_URL: http://localhost:4566
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          AWS_DEFAULT_REGION: us-east-1
+        run: pnpm --filter @claude-transcript-viewer/backend test:integration
+
+  e2e-tests:
+    name: E2E Tests with Playwright
+    runs-on: ubuntu-latest
+
+    services:
+      localstack:
+        image: localstack/localstack:latest
+        env:
+          SERVICES: s3
+          DEBUG: 1
+        ports:
+          - 4566:4566
+        options: >-
+          --health-cmd "awslocal s3 ls || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @claude-transcript-viewer/e2e exec playwright install --with-deps chromium
+
+      - name: Wait for LocalStack
+        run: |
+          timeout 60 bash -c 'until curl -f http://localhost:4566/_localstack/health; do sleep 2; done'
+
+      - name: Setup S3 test data
+        env:
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          AWS_DEFAULT_REGION: us-east-1
+          AWS_ENDPOINT_URL: http://localhost:4566
+        run: |
+          pip install awscli-local
+          awslocal s3 mb s3://test-transcripts
+          awslocal s3 cp e2e/fixtures/ s3://test-transcripts/ --recursive
+
+      - name: Build frontend
+        run: pnpm --filter @claude-transcript-viewer/frontend build
+
+      - name: Start backend server
+        env:
+          AWS_ENDPOINT_URL: http://localhost:4566
+          AWS_ACCESS_KEY_ID: test
+          AWS_SECRET_ACCESS_KEY: test
+          S3_BUCKET: test-transcripts
+        run: |
+          pnpm --filter @claude-transcript-viewer/backend start &
+          timeout 30 bash -c 'until curl -f http://localhost:3000/api/health; do sleep 2; done'
+
+      - name: Start frontend server
+        run: |
+          pnpm --filter @claude-transcript-viewer/frontend preview &
+          timeout 30 bash -c 'until curl -f http://localhost:5173; do sleep 2; done'
+
+      - name: Run E2E tests
+        env:
+          BASE_URL: http://localhost:5173
+        run: pnpm --filter @claude-transcript-viewer/e2e test
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report
+          path: e2e/playwright-report/
+          retention-days: 30
+
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run linters
+        run: pnpm lint
