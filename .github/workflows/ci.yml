@@ -47,7 +47,7 @@ jobs:
 
       - name: Install dependencies - E2E
         working-directory: ./e2e
-        run: npm ci
+        run: npm install
 
       - name: Install Playwright browsers
         working-directory: ./e2e
@@ -55,12 +55,12 @@ jobs:
 
       - name: Install dependencies - Frontend
         working-directory: ./frontend
-        run: npm ci
+        run: npm install
         continue-on-error: true
 
       - name: Install dependencies - Backend
         working-directory: ./backend
-        run: npm ci
+        run: npm install
         continue-on-error: true
 
       - name: Build Frontend
@@ -127,7 +127,7 @@ jobs:
 
       - name: Install dependencies - Frontend
         working-directory: ./frontend
-        run: npm ci
+        run: npm install
         continue-on-error: true
 
       - name: Lint Frontend
@@ -142,7 +142,7 @@ jobs:
 
       - name: Install dependencies - Backend
         working-directory: ./backend
-        run: npm ci
+        run: npm install
         continue-on-error: true
 
       - name: Lint Backend
@@ -157,7 +157,7 @@ jobs:
 
       - name: Install dependencies - E2E
         working-directory: ./e2e
-        run: npm ci
+        run: npm install
 
       - name: Type check E2E
         working-directory: ./e2e
