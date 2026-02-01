@@ -1,0 +1,429 @@
+{
+  "success": true,
+  "tests_created": [
+    {
+      "file": "e2e/tests/transcript-viewer.spec.ts",
+      "action": "created",
+      "type": "e2e",
+      "test_cases": [
+        {
+          "name": "should display application title",
+          "description": "Verifies that the main heading is visible on page load",
+          "category": "happy_path"
+        },
+        {
+          "name": "should display welcome message",
+          "description": "Verifies that the welcome text is visible",
+          "category": "happy_path"
+        },
+        {
+          "name": "should have correct page title",
+          "description": "Verifies the HTML page title",
+          "category": "happy_path"
+        },
+        {
+          "name": "should load without console errors",
+          "description": "Verifies no console errors occur during page load",
+          "category": "error_case"
+        },
+        {
+          "name": "should be responsive",
+          "description": "Verifies the app works on mobile viewport",
+          "category": "edge_case"
+        },
+        {
+          "name": "should display transcript list component when implemented",
+          "description": "Tests for transcript list component (will fail initially)",
+          "category": "happy_path"
+        },
+        {
+          "name": "should load transcripts from API when implemented",
+          "description": "Tests transcript loading from backend API",
+          "category": "happy_path"
+        },
+        {
+          "name": "should display transcript metadata when implemented",
+          "description": "Tests that transcript metadata (filename, size, date) is displayed",
+          "category": "happy_path"
+        },
+        {
+          "name": "should open transcript when clicked",
+          "description": "Tests opening a transcript viewer on click",
+          "category": "happy_path"
+        },
+        {
+          "name": "should display transcript messages",
+          "description": "Tests that messages are displayed in transcript viewer",
+          "category": "happy_path"
+        },
+        {
+          "name": "should display user and assistant messages differently",
+          "description": "Tests different styling for user vs assistant messages",
+          "category": "happy_path"
+        },
+        {
+          "name": "should display message timestamps",
+          "description": "Tests that timestamps are shown for each message",
+          "category": "happy_path"
+        },
+        {
+          "name": "should display subagent indicator when present",
+          "description": "Tests subagent indicator visibility",
+          "category": "happy_path"
+        },
+        {
+          "name": "should expand subagent transcript when clicked",
+          "description": "Tests subagent transcript expansion interaction",
+          "category": "happy_path"
+        },
+        {
+          "name": "should display subagent messages",
+          "description": "Tests that subagent messages are displayed",
+          "category": "happy_path"
+        }
+      ]
+    },
+    {
+      "file": "e2e/tests/s3-integration.spec.ts",
+      "action": "created",
+      "type": "e2e",
+      "test_cases": [
+        {
+          "name": "should connect to backend health endpoint",
+          "description": "Tests backend health check endpoint",
+          "category": "happy_path"
+        },
+        {
+          "name": "should list transcripts from S3",
+          "description": "Tests listing transcripts from S3 bucket",
+          "category": "happy_path"
+        },
+        {
+          "name": "should return transcript files with correct metadata",
+          "description": "Tests transcript metadata structure (key, size, lastModified)",
+          "category": "happy_path"
+        },
+        {
+          "name": "should retrieve specific transcript from S3",
+          "description": "Tests fetching a specific transcript by key",
+          "category": "happy_path"
+        },
+        {
+          "name": "should parse JSONL transcript correctly",
+          "description": "Tests JSONL parsing and message structure validation",
+          "category": "happy_path"
+        },
+        {
+          "name": "should handle missing transcript gracefully",
+          "description": "Tests error handling for non-existent transcripts",
+          "category": "error_case"
+        },
+        {
+          "name": "should connect to LocalStack S3",
+          "description": "Tests LocalStack health endpoint (skipped by default)",
+          "category": "happy_path"
+        },
+        {
+          "name": "should have test bucket created",
+          "description": "Tests that LocalStack bucket is properly initialized (skipped by default)",
+          "category": "happy_path"
+        },
+        {
+          "name": "should load transcripts in UI from backend",
+          "description": "Tests frontend loading transcripts from backend API",
+          "category": "happy_path"
+        },
+        {
+          "name": "should display loading state while fetching transcripts",
+          "description": "Tests loading indicator during API fetch",
+          "category": "happy_path"
+        },
+        {
+          "name": "should display error when backend is unavailable",
+          "description": "Tests error handling when backend is down",
+          "category": "error_case"
+        },
+        {
+          "name": "should fetch and display transcript content when clicked",
+          "description": "Tests full flow of clicking and loading transcript content",
+          "category": "happy_path"
+        },
+        {
+          "name": "should load transcript list within acceptable time",
+          "description": "Tests performance - transcript list should load < 3s",
+          "category": "edge_case"
+        },
+        {
+          "name": "should load transcript content within acceptable time",
+          "description": "Tests performance - transcript content should load < 2s",
+          "category": "edge_case"
+        }
+      ]
+    }
+  ],
+  "test_summary": {
+    "total_files": 2,
+    "total_test_cases": 29,
+    "new_test_cases": 29,
+    "modified_test_cases": 0,
+    "by_category": {
+      "happy_path": 23,
+      "error_case": 3,
+      "edge_case": 3
+    },
+    "by_type": {
+      "e2e": 29
+    }
+  },
+  "workflow_changes": {
+    "files": [
+      {
+        "file": ".github/workflows/ci.yml",
+        "action": "created",
+        "changes": [
+          "Added lint and typecheck job",
+          "Added build job for frontend and backend",
+          "Configured Node.js 20",
+          "Added build artifact uploads"
+        ]
+      },
+      {
+        "file": ".github/workflows/e2e.yml",
+        "action": "created",
+        "changes": [
+          "Added E2E test job",
+          "Configured LocalStack service startup",
+          "Added Playwright browser installation",
+          "Added backend and frontend server startup",
+          "Added test report uploads",
+          "Added service cleanup step"
+        ]
+      }
+    ]
+  },
+  "test_commands": {
+    "run_all": "npm test",
+    "run_e2e": "npm run test:e2e",
+    "run_e2e_ui": "npm run test:ui --workspace=e2e",
+    "run_e2e_debug": "npm run test:debug --workspace=e2e",
+    "run_e2e_headed": "npm run test:headed --workspace=e2e",
+    "view_report": "npm run test:report --workspace=e2e",
+    "install_browsers": "cd e2e && npx playwright install"
+  },
+  "fixtures_created": [
+    {
+      "file": "e2e/fixtures/transcripts/main-transcript.jsonl",
+      "description": "Sample main conversation transcript with user and assistant messages",
+      "line_count": 8
+    },
+    {
+      "file": "e2e/fixtures/transcripts/subagent-transcript.jsonl",
+      "description": "Sample subagent (codebase-analyzer) transcript",
+      "line_count": 7
+    },
+    {
+      "file": "e2e/fixtures/transcripts/test-writer-subagent.jsonl",
+      "description": "Sample test-writer subagent transcript",
+      "line_count": 10
+    }
+  ],
+  "infrastructure_created": [
+    {
+      "component": "npm workspaces",
+      "description": "Monorepo structure with 3 workspaces: frontend, backend, e2e",
+      "files": [
+        "package.json",
+        "frontend/package.json",
+        "backend/package.json",
+        "e2e/package.json"
+      ]
+    },
+    {
+      "component": "TypeScript configuration",
+      "description": "Strict TypeScript setup with shared base config",
+      "files": [
+        "tsconfig.json",
+        "frontend/tsconfig.json",
+        "frontend/tsconfig.node.json",
+        "backend/tsconfig.json",
+        "e2e/tsconfig.json"
+      ]
+    },
+    {
+      "component": "ESLint & Prettier",
+      "description": "Code quality and formatting tools",
+      "files": [
+        ".eslintrc.json",
+        ".prettierrc.json",
+        ".prettierignore"
+      ]
+    },
+    {
+      "component": "LocalStack",
+      "description": "S3 emulation for local development",
+      "files": [
+        "docker-compose.yml",
+        "localstack-init/init-s3.sh",
+        "localstack-init/fixtures/main-transcript.jsonl",
+        "localstack-init/fixtures/subagent-transcript.jsonl",
+        "localstack-init/fixtures/test-writer-subagent.jsonl"
+      ]
+    },
+    {
+      "component": "Playwright",
+      "description": "E2E testing framework configuration",
+      "files": [
+        "e2e/playwright.config.ts"
+      ]
+    }
+  ],
+  "dependencies_needed": [
+    {
+      "workspace": "root",
+      "dependencies": [
+        {
+          "name": "typescript",
+          "type": "devDependency",
+          "reason": "TypeScript compiler for all workspaces"
+        },
+        {
+          "name": "eslint",
+          "type": "devDependency",
+          "reason": "Code linting"
+        },
+        {
+          "name": "@typescript-eslint/eslint-plugin",
+          "type": "devDependency",
+          "reason": "TypeScript ESLint rules"
+        },
+        {
+          "name": "@typescript-eslint/parser",
+          "type": "devDependency",
+          "reason": "TypeScript parser for ESLint"
+        },
+        {
+          "name": "prettier",
+          "type": "devDependency",
+          "reason": "Code formatting"
+        }
+      ]
+    },
+    {
+      "workspace": "frontend",
+      "dependencies": [
+        {
+          "name": "react",
+          "type": "dependency",
+          "reason": "UI library"
+        },
+        {
+          "name": "react-dom",
+          "type": "dependency",
+          "reason": "React DOM rendering"
+        },
+        {
+          "name": "vite",
+          "type": "devDependency",
+          "reason": "Build tool and dev server"
+        },
+        {
+          "name": "@vitejs/plugin-react",
+          "type": "devDependency",
+          "reason": "Vite React plugin"
+        },
+        {
+          "name": "@types/react",
+          "type": "devDependency",
+          "reason": "React TypeScript types"
+        },
+        {
+          "name": "@types/react-dom",
+          "type": "devDependency",
+          "reason": "React DOM TypeScript types"
+        }
+      ]
+    },
+    {
+      "workspace": "backend",
+      "dependencies": [
+        {
+          "name": "express",
+          "type": "dependency",
+          "reason": "Web server framework"
+        },
+        {
+          "name": "cors",
+          "type": "dependency",
+          "reason": "CORS middleware"
+        },
+        {
+          "name": "@aws-sdk/client-s3",
+          "type": "dependency",
+          "reason": "AWS S3 client"
+        },
+        {
+          "name": "@types/express",
+          "type": "devDependency",
+          "reason": "Express TypeScript types"
+        },
+        {
+          "name": "@types/cors",
+          "type": "devDependency",
+          "reason": "CORS TypeScript types"
+        },
+        {
+          "name": "@types/node",
+          "type": "devDependency",
+          "reason": "Node.js TypeScript types"
+        },
+        {
+          "name": "tsx",
+          "type": "devDependency",
+          "reason": "TypeScript execution with hot reload"
+        }
+      ]
+    },
+    {
+      "workspace": "e2e",
+      "dependencies": [
+        {
+          "name": "@playwright/test",
+          "type": "devDependency",
+          "reason": "E2E testing framework"
+        },
+        {
+          "name": "@types/node",
+          "type": "devDependency",
+          "reason": "Node.js TypeScript types"
+        }
+      ]
+    }
+  ],
+  "notes": [
+    "TDD Red Phase: Most tests will FAIL initially as features are not yet implemented",
+    "This is expected behavior - tests define the API contract and expected functionality",
+    "Backend health check and basic page loading tests should PASS",
+    "S3 integration tests require LocalStack to be running",
+    "UI tests for transcript list/viewer will fail until components are implemented",
+    "Run 'npm install' to install all workspace dependencies",
+    "Run 'docker compose up -d localstack' to start LocalStack",
+    "Run 'npm run dev' to start frontend and backend servers",
+    "Run 'npm run test:e2e' to execute E2E tests",
+    "GitHub Actions workflows are configured but require repository setup",
+    "LocalStack initialization script will create S3 bucket and upload test fixtures",
+    "All configurations follow monorepo best practices",
+    "TypeScript strict mode is enabled for all workspaces",
+    "Project follows Test-Driven Development (TDD) methodology"
+  ],
+  "next_steps": [
+    "Install dependencies: npm install",
+    "Start LocalStack: docker compose up -d localstack",
+    "Verify LocalStack: docker compose logs localstack",
+    "Start backend: npm run dev --workspace=backend",
+    "Start frontend: npm run dev --workspace=frontend",
+    "Install Playwright browsers: cd e2e && npx playwright install",
+    "Run E2E tests: npm run test:e2e",
+    "Implement frontend components to make tests pass (TDD Green Phase)",
+    "Refactor code while keeping tests green (TDD Refactor Phase)"
+  ]
+}

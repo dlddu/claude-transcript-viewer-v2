@@ -1,0 +1,8 @@
+{"type":"message","role":"user","content":"Hello, I need help with a TypeScript project","timestamp":"2026-01-31T10:00:00Z","sessionId":"session-001"}
+{"type":"message","role":"assistant","content":"Hi there! I'd be happy to help you with your TypeScript project. What specifically do you need assistance with?","timestamp":"2026-01-31T10:00:01Z","sessionId":"session-001"}
+{"type":"message","role":"user","content":"I want to set up a monorepo with npm workspaces","timestamp":"2026-01-31T10:00:15Z","sessionId":"session-001"}
+{"type":"message","role":"assistant","content":"Great! Setting up a monorepo with npm workspaces is a good choice. Let me help you create the structure.","timestamp":"2026-01-31T10:00:16Z","sessionId":"session-001"}
+{"type":"subagent_start","agentId":"agent-001","agentType":"codebase-analyzer","parentSessionId":"session-001","timestamp":"2026-01-31T10:00:17Z"}
+{"type":"message","role":"user","content":"Can you also add E2E testing with Playwright?","timestamp":"2026-01-31T10:01:00Z","sessionId":"session-001"}
+{"type":"message","role":"assistant","content":"Absolutely! I'll add Playwright for E2E testing. This will allow you to test your application end-to-end.","timestamp":"2026-01-31T10:01:01Z","sessionId":"session-001"}
+{"type":"subagent_start","agentId":"agent-002","agentType":"test-writer","parentSessionId":"session-001","timestamp":"2026-01-31T10:01:02Z"}
