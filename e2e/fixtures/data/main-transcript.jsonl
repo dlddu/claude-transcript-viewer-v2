@@ -1,0 +1,8 @@
+{"type":"system","content":"You are Claude, an AI assistant created by Anthropic.","timestamp":"2026-02-01T10:00:00.000Z"}
+{"type":"human","content":"Can you help me build a transcript viewer app?","timestamp":"2026-02-01T10:00:15.000Z"}
+{"type":"assistant","content":"I'd be happy to help you build a transcript viewer app! Let me create a plan for this project.","timestamp":"2026-02-01T10:00:20.000Z","metadata":{"model":"claude-opus-4.5"}}
+{"type":"tool_use","name":"task","input":{"description":"Create a modern transcript viewer web application","steps":["Analyze requirements","Design UI/UX","Implement frontend","Implement backend","Add testing"]},"timestamp":"2026-02-01T10:00:25.000Z"}
+{"type":"tool_result","name":"task","content":"Task created successfully","timestamp":"2026-02-01T10:00:30.000Z","task_id":"task-001"}
+{"type":"assistant","content":"I've created a plan. Let me start by designing the frontend structure.","timestamp":"2026-02-01T10:00:35.000Z"}
+{"type":"human","content":"Great! Let's focus on the UI first.","timestamp":"2026-02-01T10:00:45.000Z"}
+{"type":"assistant","content":"I'll create a React-based UI with support for displaying different message types and nested conversations.","timestamp":"2026-02-01T10:00:50.000Z"}

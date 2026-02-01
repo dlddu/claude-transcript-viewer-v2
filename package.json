@@ -1,0 +1,39 @@
+{
+  "name": "claude-transcript-viewer-v2",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A modern web application for viewing Claude AI conversation transcripts",
+  "workspaces": [
+    "frontend",
+    "backend",
+    "e2e"
+  ],
+  "scripts": {
+    "install:all": "npm install && npm install --workspace=frontend && npm install --workspace=backend && npm install --workspace=e2e",
+    "test": "npm test --workspace=e2e",
+    "test:ui": "npm run test:ui --workspace=e2e",
+    "dev:frontend": "npm run dev --workspace=frontend",
+    "dev:backend": "npm run start --workspace=backend",
+    "build:frontend": "npm run build --workspace=frontend",
+    "lint": "npm run lint --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/yourusername/claude-transcript-viewer-v2.git"
+  },
+  "keywords": [
+    "claude",
+    "ai",
+    "transcript",
+    "viewer",
+    "react",
+    "monorepo"
+  ],
+  "author": "",
+  "license": "MIT"
+}
