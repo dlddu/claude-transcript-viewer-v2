@@ -11,8 +11,6 @@
     "strict": true,
     "skipLibCheck": true,
     "resolveJsonModule": true,
-    "allowImportingTsExtensions": true,
-    "noEmit": true,
     "types": ["node", "vitest/globals"]
   },
   "include": ["src/**/*"],
