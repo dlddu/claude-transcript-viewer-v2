@@ -42,4 +42,3 @@ pnpm-debug.log*
 tmp/
 temp/
 *.tmp
-s3-download/
