@@ -71,7 +71,7 @@ describe('S3Service', () => {
       ].join('\n');
 
       const mockStream = Readable.from([mockJsonlData]);
-      const { __mockSend } = await import('@aws-sdk/client-s3') as { __mockSend: ReturnType<typeof vi.fn> };
+      const { __mockSend } = await import('@aws-sdk/client-s3') as unknown as { __mockSend: ReturnType<typeof vi.fn> };
       __mockSend.mockResolvedValue({
         Body: mockStream,
       });
@@ -83,7 +83,7 @@ describe('S3Service', () => {
     it('should throw error when S3 object not found', async () => {
       // Arrange
       const transcriptId = 'non-existent';
-      const { __mockSend } = await import('@aws-sdk/client-s3') as any;
+      const { __mockSend } = await import('@aws-sdk/client-s3') as unknown as { __mockSend: ReturnType<typeof vi.fn> };
       __mockSend.mockRejectedValue({
         name: 'NoSuchKey',
       });
@@ -96,7 +96,7 @@ describe('S3Service', () => {
   describe('listTranscripts', () => {
     it('should list all available transcripts from S3', async () => {
       // Arrange
-      const { __mockSend } = await import('@aws-sdk/client-s3') as any;
+      const { __mockSend } = await import('@aws-sdk/client-s3') as unknown as { __mockSend: ReturnType<typeof vi.fn> };
       __mockSend.mockResolvedValue({
         Contents: [
           { Key: 'transcripts/transcript-1.jsonl' },
@@ -115,7 +115,7 @@ describe('S3Service', () => {
 
     it('should return empty array when no transcripts exist', async () => {
       // Arrange
-      const { __mockSend } = await import('@aws-sdk/client-s3') as any;
+      const { __mockSend } = await import('@aws-sdk/client-s3') as unknown as { __mockSend: ReturnType<typeof vi.fn> };
       __mockSend.mockResolvedValue({
         Contents: [],
       });

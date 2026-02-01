@@ -23,7 +23,7 @@ vi.mock('@aws-sdk/client-s3', () => {
 });
 
 describe('Transcript API Routes', () => {
-  let app: Express.Application;
+  let app: Express;
 
   beforeEach(async () => {
     // Reset mocks
@@ -50,7 +50,7 @@ describe('Transcript API Routes', () => {
       });
 
       // Act
-      const response = await request(app)
+      const response = await request(app as unknown as Express)
         .get(`/api/transcript/${transcriptId}`)
         .expect(200);
 
@@ -72,7 +72,7 @@ describe('Transcript API Routes', () => {
     it('should return 404 when transcript does not exist in S3', async () => {
       // Arrange
       const transcriptId = 'non-existent-transcript';
-      const { __mockSend } = await import('@aws-sdk/client-s3') as any;
+      const { __mockSend } = await import('@aws-sdk/client-s3') as unknown as { __mockSend: ReturnType<typeof vi.fn> };
       __mockSend.mockRejectedValue({
         name: 'NoSuchKey',
         message: 'The specified key does not exist',
@@ -90,7 +90,7 @@ describe('Transcript API Routes', () => {
     it('should return 500 on S3 connection error', async () => {
       // Arrange
       const transcriptId = 'sample-main-transcript';
-      const { __mockSend } = await import('@aws-sdk/client-s3') as any;
+      const { __mockSend } = await import('@aws-sdk/client-s3') as unknown as { __mockSend: ReturnType<typeof vi.fn> };
       __mockSend.mockRejectedValue({
         name: 'NetworkingError',
         message: 'Connection timeout',
@@ -148,7 +148,7 @@ describe('Transcript API Routes', () => {
   describe('S3 Connection Health Check', () => {
     it('should verify S3 connection on startup', async () => {
       // Arrange
-      const { __mockSend } = await import('@aws-sdk/client-s3') as any;
+      const { __mockSend } = await import('@aws-sdk/client-s3') as unknown as { __mockSend: ReturnType<typeof vi.fn> };
       __mockSend.mockResolvedValue({});
 
       // Act
@@ -163,7 +163,7 @@ describe('Transcript API Routes', () => {
 
     it('should report unhealthy if S3 is unavailable', async () => {
       // Arrange
-      const { __mockSend } = await import('@aws-sdk/client-s3') as any;
+      const { __mockSend } = await import('@aws-sdk/client-s3') as unknown as { __mockSend: ReturnType<typeof vi.fn> };
       __mockSend.mockRejectedValue(new Error('Connection failed'));
 
       // Act
