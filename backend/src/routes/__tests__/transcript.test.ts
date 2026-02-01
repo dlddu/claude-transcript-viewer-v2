@@ -106,7 +106,7 @@ describe('Transcript API Routes', () => {
 
     it('should validate transcript ID format', async () => {
       // Arrange
-      const invalidId = '../../../etc/passwd';
+      const invalidId = 'invalid@id#with$special%chars';
 
       // Act & Assert
       const response = await request(app)
