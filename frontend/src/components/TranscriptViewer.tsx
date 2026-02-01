@@ -82,7 +82,7 @@ export function TranscriptViewer({ bucket, transcriptKey }: TranscriptViewerProp
     setFilteredMessages(filtered);
   };
 
-  const handleTaskLinkClick = (taskId: string) => {
+  const handleTaskLinkClick = (_taskId: string) => {
     // Navigate to subagent transcript
     const subagentKey = transcriptKey.replace('main.jsonl', 'subagent.jsonl');
     const newUrl = `${window.location.pathname}?bucket=${encodeURIComponent(bucket)}&key=${encodeURIComponent(subagentKey)}`;
