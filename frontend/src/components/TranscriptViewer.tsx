@@ -82,14 +82,24 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
         <div className="main-content">{transcript.content}</div>
 
         {/* Metadata */}
-        {transcript.metadata && (
+        {(transcript.metadata || transcript.session_id) && (
           <div className="metadata">
-            {transcript.metadata.total_tokens && (
+            {transcript.session_id && (
+              <span className="metadata-item">
+                Session ID: {transcript.session_id}
+              </span>
+            )}
+            {transcript.metadata?.model && (
+              <span className="metadata-item">
+                {transcript.metadata.model}
+              </span>
+            )}
+            {transcript.metadata?.total_tokens && (
               <span className="metadata-item">
                 {transcript.metadata.total_tokens} tokens
               </span>
             )}
-            {transcript.metadata.duration_ms && (
+            {transcript.metadata?.duration_ms && (
               <span className="metadata-item">
                 {transcript.metadata.duration_ms} ms
               </span>

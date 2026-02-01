@@ -6,8 +6,8 @@ import { test, expect } from '@playwright/test';
  * Purpose: Test the session ID lookup functionality that allows users to search
  * for transcripts by entering a session ID.
  *
- * Test Status: SKIPPED - Tests are written before implementation (TDD Red Phase)
- * Reason: The session ID lookup UI and backend endpoint are not yet implemented.
+ * Test Status: ACTIVE - Tests ready for implementation (TDD Red Phase)
+ * Reason: Tests activated - ready to verify session ID lookup implementation.
  *
  * Expected Flow:
  * 1. User enters a session ID in the search input field
@@ -17,7 +17,7 @@ import { test, expect } from '@playwright/test';
  *
  * Fixture Data: e2e/fixtures/sample-main-transcript.json contains session_id: "session-abc123"
  */
-test.describe.skip('Session ID Lookup E2E', () => {
+test.describe('Session ID Lookup E2E', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to the app home page
     await page.goto('/');
