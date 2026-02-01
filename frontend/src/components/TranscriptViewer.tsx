@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import type { Transcript } from '../types/transcript';
 import { useTranscriptData } from '../hooks/useTranscriptData';
 
