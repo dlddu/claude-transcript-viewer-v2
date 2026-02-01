@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { TranscriptMessage } from '../types';
 import { Message } from './Message';
 
@@ -15,15 +15,7 @@ export function TranscriptViewer({ bucket, transcriptKey }: TranscriptViewerProp
   const [error, setError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    loadTranscript();
-  }, [bucket, transcriptKey]);
-
-  useEffect(() => {
-    filterMessages();
-  }, [messages, searchQuery, filterType]);
-
-  const loadTranscript = async () => {
+  const loadTranscript = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
@@ -46,7 +38,7 @@ export function TranscriptViewer({ bucket, transcriptKey }: TranscriptViewerProp
         try {
           const message = JSON.parse(line) as TranscriptMessage;
           parsedMessages.push(message);
-        } catch (err) {
+        } catch {
           throw new Error('Parse error: Invalid JSONL format');
         }
       }
@@ -57,9 +49,9 @@ export function TranscriptViewer({ bucket, transcriptKey }: TranscriptViewerProp
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [bucket, transcriptKey]);
 
-  const filterMessages = () => {
+  const filterMessages = useCallback(() => {
     let filtered = messages;
 
     // Apply type filter
@@ -80,9 +72,17 @@ export function TranscriptViewer({ bucket, transcriptKey }: TranscriptViewerProp
     }
 
     setFilteredMessages(filtered);
-  };
+  }, [messages, searchQuery, filterType]);
 
-  const handleTaskLinkClick = (_taskId: string) => {
+  useEffect(() => {
+    loadTranscript();
+  }, [loadTranscript]);
+
+  useEffect(() => {
+    filterMessages();
+  }, [filterMessages]);
+
+  const handleTaskLinkClick = () => {
     // Navigate to subagent transcript
     const subagentKey = transcriptKey.replace('main.jsonl', 'subagent.jsonl');
     const newUrl = `${window.location.pathname}?bucket=${encodeURIComponent(bucket)}&key=${encodeURIComponent(subagentKey)}`;
