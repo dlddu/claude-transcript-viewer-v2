@@ -94,14 +94,11 @@ test.describe('Session ID Lookup E2E', () => {
     // Arrange - use invalid format
     const invalidFormat = '';
 
-    // Act - attempt lookup with empty session ID
+    // Act - fill with empty session ID
     await page.getByTestId('session-id-input').fill(invalidFormat);
-    await page.getByTestId('session-id-lookup-button').click();
 
-    // Assert - validation error should be shown
-    // Lookup button might be disabled or show validation message
-    const validationMessage = page.getByText(/please.*enter.*session.*id|session.*id.*required/i);
-    await expect(validationMessage).toBeVisible();
+    // Assert - lookup button should be disabled for empty input
+    await expect(page.getByTestId('session-id-lookup-button')).toBeDisabled();
   });
 
   test('should display metadata and subagent sections after successful lookup', async ({ page }) => {

@@ -42,10 +42,7 @@ function App() {
       const data = await response.json();
       setTranscript(data);
 
-      // Navigate to transcript view
-      const transcriptPath = `/transcript/${data.id}`;
-      window.history.pushState({}, '', transcriptPath);
-      setRoute(transcriptPath);
+      // Do not navigate to avoid re-fetching - display transcript on current page
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'Failed to fetch transcript';
       setError(errorMessage);
