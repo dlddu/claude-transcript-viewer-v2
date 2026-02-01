@@ -1,0 +1,10 @@
+{"type":"user_message","timestamp":"2026-02-01T10:00:00Z","content":"Create a new feature for user authentication"}
+{"type":"assistant_message","timestamp":"2026-02-01T10:00:05Z","content":"I'll help you create a user authentication feature. Let me start by analyzing the requirements."}
+{"type":"tool_use","timestamp":"2026-02-01T10:00:10Z","tool":"Read","parameters":{"file_path":"/app/src/auth/auth.service.ts"}}
+{"type":"tool_result","timestamp":"2026-02-01T10:00:12Z","tool":"Read","result":"File not found"}
+{"type":"subagent_start","timestamp":"2026-02-01T10:00:15Z","subagent_name":"test-writer","task":"Write tests for authentication service","transcript_id":"sample-subagent-transcript"}
+{"type":"assistant_message","timestamp":"2026-02-01T10:00:20Z","content":"I've started the test-writer subagent to create tests first following TDD."}
+{"type":"subagent_end","timestamp":"2026-02-01T10:05:00Z","subagent_name":"test-writer","status":"success"}
+{"type":"assistant_message","timestamp":"2026-02-01T10:05:05Z","content":"Tests have been created. Now implementing the authentication service."}
+{"type":"tool_use","timestamp":"2026-02-01T10:05:10Z","tool":"Write","parameters":{"file_path":"/app/src/auth/auth.service.ts","content":"export class AuthService { ... }"}}
+{"type":"assistant_message","timestamp":"2026-02-01T10:05:30Z","content":"Authentication feature has been implemented successfully."}
