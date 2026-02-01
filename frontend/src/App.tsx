@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect } from 'react';
 import { TranscriptList } from './components/TranscriptList';
 import { TranscriptViewer } from './components/TranscriptViewer';
 import { fetchTranscripts, fetchTranscriptContent } from './api';
