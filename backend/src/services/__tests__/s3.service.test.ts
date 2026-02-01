@@ -44,7 +44,7 @@ describe('S3Service', () => {
       ].join('\n');
 
       const mockStream = Readable.from([mockJsonlData]);
-      const { __mockSend } = await import('@aws-sdk/client-s3') as { __mockSend: ReturnType<typeof vi.fn> };
+      const { __mockSend } = await import('@aws-sdk/client-s3') as unknown as { __mockSend: ReturnType<typeof vi.fn> };
       __mockSend.mockResolvedValue({
         Body: mockStream,
       });

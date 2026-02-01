@@ -23,16 +23,13 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: ${{ matrix.package }}/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        working-directory: ${{ matrix.package }}
         run: npm ci
 
       - name: Run ESLint
-        working-directory: ${{ matrix.package }}
-        run: npm run lint
+        run: npm run lint --workspace=${{ matrix.package }}
 
       - name: Run TypeScript check
-        working-directory: ${{ matrix.package }}
-        run: npm run typecheck
+        run: npm run typecheck --workspace=${{ matrix.package }}

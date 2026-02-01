@@ -19,23 +19,19 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: backend/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        working-directory: backend
         run: npm ci
 
       - name: Run linter
-        working-directory: backend
-        run: npm run lint
+        run: npm run lint --workspace=backend
 
       - name: Run type check
-        working-directory: backend
-        run: npm run typecheck
+        run: npm run typecheck --workspace=backend
 
       - name: Run tests
-        working-directory: backend
-        run: npm run test:coverage
+        run: npm run test:coverage --workspace=backend
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
@@ -55,23 +51,19 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: frontend/package-lock.json
+          cache-dependency-path: package-lock.json
 
       - name: Install dependencies
-        working-directory: frontend
         run: npm ci
 
       - name: Run linter
-        working-directory: frontend
-        run: npm run lint
+        run: npm run lint --workspace=frontend
 
       - name: Run type check
-        working-directory: frontend
-        run: npm run typecheck
+        run: npm run typecheck --workspace=frontend
 
       - name: Run tests
-        working-directory: frontend
-        run: npm run test:coverage
+        run: npm run test:coverage --workspace=frontend
 
       - name: Upload coverage
         uses: codecov/codecov-action@v4
@@ -107,46 +99,31 @@ jobs:
         with:
           node-version: '20'
           cache: 'npm'
-          cache-dependency-path: |
-            frontend/package-lock.json
-            backend/package-lock.json
-            e2e/package-lock.json
+          cache-dependency-path: package-lock.json
 
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: npm ci
-
-      - name: Install backend dependencies
-        working-directory: backend
-        run: npm ci
-
-      - name: Install E2E dependencies
-        working-directory: e2e
+      - name: Install dependencies
         run: npm ci
 
       - name: Install Playwright browsers
-        working-directory: e2e
         run: npx playwright install --with-deps chromium
+        working-directory: e2e
 
       - name: Wait for LocalStack to be ready
         run: |
           timeout 60 bash -c 'until curl -f http://localhost:4566/_localstack/health; do sleep 2; done'
 
       - name: Setup S3 test fixtures
-        working-directory: e2e
         env:
           LOCALSTACK_ENDPOINT: http://localhost:4566
           AWS_ACCESS_KEY_ID: test
           AWS_SECRET_ACCESS_KEY: test
           AWS_DEFAULT_REGION: us-east-1
-        run: npm run setup
+        run: npm run setup --workspace=e2e
 
       - name: Build frontend
-        working-directory: frontend
-        run: npm run build
+        run: npm run build --workspace=frontend
 
       - name: Start backend server
-        working-directory: backend
         env:
           S3_ENDPOINT: http://localhost:4566
           S3_BUCKET: claude-transcripts
@@ -154,17 +131,16 @@ jobs:
           AWS_SECRET_ACCESS_KEY: test
           AWS_DEFAULT_REGION: us-east-1
           PORT: 3000
-        run: npm run dev &
+        run: npm run dev --workspace=backend &
 
       - name: Wait for backend to be ready
         run: |
           timeout 30 bash -c 'until curl -f http://localhost:3000/api/health; do sleep 2; done'
 
       - name: Run E2E tests
-        working-directory: e2e
         env:
           BACKEND_URL: http://localhost:3000
-        run: npm test
+        run: npm test --workspace=e2e
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4
@@ -185,18 +161,14 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
 
-      - name: Install and build frontend
-        working-directory: frontend
-        run: |
-          npm ci
-          npm run build
+      - name: Install dependencies
+        run: npm ci
 
-      - name: Install and build backend
-        working-directory: backend
-        run: |
-          npm ci
-          npm run build
+      - name: Build all packages
+        run: npm run build
 
       - name: Check build artifacts
         run: |
