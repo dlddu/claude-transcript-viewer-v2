@@ -12,8 +12,9 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'healthy' });
 });
 
-// Transcripts routes
+// Transcripts routes - mounted at both /api/transcripts and /api/transcript
 app.use('/api/transcripts', transcriptsRouter);
+app.use('/api/transcript', transcriptsRouter);
 
 // 404 handler
 app.use((req, res) => {
