@@ -1,0 +1,24 @@
+{
+  "id": "subagent-data-analyzer-20260201-001",
+  "parent_transcript_id": "transcript-20260201-001",
+  "timestamp": "2026-02-01T05:00:15Z",
+  "subagent_name": "Data Analyzer Subagent",
+  "subagent_type": "analysis",
+  "content": "Subagent: Starting data analysis...\n\nStep 1: Loading dataset\n- Found 1,000 rows\n- 15 columns detected\n- Data types: 8 numeric, 5 categorical, 2 datetime\n\nStep 2: Checking data quality\n- Missing values: 23 (2.3%)\n- Duplicate rows: 0\n- Outliers detected: 12 in column 'sales_amount'\n\nStep 3: Statistical summary\n- Mean sales: $45,678\n- Median sales: $42,000\n- Standard deviation: $12,345\n\nAnalysis complete. Passing results back to main agent.",
+  "metadata": {
+    "model": "claude-sonnet-4-5",
+    "total_tokens": 456,
+    "duration_ms": 2100
+  },
+  "results": {
+    "rows": 1000,
+    "columns": 15,
+    "missing_values": 23,
+    "outliers": 12,
+    "summary_stats": {
+      "mean": 45678,
+      "median": 42000,
+      "std_dev": 12345
+    }
+  }
+}
