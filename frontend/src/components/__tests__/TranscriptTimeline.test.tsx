@@ -122,7 +122,7 @@ describe('TranscriptTimeline', () => {
 
     // Act & Assert - should not throw
     expect(() => {
-      render(<TranscriptTimeline events={[incompleteEvent as any]} />);
+      render(<TranscriptTimeline events={[incompleteEvent]} />);
     }).not.toThrow();
   });
 });

@@ -25,7 +25,7 @@ describe('useTranscript', () => {
       ],
     };
 
-    (global.fetch as any).mockResolvedValueOnce({
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: true,
       json: async () => mockData,
     });
@@ -49,7 +49,7 @@ describe('useTranscript', () => {
   it('should handle fetch errors', async () => {
     // Arrange
     const transcriptId = 'test-transcript';
-    (global.fetch as any).mockResolvedValueOnce({
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValueOnce({
       ok: false,
       status: 404,
       statusText: 'Not Found',
@@ -70,7 +70,7 @@ describe('useTranscript', () => {
   it('should handle network errors', async () => {
     // Arrange
     const transcriptId = 'test-transcript';
-    (global.fetch as any).mockRejectedValueOnce(new Error('Network error'));
+    (global.fetch as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('Network error'));
 
     // Act
     const { result } = renderHook(() => useTranscript(transcriptId));
@@ -99,7 +99,7 @@ describe('useTranscript', () => {
     const transcriptId1 = 'transcript-1';
     const transcriptId2 = 'transcript-2';
 
-    (global.fetch as any).mockResolvedValue({
+    (global.fetch as ReturnType<typeof vi.fn>).mockResolvedValue({
       ok: true,
       json: async () => ({ events: [] }),
     });

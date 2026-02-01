@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
-import { S3Client, GetObjectCommand } from '@aws-sdk/client-s3';
+import type { Express } from 'express';
 import { Readable } from 'stream';
 
 /**
@@ -23,7 +23,7 @@ vi.mock('@aws-sdk/client-s3', () => {
 });
 
 describe('Transcript API Routes', () => {
-  let app: any;
+  let app: Express.Application;
 
   beforeEach(async () => {
     // Reset mocks
@@ -44,7 +44,7 @@ describe('Transcript API Routes', () => {
       ].join('\n');
 
       const mockStream = Readable.from([mockJsonlData]);
-      const { __mockSend } = await import('@aws-sdk/client-s3') as any;
+      const { __mockSend } = await import('@aws-sdk/client-s3') as { __mockSend: ReturnType<typeof vi.fn> };
       __mockSend.mockResolvedValue({
         Body: mockStream,
       });
@@ -128,7 +128,7 @@ describe('Transcript API Routes', () => {
       ].join('\n');
 
       const mockStream = Readable.from([mockJsonlData]);
-      const { __mockSend } = await import('@aws-sdk/client-s3') as any;
+      const { __mockSend } = await import('@aws-sdk/client-s3') as { __mockSend: ReturnType<typeof vi.fn> };
       __mockSend.mockResolvedValue({
         Body: mockStream,
       });

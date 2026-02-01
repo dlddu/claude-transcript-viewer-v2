@@ -33,8 +33,10 @@ router.get('/:id', async (req: Request, res: Response) => {
 
     const transcript = await s3Service.getTranscript(id);
     res.json(transcript);
-  } catch (error: any) {
-    if (error.message === 'Transcript not found') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    if (errorMessage === 'Transcript not found') {
       return res.status(404).json({
         error: 'Transcript not found',
       });
@@ -43,7 +45,7 @@ router.get('/:id', async (req: Request, res: Response) => {
     console.error('Error fetching transcript:', error);
     res.status(500).json({
       error: 'Internal server error',
-      message: error.message,
+      message: errorMessage,
     });
   }
 });
@@ -65,8 +67,10 @@ router.get('/:id/subagent/:subagentId', async (req: Request, res: Response) => {
 
     const transcript = await s3Service.getTranscript(subagentId);
     res.json(transcript);
-  } catch (error: any) {
-    if (error.message === 'Transcript not found') {
+  } catch (error: unknown) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+
+    if (errorMessage === 'Transcript not found') {
       return res.status(404).json({
         error: 'Subagent transcript not found',
       });
@@ -75,7 +79,7 @@ router.get('/:id/subagent/:subagentId', async (req: Request, res: Response) => {
     console.error('Error fetching subagent transcript:', error);
     res.status(500).json({
       error: 'Internal server error',
-      message: error.message,
+      message: errorMessage,
     });
   }
 });

@@ -66,8 +66,8 @@ export class S3Service {
       });
 
       return { events };
-    } catch (error: any) {
-      if (error.name === 'NoSuchKey') {
+    } catch (error: unknown) {
+      if (error && typeof error === 'object' && 'name' in error && error.name === 'NoSuchKey') {
         throw new Error('Transcript not found');
       }
       throw error;

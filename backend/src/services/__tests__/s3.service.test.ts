@@ -1,5 +1,4 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest';
-import { S3Client, GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import { Readable } from 'stream';
 import { S3Service } from '../s3.service.js';
 
@@ -45,7 +44,7 @@ describe('S3Service', () => {
       ].join('\n');
 
       const mockStream = Readable.from([mockJsonlData]);
-      const { __mockSend } = await import('@aws-sdk/client-s3') as any;
+      const { __mockSend } = await import('@aws-sdk/client-s3') as { __mockSend: ReturnType<typeof vi.fn> };
       __mockSend.mockResolvedValue({
         Body: mockStream,
       });
@@ -72,7 +71,7 @@ describe('S3Service', () => {
       ].join('\n');
 
       const mockStream = Readable.from([mockJsonlData]);
-      const { __mockSend } = await import('@aws-sdk/client-s3') as any;
+      const { __mockSend } = await import('@aws-sdk/client-s3') as { __mockSend: ReturnType<typeof vi.fn> };
       __mockSend.mockResolvedValue({
         Body: mockStream,
       });

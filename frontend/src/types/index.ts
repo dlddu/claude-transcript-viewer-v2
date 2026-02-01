@@ -9,7 +9,7 @@ export interface TranscriptEvent {
   subagent_name?: string;
   task?: string;
   transcript_id?: string;
-  [key: string]: any;
+  [key: string]: unknown;
 }
 
 export interface TranscriptData {
