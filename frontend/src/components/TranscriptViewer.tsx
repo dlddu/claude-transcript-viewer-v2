@@ -1,6 +1,28 @@
 import { useState } from 'react';
-import type { Transcript } from '../types/transcript';
+import type { Transcript, TranscriptMessage, MessageContent } from '../types/transcript';
 import { useTranscriptData } from '../hooks/useTranscriptData';
+
+// Helper function to extract text from message content
+function getMessageText(content: MessageContent): string {
+  if (typeof content === 'string') {
+    return content;
+  }
+  return content
+    .filter(block => block.type === 'text' && block.text)
+    .map(block => block.text)
+    .join('\n');
+}
+
+// Helper function to extract model from messages
+function getModelFromMessages(messages?: TranscriptMessage[]): string | undefined {
+  if (!messages) return undefined;
+  for (const msg of messages) {
+    if (msg.message?.model) {
+      return msg.message.model;
+    }
+  }
+  return undefined;
+}
 
 interface TranscriptViewerProps {
   transcript?: Transcript | null;
@@ -75,23 +97,39 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
   }
 
   const transcript = propTranscript!;
+  const modelFromMessages = getModelFromMessages(transcript.messages);
+  const displayModel = transcript.metadata?.model || modelFromMessages;
 
   return (
     <div data-testid="transcript-viewer" className="transcript-viewer">
       <div className="transcript-content">
-        <div className="main-content">{transcript.content}</div>
+        {/* Render messages if available, otherwise fall back to content */}
+        {transcript.messages && transcript.messages.length > 0 ? (
+          <div className="messages">
+            {transcript.messages
+              .filter(msg => msg.type !== 'queue-operation' && msg.message)
+              .map((msg) => (
+                <div key={msg.uuid} className={`message message-${msg.message?.role}`}>
+                  <div className="message-role">{msg.message?.role === 'user' ? 'User' : 'Assistant'}:</div>
+                  <div className="message-content">{getMessageText(msg.message!.content)}</div>
+                </div>
+              ))}
+          </div>
+        ) : (
+          <div className="main-content">{transcript.content}</div>
+        )}
 
         {/* Metadata */}
-        {(transcript.metadata || transcript.session_id) && (
-          <div className="metadata">
+        {(transcript.metadata || transcript.session_id || displayModel) && (
+          <div className="metadata" data-testid="transcript-metadata">
             {transcript.session_id && (
-              <span className="metadata-item">
+              <span className="metadata-item" data-testid="session-id-display">
                 Session ID: {transcript.session_id}
               </span>
             )}
-            {transcript.metadata?.model && (
-              <span className="metadata-item">
-                {transcript.metadata.model}
+            {displayModel && (
+              <span className="metadata-item" data-testid="model-display">
+                {displayModel}
               </span>
             )}
             {transcript.metadata?.total_tokens && (
