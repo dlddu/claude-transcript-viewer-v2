@@ -101,12 +101,7 @@ export class S3Service {
       'session-abc123': {
         id: 'session-abc123',
         session_id: 'session-abc123',
-        content: 'User: Can you help me analyze this dataset?\n\nAssistant: I\'d be happy to help you analyze the dataset. Let me break this down into steps:\n\n1. First, I\'ll examine the data structure\n2. Then identify key patterns\n3. Finally, provide insights\n\nLet me start by looking at the data...',
-        metadata: {
-          model: 'claude-sonnet-4-5',
-          total_tokens: 1234,
-          duration_ms: 5432,
-        },
+        content: '{"type":"user","sessionId":"session-abc123","timestamp":"2026-02-01T05:00:00Z","uuid":"msg-001","parentUuid":null,"message":{"role":"user","content":"Can you help me analyze this dataset?"}}\n{"type":"assistant","sessionId":"session-abc123","timestamp":"2026-02-01T05:00:05Z","uuid":"msg-002","parentUuid":"msg-001","message":{"role":"assistant","content":"I\'d be happy to help you analyze the dataset.","model":"claude-sonnet-4-5"}}',
         messages: [
           {
             type: 'user',
@@ -141,16 +136,23 @@ export class S3Service {
         ],
         subagents: [
           {
-            id: 'subagent-data-analyzer',
-            name: 'Data Analyzer Subagent',
-            transcript_file: 'subagent-data-analyzer-20260201-001.json',
-            content: 'Analyzing dataset structure and patterns...',
-          },
-          {
-            id: 'subagent-visualizer',
-            name: 'Visualization Subagent',
-            transcript_file: 'subagent-visualizer-20260201-001.json',
-            content: 'Creating visualization for the analysis results...',
+            id: 'agent-a1b2c3d',
+            name: 'agent-a1b2c3d',
+            transcript_file: 'session-abc123/agent-a1b2c3d.jsonl',
+            content: '{"type":"user","sessionId":"agent-a1b2c3d","timestamp":"2026-02-01T05:00:10Z","uuid":"sub-001","parentUuid":null,"message":{"role":"user","content":"Analyze the CSV file"}}',
+            messages: [
+              {
+                type: 'user',
+                sessionId: 'agent-a1b2c3d',
+                timestamp: '2026-02-01T05:00:10Z',
+                uuid: 'sub-001',
+                parentUuid: null,
+                message: {
+                  role: 'user',
+                  content: 'Analyze the CSV file',
+                },
+              },
+            ],
           },
         ],
       },

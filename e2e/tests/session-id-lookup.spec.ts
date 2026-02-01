@@ -110,16 +110,14 @@ test.describe('Session ID Lookup E2E', () => {
     await page.getByTestId('session-id-lookup-button').click();
 
     // Assert - verify complete transcript structure is displayed
-    // Main transcript content
+    // Main transcript content (from JSONL content field)
     await expect(page.getByText(/Can you help me analyze this dataset/i)).toBeVisible();
 
-    // Metadata information
+    // Model information should be visible (in raw JSONL content)
     await expect(page.getByText(/claude-sonnet-4-5/i)).toBeVisible();
-    await expect(page.getByText(/1234.*tokens/i)).toBeVisible();
 
-    // Subagent sections should be visible
-    await expect(page.getByText('Data Analyzer Subagent')).toBeVisible();
-    await expect(page.getByText('Visualization Subagent')).toBeVisible();
+    // Subagent section should be visible (mock data has agent-a1b2c3d)
+    await expect(page.getByText('agent-a1b2c3d')).toBeVisible();
   });
 
   test('should allow searching for a different session ID after initial lookup', async ({ page }) => {
