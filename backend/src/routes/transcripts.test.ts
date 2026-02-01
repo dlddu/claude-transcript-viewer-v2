@@ -67,7 +67,8 @@ describe('Transcripts API', () => {
       expect(response.body).toHaveProperty('session_id', sessionId);
       expect(response.body).toHaveProperty('id');
       expect(response.body).toHaveProperty('content');
-      expect(response.body).toHaveProperty('metadata');
+      expect(response.body).toHaveProperty('messages');
+      expect(Array.isArray(response.body.messages)).toBe(true);
     });
 
     it('should return 404 when session ID not found', async () => {
@@ -96,7 +97,7 @@ describe('Transcripts API', () => {
       expect(Array.isArray(response.body.subagents)).toBe(true);
     });
 
-    it('should include tools_used array in response', async () => {
+    it('should include messages with proper structure', async () => {
       // Arrange
       const sessionId = 'session-abc123';
 
@@ -105,8 +106,15 @@ describe('Transcripts API', () => {
 
       // Assert
       expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('tools_used');
-      expect(Array.isArray(response.body.tools_used)).toBe(true);
+      expect(response.body).toHaveProperty('messages');
+      expect(Array.isArray(response.body.messages)).toBe(true);
+      // Each message should have required fields
+      if (response.body.messages.length > 0) {
+        const firstMessage = response.body.messages[0];
+        expect(firstMessage).toHaveProperty('type');
+        expect(firstMessage).toHaveProperty('sessionId');
+        expect(firstMessage).toHaveProperty('uuid');
+      }
     });
 
     it('should handle S3 errors gracefully', async () => {
@@ -134,7 +142,7 @@ describe('Transcripts API', () => {
       expect(response.body).toHaveProperty('session_id', 'session-abc123');
     });
 
-    it('should return consistent response structure matching fixture data', async () => {
+    it('should return consistent response structure matching JSONL format', async () => {
       // Arrange
       const sessionId = 'session-abc123';
 
@@ -146,16 +154,20 @@ describe('Transcripts API', () => {
       expect(response.body).toMatchObject({
         id: expect.any(String),
         session_id: sessionId,
-        timestamp: expect.any(String),
         content: expect.any(String),
-        metadata: {
-          model: expect.any(String),
-          total_tokens: expect.any(Number),
-          duration_ms: expect.any(Number),
-        },
+        messages: expect.any(Array),
         subagents: expect.any(Array),
-        tools_used: expect.any(Array),
       });
+
+      // Verify message structure matches JSONL format
+      if (response.body.messages.length > 0) {
+        const message = response.body.messages[0];
+        expect(message).toMatchObject({
+          type: expect.stringMatching(/^(user|assistant|queue-operation)$/),
+          sessionId: expect.any(String),
+          uuid: expect.any(String),
+        });
+      }
     });
   });
 

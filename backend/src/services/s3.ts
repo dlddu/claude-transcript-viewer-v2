@@ -7,27 +7,55 @@ export interface S3ServiceConfig {
   endpoint?: string;
 }
 
+// Message content can be a string or an array of content blocks
+export type MessageContent = string | Array<{
+  type: string;
+  text?: string;
+  id?: string;
+  name?: string;
+  input?: unknown;
+  tool_use_id?: string;
+  content?: string;
+}>;
+
+// Individual message in a transcript (JSONL line)
+export interface TranscriptMessage {
+  type: 'user' | 'assistant' | 'queue-operation';
+  sessionId: string;
+  timestamp: string;
+  uuid: string;
+  parentUuid: string | null;
+  message?: {
+    role: 'user' | 'assistant';
+    content: MessageContent;
+    model?: string;
+  };
+  // queue-operation specific fields
+  operation?: string;
+  // Additional metadata
+  cwd?: string;
+  version?: string;
+  gitBranch?: string;
+  isSidechain?: boolean;
+  userType?: string;
+}
+
+// Subagent transcript
+export interface SubagentTranscript {
+  id: string;
+  name: string;
+  content?: string;
+  messages?: TranscriptMessage[];
+  transcript_file?: string;
+}
+
+// Main transcript structure
 export interface Transcript {
   id: string;
+  session_id?: string;
   content: string;
-  timestamp?: string;
-  subagents?: Array<{
-    id: string;
-    name: string;
-    content?: string;
-    type?: string;
-    invoked_at?: string;
-    transcript_file?: string;
-  }>;
-  metadata?: {
-    model?: string;
-    total_tokens?: number;
-    duration_ms?: number;
-  };
-  tools_used?: Array<{
-    name: string;
-    invocations: number;
-  }>;
+  messages?: TranscriptMessage[];
+  subagents?: SubagentTranscript[];
   [key: string]: unknown;
 }
 
@@ -68,62 +96,100 @@ export class S3Service {
 
     this.s3Client = new S3Client(clientConfig);
 
-    // Mock data indexed by session_id for testing
+    // Mock data indexed by session_id for testing (matches real JSONL structure)
     this.mockTranscriptBySession = {
       'session-abc123': {
-        id: 'transcript-20260201-001',
-        content: 'User: Can you help me analyze this dataset?\n\nAssistant: I\'d be happy to help you analyze the dataset. Let me break this down into steps:\n\n1. First, I\'ll examine the data structure\n2. Then identify key patterns\n3. Finally, provide insights\n\nLet me start by looking at the data...',
-        timestamp: '2026-02-01T05:00:00Z',
+        id: 'session-abc123',
         session_id: 'session-abc123',
-        metadata: {
-          model: 'claude-sonnet-4-5',
-          total_tokens: 1234,
-          duration_ms: 5432,
-        },
-        subagents: [
+        content: '{"type":"user","sessionId":"session-abc123","timestamp":"2026-02-01T05:00:00Z","uuid":"msg-001","parentUuid":null,"message":{"role":"user","content":"Can you help me analyze this dataset?"}}\n{"type":"assistant","sessionId":"session-abc123","timestamp":"2026-02-01T05:00:05Z","uuid":"msg-002","parentUuid":"msg-001","message":{"role":"assistant","content":"I\'d be happy to help you analyze the dataset.","model":"claude-sonnet-4-5"}}',
+        messages: [
           {
-            id: 'subagent-data-analyzer',
-            name: 'Data Analyzer Subagent',
-            type: 'analysis',
-            invoked_at: '2026-02-01T05:00:15Z',
-            transcript_file: 'subagent-data-analyzer-20260201-001.json',
+            type: 'user',
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:00Z',
+            uuid: 'msg-001',
+            parentUuid: null,
+            message: {
+              role: 'user',
+              content: 'Can you help me analyze this dataset?',
+            },
+            cwd: '/app',
+            version: '2.1.0',
           },
           {
-            id: 'subagent-visualizer',
-            name: 'Visualization Subagent',
-            type: 'visualization',
-            invoked_at: '2026-02-01T05:00:45Z',
-            transcript_file: 'subagent-visualizer-20260201-001.json',
+            type: 'assistant',
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'msg-002',
+            parentUuid: 'msg-001',
+            message: {
+              role: 'assistant',
+              content: [
+                { type: 'text', text: 'I\'d be happy to help you analyze the dataset.' },
+                { type: 'tool_use', id: 'tool-001', name: 'Read', input: { file_path: '/data/input.csv' } },
+              ],
+              model: 'claude-sonnet-4-5',
+            },
+            cwd: '/app',
+            version: '2.1.0',
           },
         ],
-        tools_used: [
+        subagents: [
           {
-            name: 'file_reader',
-            invocations: 3,
-          },
-          {
-            name: 'data_analyzer',
-            invocations: 1,
+            id: 'agent-a1b2c3d',
+            name: 'agent-a1b2c3d',
+            transcript_file: 'session-abc123/agent-a1b2c3d.jsonl',
+            content: '{"type":"user","sessionId":"agent-a1b2c3d","timestamp":"2026-02-01T05:00:10Z","uuid":"sub-001","parentUuid":null,"message":{"role":"user","content":"Analyze the CSV file"}}',
+            messages: [
+              {
+                type: 'user',
+                sessionId: 'agent-a1b2c3d',
+                timestamp: '2026-02-01T05:00:10Z',
+                uuid: 'sub-001',
+                parentUuid: null,
+                message: {
+                  role: 'user',
+                  content: 'Analyze the CSV file',
+                },
+              },
+            ],
           },
         ],
       },
       'session-xyz789': {
-        id: 'transcript-20260201-002',
-        content: 'User: Can you summarize this report?\n\nAssistant: I\'ll help you summarize the report. Let me review the key points:\n\n1. Executive summary\n2. Main findings\n3. Recommendations\n\nStarting with the executive summary...',
-        timestamp: '2026-02-01T06:00:00Z',
+        id: 'session-xyz789',
         session_id: 'session-xyz789',
-        metadata: {
-          model: 'claude-sonnet-4-5',
-          total_tokens: 567,
-          duration_ms: 2100,
-        },
-        subagents: [],
-        tools_used: [
+        content: '{"type":"user","sessionId":"session-xyz789","timestamp":"2026-02-01T06:00:00Z","uuid":"msg-101","parentUuid":null,"message":{"role":"user","content":"Can you summarize this report?"}}\n{"type":"assistant","sessionId":"session-xyz789","timestamp":"2026-02-01T06:00:03Z","uuid":"msg-102","parentUuid":"msg-101","message":{"role":"assistant","content":"I\'ll help you summarize the report.","model":"claude-sonnet-4-5"}}',
+        messages: [
           {
-            name: 'document_reader',
-            invocations: 1,
+            type: 'user',
+            sessionId: 'session-xyz789',
+            timestamp: '2026-02-01T06:00:00Z',
+            uuid: 'msg-101',
+            parentUuid: null,
+            message: {
+              role: 'user',
+              content: 'Can you summarize this report?',
+            },
+            cwd: '/app',
+            version: '2.1.0',
+          },
+          {
+            type: 'assistant',
+            sessionId: 'session-xyz789',
+            timestamp: '2026-02-01T06:00:03Z',
+            uuid: 'msg-102',
+            parentUuid: 'msg-101',
+            message: {
+              role: 'assistant',
+              content: 'I\'ll help you summarize the report. Let me review the key points.',
+              model: 'claude-sonnet-4-5',
+            },
+            cwd: '/app',
+            version: '2.1.0',
           },
         ],
+        subagents: [],
       },
     };
   }
@@ -226,45 +292,97 @@ export class S3Service {
       throw new Error('No transcript found for session ID');
     }
 
-    // For production, list all transcripts and find matching session_id
+    // For production, use session ID as S3 key prefix for efficient lookup
     try {
-      const command = new ListObjectsV2Command({
+      // List objects with session ID prefix
+      const listCommand = new ListObjectsV2Command({
         Bucket: this.bucket,
+        Prefix: trimmedSessionId,
       });
 
-      const response = await this.s3Client.send(command);
+      const listResponse = await this.s3Client.send(listCommand);
 
-      if (!response.Contents || response.Contents.length === 0) {
+      if (!listResponse.Contents || listResponse.Contents.length === 0) {
         throw new Error('No transcript found for session ID');
       }
 
-      // Fetch each transcript and check for matching session_id
-      for (const item of response.Contents) {
-        if (!item.Key) continue;
+      // Find main transcript file (sessionId.jsonl or sessionId.json)
+      const mainTranscriptKey = listResponse.Contents.find(
+        item => item.Key === `${trimmedSessionId}.jsonl` || item.Key === `${trimmedSessionId}.json`
+      )?.Key;
 
-        try {
-          const getCommand = new GetObjectCommand({
-            Bucket: this.bucket,
-            Key: item.Key,
-          });
-
-          const getResponse = await this.s3Client.send(getCommand);
-
-          if (!getResponse.Body) continue;
-
-          const bodyString = await getResponse.Body.transformToString();
-          const transcript = JSON.parse(bodyString) as Transcript;
-
-          if (transcript.session_id === trimmedSessionId) {
-            return transcript;
-          }
-        } catch (error) {
-          // Skip files that can't be parsed
-          continue;
-        }
+      if (!mainTranscriptKey) {
+        throw new Error('No transcript found for session ID');
       }
 
-      throw new Error('No transcript found for session ID');
+      // Fetch main transcript
+      const getCommand = new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: mainTranscriptKey,
+      });
+
+      const getResponse = await this.s3Client.send(getCommand);
+
+      if (!getResponse.Body) {
+        throw new Error('No transcript found for session ID');
+      }
+
+      const bodyString = await getResponse.Body.transformToString();
+
+      // Handle JSONL format (newline-delimited JSON)
+      let transcript: Transcript;
+      if (mainTranscriptKey.endsWith('.jsonl')) {
+        const lines = bodyString.trim().split('\n').filter(line => line.trim());
+        const parsedLines = lines.map(line => JSON.parse(line));
+        transcript = {
+          id: trimmedSessionId,
+          session_id: trimmedSessionId,
+          content: bodyString,
+          messages: parsedLines,
+        } as Transcript;
+      } else {
+        transcript = JSON.parse(bodyString) as Transcript;
+      }
+
+      // Find and attach subagent files
+      const subagentFiles = listResponse.Contents.filter(
+        item => item.Key?.startsWith(`${trimmedSessionId}/`) && item.Key?.includes('agent-')
+      );
+
+      if (subagentFiles.length > 0) {
+        const subagentTranscripts = await Promise.all(
+          subagentFiles.map(async (item) => {
+            if (!item.Key) return null;
+            try {
+              const subagentCommand = new GetObjectCommand({
+                Bucket: this.bucket,
+                Key: item.Key,
+              });
+              const subagentResponse = await this.s3Client.send(subagentCommand);
+              if (!subagentResponse.Body) return null;
+
+              const subagentBody = await subagentResponse.Body.transformToString();
+              const fileName = item.Key.split('/').pop() || item.Key;
+              const agentId = fileName.replace('.jsonl', '').replace('.json', '');
+
+              return {
+                id: agentId,
+                name: agentId,
+                transcript_file: item.Key,
+                content: subagentBody,
+              };
+            } catch {
+              return null;
+            }
+          })
+        );
+
+        transcript.subagents = subagentTranscripts.filter(
+          (s): s is NonNullable<typeof s> => s !== null
+        );
+      }
+
+      return transcript;
     } catch (error: unknown) {
       if (error instanceof Error) {
         if (error.message === 'No transcript found for session ID' || error.message === 'Session ID is required') {
