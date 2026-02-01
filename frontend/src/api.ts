@@ -16,5 +16,5 @@ export async function fetchTranscriptContent(key: string): Promise<TranscriptMes
   }
   const text = await response.text();
   const lines = text.trim().split('\n');
-  return lines.map(line => JSON.parse(line));
+  return lines.map((line) => JSON.parse(line));
 }
