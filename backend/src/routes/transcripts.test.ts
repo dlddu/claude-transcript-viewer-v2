@@ -85,7 +85,7 @@ describe('Transcripts API', () => {
 
     it('should return 400 when session ID is invalid format', async () => {
       // Arrange
-      const invalidSessionId = '';
+      const invalidSessionId = '   '; // whitespace only
 
       // Act
       const response = await request(app).get(`/api/transcript/session/${invalidSessionId}`);

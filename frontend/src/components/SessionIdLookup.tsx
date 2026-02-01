@@ -70,7 +70,7 @@ export function SessionIdLookup({
     }
   };
 
-  const isButtonDisabled = isLoading || !sessionId.trim();
+  const isButtonDisabled = isLoading;
   const displayError = error || validationError;
   const errorId = displayError ? 'session-id-error' : undefined;
 
@@ -90,7 +90,7 @@ export function SessionIdLookup({
           onKeyDown={handleKeyDown}
           disabled={isLoading}
           aria-label="Session ID"
-          aria-invalid={!!displayError}
+          aria-invalid={!!validationError}
           aria-describedby={errorId}
         />
         <button
