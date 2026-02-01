@@ -6,9 +6,11 @@ test.describe('Transcript Viewer E2E', () => {
     await page.goto('/');
   });
 
-  test('should display the main transcript viewer', async ({ page }) => {
-    // Assert - basic smoke test
-    await expect(page.getByTestId('transcript-viewer')).toBeVisible();
+  test('should display the session ID lookup interface', async ({ page }) => {
+    // Assert - basic smoke test for new UI flow
+    // After session lookup feature, home page shows session-id-input instead of transcript-viewer
+    await expect(page.getByTestId('session-id-input')).toBeVisible();
+    await expect(page.getByTestId('session-id-lookup-button')).toBeVisible();
   });
 
   // The following tests require routing implementation (DLD-248+)

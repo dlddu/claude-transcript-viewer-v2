@@ -107,6 +107,24 @@ export class S3Service {
           },
         ],
       },
+      'session-xyz789': {
+        id: 'transcript-20260201-002',
+        content: 'User: Can you summarize this report?\n\nAssistant: I\'ll help you summarize the report. Let me review the key points:\n\n1. Executive summary\n2. Main findings\n3. Recommendations\n\nStarting with the executive summary...',
+        timestamp: '2026-02-01T06:00:00Z',
+        session_id: 'session-xyz789',
+        metadata: {
+          model: 'claude-sonnet-4-5',
+          total_tokens: 567,
+          duration_ms: 2100,
+        },
+        subagents: [],
+        tools_used: [
+          {
+            name: 'document_reader',
+            invocations: 1,
+          },
+        ],
+      },
     };
   }
 
