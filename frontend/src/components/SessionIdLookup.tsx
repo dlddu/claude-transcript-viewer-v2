@@ -66,11 +66,15 @@ export function SessionIdLookup({
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
-      handleLookup();
+      const trimmedSessionId = sessionId.trim();
+      // Only trigger lookup if there's a valid session ID
+      if (trimmedSessionId) {
+        handleLookup();
+      }
     }
   };
 
-  const isButtonDisabled = isLoading;
+  const isButtonDisabled = isLoading || !sessionId.trim();
   const displayError = error || validationError;
   const errorId = displayError ? 'session-id-error' : undefined;
 
@@ -90,7 +94,7 @@ export function SessionIdLookup({
           onKeyDown={handleKeyDown}
           disabled={isLoading}
           aria-label="Session ID"
-          aria-invalid={!!validationError}
+          aria-invalid={!!displayError}
           aria-describedby={errorId}
         />
         <button

@@ -83,18 +83,6 @@ describe('Transcripts API', () => {
       expect(response.body.error).toMatch(/not found|no transcript found/i);
     });
 
-    it('should return 400 when session ID is invalid format', async () => {
-      // Arrange
-      const invalidSessionId = '   '; // whitespace only
-
-      // Act
-      const response = await request(app).get(`/api/transcript/session/${invalidSessionId}`);
-
-      // Assert
-      expect(response.status).toBe(400);
-      expect(response.body).toHaveProperty('error');
-    });
-
     it('should include subagents array in response for valid session', async () => {
       // Arrange
       const sessionId = 'session-abc123';

@@ -110,23 +110,6 @@ describe('SessionIdLookup', () => {
   });
 
   describe('validation', () => {
-    it('should show validation error when session ID is empty', async () => {
-      // Arrange
-      const user = userEvent.setup();
-      render(<SessionIdLookup />);
-      const button = screen.getByTestId('session-id-lookup-button');
-
-      // Act
-      await user.click(button);
-
-      // Assert
-      await waitFor(() => {
-        expect(
-          screen.getByText(/please.*enter.*session.*id|session.*id.*required/i)
-        ).toBeInTheDocument();
-      });
-    });
-
     it('should disable button when session ID is empty', () => {
       // Arrange & Act
       render(<SessionIdLookup />);
@@ -150,24 +133,21 @@ describe('SessionIdLookup', () => {
       expect(button).not.toBeDisabled();
     });
 
-    it('should clear validation error when user starts typing', async () => {
+    it('should disable button when input is cleared', async () => {
       // Arrange
       const user = userEvent.setup();
       render(<SessionIdLookup />);
       const input = screen.getByTestId('session-id-input');
       const button = screen.getByTestId('session-id-lookup-button');
 
-      // Act - trigger validation error
-      await user.click(button);
-      await waitFor(() => {
-        expect(screen.getByText(/session.*id.*required/i)).toBeInTheDocument();
-      });
+      // Act - type and then clear
+      await user.type(input, 'session-abc123');
+      expect(button).not.toBeDisabled();
 
-      // Act - start typing
-      await user.type(input, 's');
+      await user.clear(input);
 
       // Assert
-      expect(screen.queryByText(/session.*id.*required/i)).not.toBeInTheDocument();
+      expect(button).toBeDisabled();
     });
   });
 
@@ -258,39 +238,31 @@ describe('SessionIdLookup', () => {
       expect(input).toHaveAccessibleName(/session.*id/i);
     });
 
-    it('should associate error message with input using aria-describedby', async () => {
+    it('should associate error message with input using aria-describedby', () => {
       // Arrange
-      const user = userEvent.setup();
-      render(<SessionIdLookup />);
-      const button = screen.getByTestId('session-id-lookup-button');
-
-      // Act - trigger validation error
-      await user.click(button);
-
-      // Assert
-      await waitFor(() => {
-        const input = screen.getByTestId('session-id-input');
-        const errorId = input.getAttribute('aria-describedby');
-        expect(errorId).toBeTruthy();
-        const errorElement = document.getElementById(errorId!);
-        expect(errorElement).toHaveTextContent(/session.*id.*required/i);
-      });
-    });
-
-    it('should mark input as invalid when validation fails', async () => {
-      // Arrange
-      const user = userEvent.setup();
-      render(<SessionIdLookup />);
-      const button = screen.getByTestId('session-id-lookup-button');
+      const errorMessage = 'Session not found';
 
       // Act
-      await user.click(button);
+      render(<SessionIdLookup error={errorMessage} />);
 
       // Assert
-      await waitFor(() => {
-        const input = screen.getByTestId('session-id-input');
-        expect(input).toHaveAttribute('aria-invalid', 'true');
-      });
+      const input = screen.getByTestId('session-id-input');
+      const errorId = input.getAttribute('aria-describedby');
+      expect(errorId).toBeTruthy();
+      const errorElement = document.getElementById(errorId!);
+      expect(errorElement).toHaveTextContent(/session not found/i);
+    });
+
+    it('should mark input as invalid when external error is provided', () => {
+      // Arrange
+      const errorMessage = 'Session not found';
+
+      // Act
+      render(<SessionIdLookup error={errorMessage} />);
+
+      // Assert
+      const input = screen.getByTestId('session-id-input');
+      expect(input).toHaveAttribute('aria-invalid', 'true');
     });
   });
 
