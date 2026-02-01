@@ -226,45 +226,97 @@ export class S3Service {
       throw new Error('No transcript found for session ID');
     }
 
-    // For production, list all transcripts and find matching session_id
+    // For production, use session ID as S3 key prefix for efficient lookup
     try {
-      const command = new ListObjectsV2Command({
+      // List objects with session ID prefix
+      const listCommand = new ListObjectsV2Command({
         Bucket: this.bucket,
+        Prefix: trimmedSessionId,
       });
 
-      const response = await this.s3Client.send(command);
+      const listResponse = await this.s3Client.send(listCommand);
 
-      if (!response.Contents || response.Contents.length === 0) {
+      if (!listResponse.Contents || listResponse.Contents.length === 0) {
         throw new Error('No transcript found for session ID');
       }
 
-      // Fetch each transcript and check for matching session_id
-      for (const item of response.Contents) {
-        if (!item.Key) continue;
+      // Find main transcript file (sessionId.jsonl or sessionId.json)
+      const mainTranscriptKey = listResponse.Contents.find(
+        item => item.Key === `${trimmedSessionId}.jsonl` || item.Key === `${trimmedSessionId}.json`
+      )?.Key;
 
-        try {
-          const getCommand = new GetObjectCommand({
-            Bucket: this.bucket,
-            Key: item.Key,
-          });
-
-          const getResponse = await this.s3Client.send(getCommand);
-
-          if (!getResponse.Body) continue;
-
-          const bodyString = await getResponse.Body.transformToString();
-          const transcript = JSON.parse(bodyString) as Transcript;
-
-          if (transcript.session_id === trimmedSessionId) {
-            return transcript;
-          }
-        } catch (error) {
-          // Skip files that can't be parsed
-          continue;
-        }
+      if (!mainTranscriptKey) {
+        throw new Error('No transcript found for session ID');
       }
 
-      throw new Error('No transcript found for session ID');
+      // Fetch main transcript
+      const getCommand = new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: mainTranscriptKey,
+      });
+
+      const getResponse = await this.s3Client.send(getCommand);
+
+      if (!getResponse.Body) {
+        throw new Error('No transcript found for session ID');
+      }
+
+      const bodyString = await getResponse.Body.transformToString();
+
+      // Handle JSONL format (newline-delimited JSON)
+      let transcript: Transcript;
+      if (mainTranscriptKey.endsWith('.jsonl')) {
+        const lines = bodyString.trim().split('\n').filter(line => line.trim());
+        const parsedLines = lines.map(line => JSON.parse(line));
+        transcript = {
+          id: trimmedSessionId,
+          session_id: trimmedSessionId,
+          content: bodyString,
+          messages: parsedLines,
+        } as Transcript;
+      } else {
+        transcript = JSON.parse(bodyString) as Transcript;
+      }
+
+      // Find and attach subagent files
+      const subagentFiles = listResponse.Contents.filter(
+        item => item.Key?.startsWith(`${trimmedSessionId}/`) && item.Key?.includes('agent-')
+      );
+
+      if (subagentFiles.length > 0) {
+        const subagentTranscripts = await Promise.all(
+          subagentFiles.map(async (item) => {
+            if (!item.Key) return null;
+            try {
+              const subagentCommand = new GetObjectCommand({
+                Bucket: this.bucket,
+                Key: item.Key,
+              });
+              const subagentResponse = await this.s3Client.send(subagentCommand);
+              if (!subagentResponse.Body) return null;
+
+              const subagentBody = await subagentResponse.Body.transformToString();
+              const fileName = item.Key.split('/').pop() || item.Key;
+              const agentId = fileName.replace('.jsonl', '').replace('.json', '');
+
+              return {
+                id: agentId,
+                name: agentId,
+                transcript_file: item.Key,
+                content: subagentBody,
+              };
+            } catch {
+              return null;
+            }
+          })
+        );
+
+        transcript.subagents = subagentTranscripts.filter(
+          (s): s is NonNullable<typeof s> => s !== null
+        );
+      }
+
+      return transcript;
     } catch (error: unknown) {
       if (error instanceof Error) {
         if (error.message === 'No transcript found for session ID' || error.message === 'Session ID is required') {
