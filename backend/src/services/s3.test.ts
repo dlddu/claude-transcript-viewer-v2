@@ -284,4 +284,177 @@ describe('S3Service', () => {
       }
     });
   });
+
+  describe('Tool Use and Tool Result Matching', () => {
+    it('should identify tool_use content blocks in messages', async () => {
+      // Arrange
+      const sessionId = 'session-abc123';
+
+      // Act
+      const result = await s3Service.getTranscriptBySessionId(sessionId);
+
+      // Assert
+      const messagesWithToolUse = result.messages!.filter(msg => {
+        if (!msg.message || !Array.isArray(msg.message.content)) return false;
+        return msg.message.content.some(block => block.type === 'tool_use');
+      });
+
+      expect(messagesWithToolUse.length).toBeGreaterThan(0);
+
+      // Verify tool_use structure
+      messagesWithToolUse.forEach(msg => {
+        const content = msg.message!.content as Array<{
+          type: string;
+          id?: string;
+          name?: string;
+          input?: unknown;
+        }>;
+        const toolUseBlocks = content.filter(block => block.type === 'tool_use');
+
+        toolUseBlocks.forEach(block => {
+          expect(block).toHaveProperty('id');
+          expect(block).toHaveProperty('name');
+          expect(block).toHaveProperty('input');
+          expect(typeof block.id).toBe('string');
+          expect(typeof block.name).toBe('string');
+        });
+      });
+    });
+
+    it('should identify tool_result content blocks in messages', async () => {
+      // Arrange
+      const sessionId = 'session-abc123';
+
+      // Act
+      const result = await s3Service.getTranscriptBySessionId(sessionId);
+
+      // Assert
+      const messagesWithToolResult = result.messages!.filter(msg => {
+        if (!msg.message || !Array.isArray(msg.message.content)) return false;
+        return msg.message.content.some(block => block.type === 'tool_result');
+      });
+
+      expect(messagesWithToolResult.length).toBeGreaterThan(0);
+
+      // Verify tool_result structure
+      messagesWithToolResult.forEach(msg => {
+        const content = msg.message!.content as Array<{
+          type: string;
+          tool_use_id?: string;
+          content?: string;
+        }>;
+        const toolResultBlocks = content.filter(block => block.type === 'tool_result');
+
+        toolResultBlocks.forEach(block => {
+          expect(block).toHaveProperty('tool_use_id');
+          expect(block).toHaveProperty('content');
+          expect(typeof block.tool_use_id).toBe('string');
+        });
+      });
+    });
+
+    it('should match tool_use with corresponding tool_result by ID', async () => {
+      // Arrange
+      const sessionId = 'session-abc123';
+
+      // Act
+      const result = await s3Service.getTranscriptBySessionId(sessionId);
+
+      // Assert
+      const messages = result.messages!;
+
+      // Find tool_use blocks
+      const toolUseMap = new Map<string, { message: typeof messages[0]; block: { type: string; id: string; name: string; input: unknown } }>();
+
+      messages.forEach(msg => {
+        if (msg.message && Array.isArray(msg.message.content)) {
+          const content = msg.message.content as Array<{
+            type: string;
+            id?: string;
+            name?: string;
+            input?: unknown;
+          }>;
+          content.forEach(block => {
+            if (block.type === 'tool_use' && block.id) {
+              toolUseMap.set(block.id, {
+                message: msg,
+                block: { type: block.type, id: block.id, name: block.name!, input: block.input }
+              });
+            }
+          });
+        }
+      });
+
+      // Find tool_result blocks and verify they match tool_use
+      messages.forEach(msg => {
+        if (msg.message && Array.isArray(msg.message.content)) {
+          const content = msg.message.content as Array<{
+            type: string;
+            tool_use_id?: string;
+            content?: string;
+          }>;
+          content.forEach(block => {
+            if (block.type === 'tool_result' && block.tool_use_id) {
+              // Verify corresponding tool_use exists
+              const matchingToolUse = toolUseMap.get(block.tool_use_id);
+              expect(matchingToolUse).toBeDefined();
+              expect(matchingToolUse?.block.id).toBe(block.tool_use_id);
+            }
+          });
+        }
+      });
+    });
+
+    it('should preserve tool_use and tool_result order in timeline', async () => {
+      // Arrange
+      const sessionId = 'session-abc123';
+
+      // Act
+      const result = await s3Service.getTranscriptBySessionId(sessionId);
+
+      // Assert
+      const messages = result.messages!;
+      const toolInteractions: { type: 'use' | 'result'; id: string; timestamp: string }[] = [];
+
+      messages.forEach(msg => {
+        if (msg.message && Array.isArray(msg.message.content)) {
+          const content = msg.message.content as Array<{
+            type: string;
+            id?: string;
+            tool_use_id?: string;
+          }>;
+          content.forEach(block => {
+            if (block.type === 'tool_use' && block.id) {
+              toolInteractions.push({
+                type: 'use',
+                id: block.id,
+                timestamp: msg.timestamp
+              });
+            } else if (block.type === 'tool_result' && block.tool_use_id) {
+              toolInteractions.push({
+                type: 'result',
+                id: block.tool_use_id,
+                timestamp: msg.timestamp
+              });
+            }
+          });
+        }
+      });
+
+      // Verify tool_result comes after tool_use for the same ID
+      const toolUseTimestamps = new Map<string, string>();
+      toolInteractions.forEach(interaction => {
+        if (interaction.type === 'use') {
+          toolUseTimestamps.set(interaction.id, interaction.timestamp);
+        } else if (interaction.type === 'result') {
+          const useTimestamp = toolUseTimestamps.get(interaction.id);
+          if (useTimestamp) {
+            const useTime = new Date(useTimestamp).getTime();
+            const resultTime = new Date(interaction.timestamp).getTime();
+            expect(resultTime).toBeGreaterThanOrEqual(useTime);
+          }
+        }
+      });
+    });
+  });
 });

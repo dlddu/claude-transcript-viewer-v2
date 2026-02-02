@@ -6,10 +6,13 @@ import { test, expect } from '@playwright/test';
  * Purpose: Test the tool detail view functionality that displays tool_use input/output
  * details in an expandable/collapsible view when users click on messages containing tool_use.
  *
- * Test Status: SKIPPED (TDD Red Phase)
- * Reason: Tests written first to drive implementation. These tests are expected to be
- * skipped until the tool detail view feature is implemented. Once implemented, remove
- * test.skip() to activate the tests.
+ * Test Status: ACTIVE (9 tests enabled)
+ * - Most tests have been activated and are passing
+ * - 4 tests remain skipped due to unimplemented features:
+ *   1. Visual indicator class checks (expanded/active/open)
+ *   2. Syntax highlighting for JSON
+ *   3. Multiple tool_use blocks in same message (no fixture data)
+ *   4. Full accessibility attributes (role="region", aria-label)
  *
  * Expected Behavior:
  * - Messages containing tool_use can be clicked to expand details
@@ -34,7 +37,7 @@ test.describe('Tool Detail View', () => {
     await expect(page.getByTestId('transcript-viewer')).toBeVisible();
   });
 
-  test.skip('should display tool_use message in timeline', async ({ page }) => {
+  test('should display tool_use message in timeline', async ({ page }) => {
     // Arrange & Assert - Timeline should show the message with tool_use
     const timeline = page.getByTestId('timeline-view');
     await expect(timeline).toBeVisible();
@@ -49,7 +52,7 @@ test.describe('Tool Detail View', () => {
     await expect(messageWithTool.getByTestId('tool-use-indicator')).toBeVisible();
   });
 
-  test.skip('should expand tool details when message with tool_use is clicked', async ({ page }) => {
+  test('should expand tool details when message with tool_use is clicked', async ({ page }) => {
     // Arrange - Find the message with tool_use
     const timeline = page.getByTestId('timeline-view');
     const messageWithTool = timeline.locator('[data-testid="timeline-item"]').filter({
@@ -74,7 +77,7 @@ test.describe('Tool Detail View', () => {
     await expect(page.getByText(/file_path/i)).toBeVisible();
   });
 
-  test.skip('should display tool input in formatted JSON', async ({ page }) => {
+  test('should display tool input in formatted JSON', async ({ page }) => {
     // Arrange
     const timeline = page.getByTestId('timeline-view');
     const messageWithTool = timeline.locator('[data-testid="timeline-item"]').filter({
@@ -94,11 +97,11 @@ test.describe('Tool Detail View', () => {
     await expect(toolInput).toContainText('/data/input.csv');
 
     // JSON should be properly indented/formatted (look for code block or pre element)
-    const codeBlock = toolInput.locator('pre, code');
+    const codeBlock = toolInput.locator('pre, code').first();
     await expect(codeBlock).toBeVisible();
   });
 
-  test.skip('should collapse tool details when clicked again', async ({ page }) => {
+  test('should collapse tool details when clicked again', async ({ page }) => {
     // Arrange - Find and expand the message
     const timeline = page.getByTestId('timeline-view');
     const messageWithTool = timeline.locator('[data-testid="timeline-item"]').filter({
@@ -135,7 +138,7 @@ test.describe('Tool Detail View', () => {
     await expect(expandIndicator).toHaveAttribute('aria-expanded', 'true');
   });
 
-  test.skip('should show collapsed state indicator by default', async ({ page }) => {
+  test('should show collapsed state indicator by default', async ({ page }) => {
     // Arrange & Assert
     const timeline = page.getByTestId('timeline-view');
     const messageWithTool = timeline.locator('[data-testid="timeline-item"]').filter({
@@ -150,7 +153,7 @@ test.describe('Tool Detail View', () => {
     await expect(expandIndicator).toHaveAttribute('aria-expanded', 'false');
   });
 
-  test.skip('should display tool ID in details', async ({ page }) => {
+  test('should display tool ID in details', async ({ page }) => {
     // Arrange
     const timeline = page.getByTestId('timeline-view');
     const messageWithTool = timeline.locator('[data-testid="timeline-item"]').filter({
@@ -176,7 +179,7 @@ test.describe('Tool Detail View', () => {
     // Each tool should have its own expandable section
   });
 
-  test.skip('should support keyboard navigation for expand/collapse', async ({ page }) => {
+  test('should support keyboard navigation for expand/collapse', async ({ page }) => {
     // Arrange
     const timeline = page.getByTestId('timeline-view');
     const messageWithTool = timeline.locator('[data-testid="timeline-item"]').filter({
@@ -197,7 +200,7 @@ test.describe('Tool Detail View', () => {
     await expect(page.getByTestId('tool-detail-view')).not.toBeVisible();
   });
 
-  test.skip('should maintain scroll position when expanding/collapsing', async ({ page }) => {
+  test('should maintain scroll position when expanding/collapsing', async ({ page }) => {
     // Arrange - Scroll to message
     const timeline = page.getByTestId('timeline-view');
     const messageWithTool = timeline.locator('[data-testid="timeline-item"]').filter({
@@ -218,7 +221,7 @@ test.describe('Tool Detail View', () => {
     expect(scrollDiff).toBeLessThan(100); // Allow small adjustments
   });
 
-  test.skip('should display message without tool_use normally', async ({ page }) => {
+  test('should display message without tool_use normally', async ({ page }) => {
     // Arrange & Assert - Regular messages should not have tool indicators
     const timeline = page.getByTestId('timeline-view');
 
