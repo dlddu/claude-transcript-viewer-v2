@@ -116,7 +116,7 @@ export class S3Service {
       'session-abc123': {
         id: 'session-abc123',
         session_id: 'session-abc123',
-        content: '{"type":"user","sessionId":"session-abc123","timestamp":"2026-02-01T05:00:00Z","uuid":"msg-001","parentUuid":null,"message":{"role":"user","content":"Can you help me analyze this dataset?"}}',
+        content: '{"type":"user","sessionId":"session-abc123","timestamp":"2026-02-01T05:00:00Z","uuid":"msg-001","parentUuid":null,"message":{"role":"user","content":"Can you help me analyze this dataset?","model":"claude-sonnet-4-5"}}\n{"type":"assistant","sessionId":"session-abc123","timestamp":"2026-02-01T05:00:02Z","uuid":"msg-002","parentUuid":"msg-001","message":{"role":"assistant","content":"I will analyze the dataset for you.","model":"claude-sonnet-4-5"}}\n{"type":"assistant","sessionId":"session-abc123","timestamp":"2026-02-01T05:00:05Z","uuid":"msg-003","parentUuid":"msg-001","message":{"role":"assistant","content":"Analysis complete.","model":"claude-sonnet-4-5"}}',
         messages: [
           {
             type: 'user',
@@ -132,21 +132,49 @@ export class S3Service {
             cwd: '/app',
             version: '2.1.0',
           },
+          {
+            type: 'assistant',
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:02Z',
+            uuid: 'msg-002',
+            parentUuid: 'msg-001',
+            message: {
+              role: 'assistant',
+              content: 'I will analyze the dataset for you.',
+              model: 'claude-sonnet-4-5',
+            },
+            cwd: '/app',
+            version: '2.1.0',
+          },
+          {
+            type: 'assistant',
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'msg-003',
+            parentUuid: 'msg-001',
+            message: {
+              role: 'assistant',
+              content: 'Analysis complete.',
+              model: 'claude-sonnet-4-5',
+            },
+            cwd: '/app',
+            version: '2.1.0',
+          },
         ],
         subagents: [
           {
-            id: 'a1b2c3d',
+            id: 'agent-a1b2c3d',
             name: 'Data Analyzer Subagent',
             type: 'analysis',
             transcript_file: 'session-abc123/agent-a1b2c3d.jsonl',
-            content: '{"type":"assistant","sessionId":"a1b2c3d","timestamp":"2026-02-01T05:00:15Z","uuid":"sub-001","parentUuid":null,"message":{"role":"assistant","content":"Starting data analysis. Found 1,000 rows and 15 columns detected."},"isSidechain":true,"metadata":{"total_tokens":456,"duration_ms":2100}}',
+            content: '{"type":"assistant","sessionId":"session-abc123","timestamp":"2026-02-01T05:00:15Z","uuid":"sub-001","parentUuid":null,"agentId":"agent-a1b2c3d","message":{"role":"assistant","content":"Starting data analysis. Found 1,000 rows and 15 columns detected.","model":"claude-sonnet-4-5"},"isSidechain":true,"metadata":{"total_tokens":456,"duration_ms":2100}}\n{"type":"assistant","sessionId":"session-abc123","timestamp":"2026-02-01T05:00:20Z","uuid":"sub-001-2","parentUuid":"sub-001","agentId":"agent-a1b2c3d","message":{"role":"assistant","content":"Data analysis in progress...","model":"claude-sonnet-4-5"},"isSidechain":true,"metadata":{"total_tokens":200,"duration_ms":1200}}\n{"type":"assistant","sessionId":"session-abc123","timestamp":"2026-02-01T05:00:25Z","uuid":"sub-001-3","parentUuid":"sub-001-2","agentId":"agent-a1b2c3d","message":{"role":"assistant","content":"Analysis complete. Found key insights.","model":"claude-sonnet-4-5"},"isSidechain":true,"metadata":{"total_tokens":300,"duration_ms":1500}}',
           },
           {
-            id: 'xyz9876',
+            id: 'agent-xyz9876',
             name: 'Visualization Subagent',
             type: 'visualization',
             transcript_file: 'session-abc123/agent-xyz9876.jsonl',
-            content: '{"type":"assistant","sessionId":"xyz9876","timestamp":"2026-02-01T05:00:45Z","uuid":"sub-002","parentUuid":null,"message":{"role":"assistant","content":"Creating visualizations. Generated 3 charts."},"isSidechain":true,"metadata":{"total_tokens":234,"duration_ms":1800}}',
+            content: '{"type":"assistant","sessionId":"session-abc123","timestamp":"2026-02-01T05:00:45Z","uuid":"sub-002","parentUuid":null,"agentId":"agent-xyz9876","message":{"role":"assistant","content":"Creating visualizations. Generated 3 charts.","model":"claude-sonnet-4-5"},"isSidechain":true,"metadata":{"total_tokens":234,"duration_ms":1800}}\n{"type":"assistant","sessionId":"session-abc123","timestamp":"2026-02-01T05:00:50Z","uuid":"sub-002-2","parentUuid":"sub-002","agentId":"agent-xyz9876","message":{"role":"assistant","content":"Charts rendering...","model":"claude-sonnet-4-5"},"isSidechain":true,"metadata":{"total_tokens":150,"duration_ms":1000}}\n{"type":"assistant","sessionId":"session-abc123","timestamp":"2026-02-01T05:00:55Z","uuid":"sub-002-3","parentUuid":"sub-002-2","agentId":"agent-xyz9876","message":{"role":"assistant","content":"Visualization complete.","model":"claude-sonnet-4-5"},"isSidechain":true,"metadata":{"total_tokens":120,"duration_ms":800}}',
           },
         ],
       },
