@@ -97,7 +97,7 @@ test.describe('Tool Detail View', () => {
     await expect(toolInput).toContainText('/data/input.csv');
 
     // JSON should be properly indented/formatted (look for code block or pre element)
-    const codeBlock = toolInput.locator('pre, code');
+    const codeBlock = toolInput.locator('pre, code').first();
     await expect(codeBlock).toBeVisible();
   });
 
