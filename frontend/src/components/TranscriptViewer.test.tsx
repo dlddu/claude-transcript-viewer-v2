@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { render, screen, waitFor } from '@testing-library/react';
 import { TranscriptViewer } from './TranscriptViewer';
 
 describe('TranscriptViewer', () => {
@@ -588,14 +588,14 @@ describe('TranscriptViewer', () => {
       };
 
       // Act
-      const { getByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
+      const { getByTestId, findByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
       const messageWithTool = getByTestId('timeline-item');
 
       // Simulate click to expand
       messageWithTool.click();
 
       // Assert - Tool detail view should be visible
-      const toolDetailView = getByTestId('tool-detail-view');
+      const toolDetailView = await findByTestId('tool-detail-view');
       expect(toolDetailView).toBeInTheDocument();
       expect(toolDetailView).toBeVisible();
     });
@@ -631,12 +631,12 @@ describe('TranscriptViewer', () => {
       };
 
       // Act
-      const { getByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
+      const { getByTestId, findByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
       const messageWithTool = getByTestId('timeline-item');
       messageWithTool.click();
 
       // Assert
-      const toolName = getByTestId('tool-name');
+      const toolName = await findByTestId('tool-name');
       expect(toolName).toHaveTextContent('DataAnalyzer');
     });
 
@@ -671,12 +671,12 @@ describe('TranscriptViewer', () => {
       };
 
       // Act
-      const { getByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
+      const { getByTestId, findByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
       const messageWithTool = getByTestId('timeline-item');
       messageWithTool.click();
 
       // Assert
-      const toolId = getByTestId('tool-id');
+      const toolId = await findByTestId('tool-id');
       expect(toolId).toHaveTextContent('tool-001');
     });
 
@@ -711,12 +711,12 @@ describe('TranscriptViewer', () => {
       };
 
       // Act
-      const { getByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
+      const { getByTestId, findByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
       const messageWithTool = getByTestId('timeline-item');
       messageWithTool.click();
 
       // Assert
-      const toolInput = getByTestId('tool-input');
+      const toolInput = await findByTestId('tool-input');
       expect(toolInput).toBeInTheDocument();
       expect(toolInput).toHaveTextContent('file_path');
       expect(toolInput).toHaveTextContent('/data/input.csv');
@@ -775,14 +775,13 @@ describe('TranscriptViewer', () => {
       };
 
       // Act
-      const { getByTestId, getAllByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
+      const { getAllByTestId, findByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
       const timelineItems = getAllByTestId('timeline-item');
       const messageWithTool = timelineItems[0];
       messageWithTool.click();
 
       // Assert
-      const toolDetailView = getByTestId('tool-detail-view');
-      const toolOutput = getByTestId('tool-output');
+      const toolOutput = await findByTestId('tool-output');
       expect(toolOutput).toBeInTheDocument();
       expect(toolOutput).toHaveTextContent('Analysis complete. Found 1000 rows.');
     });
@@ -818,19 +817,22 @@ describe('TranscriptViewer', () => {
       };
 
       // Act
-      const { getByTestId, queryByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
+      const { getByTestId, queryByTestId, findByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
       const messageWithTool = getByTestId('timeline-item');
 
       // First click - expand
       messageWithTool.click();
-      expect(getByTestId('tool-detail-view')).toBeVisible();
+      const toolDetailView = await findByTestId('tool-detail-view');
+      expect(toolDetailView).toBeVisible();
 
       // Second click - collapse
       messageWithTool.click();
 
       // Assert
-      const toolDetailView = queryByTestId('tool-detail-view');
-      expect(toolDetailView).not.toBeVisible();
+      await waitFor(() => {
+        const collapsedView = queryByTestId('tool-detail-view');
+        expect(collapsedView).not.toBeVisible();
+      });
     });
 
     it('should show error when tool_result contains error', async () => {
@@ -883,13 +885,13 @@ describe('TranscriptViewer', () => {
       };
 
       // Act
-      const { getByTestId, getAllByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
+      const { getAllByTestId, findByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
       const timelineItems = getAllByTestId('timeline-item');
       const messageWithTool = timelineItems[0];
       messageWithTool.click();
 
       // Assert
-      const toolOutput = getByTestId('tool-output');
+      const toolOutput = await findByTestId('tool-output');
       expect(toolOutput).toHaveClass('tool-output-error');
       expect(toolOutput).toHaveTextContent('Error: File not found');
     });
@@ -934,8 +936,10 @@ describe('TranscriptViewer', () => {
       messageWithTool.dispatchEvent(enterEvent);
 
       // Assert
-      const expandIndicator = messageWithTool.querySelector('[data-testid="expand-indicator"]');
-      expect(expandIndicator).toHaveAttribute('aria-expanded', 'true');
+      await waitFor(() => {
+        const expandIndicator = messageWithTool.querySelector('[data-testid="expand-indicator"]');
+        expect(expandIndicator).toHaveAttribute('aria-expanded', 'true');
+      });
     });
 
     it('should handle multiple tool_use blocks in the same message', async () => {
@@ -975,12 +979,12 @@ describe('TranscriptViewer', () => {
       };
 
       // Act
-      const { getByTestId, getAllByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
+      const { getByTestId, findAllByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
       const messageWithTool = getByTestId('timeline-item');
       messageWithTool.click();
 
       // Assert
-      const toolDetailViews = getAllByTestId('tool-detail-view');
+      const toolDetailViews = await findAllByTestId('tool-detail-view');
       expect(toolDetailViews.length).toBeGreaterThanOrEqual(2);
     });
   });
