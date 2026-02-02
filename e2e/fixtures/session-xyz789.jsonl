@@ -1,0 +1,2 @@
+{"type":"user","sessionId":"session-xyz789","timestamp":"2026-02-01T06:00:00Z","uuid":"msg-101","parentUuid":null,"message":{"role":"user","content":"Can you summarize this report?"},"cwd":"/app","version":"2.1.0"}
+{"type":"assistant","sessionId":"session-xyz789","timestamp":"2026-02-01T06:00:03Z","uuid":"msg-102","parentUuid":"msg-101","message":{"role":"assistant","content":"I'll help you summarize the report. Let me review the key points.","model":"claude-sonnet-4-5"},"cwd":"/app","version":"2.1.0"}

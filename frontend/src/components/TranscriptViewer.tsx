@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import type { Transcript, TranscriptMessage, MessageContent } from '../types/transcript';
 import { useTranscriptData } from '../hooks/useTranscriptData';
+import './TranscriptViewer.css';
 
 // Helper function to extract text from message content
 function getMessageText(content: MessageContent): string {
@@ -105,15 +106,34 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
       <div className="transcript-content">
         {/* Render messages if available, otherwise fall back to content */}
         {transcript.messages && transcript.messages.length > 0 ? (
-          <div className="messages">
+          <div className="messages" data-testid="timeline-view">
             {transcript.messages
               .filter(msg => msg.type !== 'queue-operation' && msg.message)
-              .map((msg) => (
-                <div key={msg.uuid} className={`message message-${msg.message?.role}`}>
-                  <div className="message-role">{msg.message?.role === 'user' ? 'User' : 'Assistant'}:</div>
-                  <div className="message-content">{getMessageText(msg.message!.content)}</div>
-                </div>
-              ))}
+              .map((msg) => {
+                const isSubagent = msg.agentId && msg.agentId !== transcript.session_id;
+                const messageClasses = [
+                  'message',
+                  `message-${msg.message?.role}`,
+                  isSubagent ? 'message-subagent' : ''
+                ].filter(Boolean).join(' ');
+
+                // Find subagent name if available
+                const subagentName = isSubagent
+                  ? transcript.subagents?.find(s => s.id === msg.agentId)?.name || msg.agentId
+                  : null;
+
+                return (
+                  <div key={msg.uuid} className={messageClasses} data-testid="timeline-item">
+                    {isSubagent && subagentName && (
+                      <div className="subagent-label" data-testid="subagent-label">
+                        [Subagent: {subagentName}]
+                      </div>
+                    )}
+                    <div className="message-role">{msg.message?.role === 'user' ? 'User' : 'Assistant'}:</div>
+                    <div className="message-content">{getMessageText(msg.message!.content)}</div>
+                  </div>
+                );
+              })}
           </div>
         ) : (
           <div className="main-content">{transcript.content}</div>

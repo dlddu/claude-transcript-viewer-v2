@@ -6,9 +6,9 @@ import { test, expect } from '@playwright/test';
  * Purpose: Test the integrated timeline view that displays main agent and subagent
  * messages in a unified, chronologically-ordered timeline.
  *
- * Test Status: SKIPPED - Implementation pending (TDD Red Phase)
- * Reason: Timeline integration feature not yet implemented. Tests will be activated
- * once the unified timeline rendering is complete.
+ * Test Status: ACTIVE (TDD Red Phase)
+ * Reason: Tests written first to drive implementation. These tests are expected
+ * to fail until the timeline integration feature is implemented.
  *
  * Expected Behavior:
  * - Main agent messages and subagent messages appear in a single timeline
@@ -34,8 +34,7 @@ test.describe('Timeline Integration', () => {
     await expect(page.getByTestId('transcript-viewer')).toBeVisible();
   });
 
-  // TODO: Activate when unified timeline feature is implemented (DLD-250)
-  test.skip('should display session with subagents in unified timeline', async ({ page }) => {
+  test('should display session with subagents in unified timeline', async ({ page }) => {
     // Arrange & Assert - Timeline should be in unified mode
     // The timeline should contain both main agent and subagent messages
     const timeline = page.getByTestId('timeline-view');
@@ -54,8 +53,7 @@ test.describe('Timeline Integration', () => {
     await expect(timelineItems).toHaveCount(3); // Main + 2 subagents inline
   });
 
-  // TODO: Activate when unified timeline feature is implemented (DLD-250)
-  test.skip('should render subagent messages inline at invocation point', async ({ page }) => {
+  test('should render subagent messages inline at invocation point', async ({ page }) => {
     // Arrange
     const timeline = page.getByTestId('timeline-view');
 
@@ -85,8 +83,7 @@ test.describe('Timeline Integration', () => {
     await expect(thirdItem.locator('[data-testid="subagent-indicator"]')).toBeVisible();
   });
 
-  // TODO: Activate when unified timeline feature is implemented (DLD-250)
-  test.skip('should display timeline items in chronological order', async ({ page }) => {
+  test('should display timeline items in chronological order', async ({ page }) => {
     // Arrange
     const timeline = page.getByTestId('timeline-view');
 
@@ -118,8 +115,7 @@ test.describe('Timeline Integration', () => {
     }
   });
 
-  // TODO: Activate when unified timeline feature is implemented (DLD-250)
-  test.skip('should visually distinguish between main and subagent messages', async ({ page }) => {
+  test('should visually distinguish between main and subagent messages', async ({ page }) => {
     // Arrange
     const timeline = page.getByTestId('timeline-view');
     const timelineItems = timeline.locator('[data-testid="timeline-item"]');
@@ -145,8 +141,7 @@ test.describe('Timeline Integration', () => {
     await expect(subagent2.getByTestId('subagent-badge')).toContainText('visualization');
   });
 
-  // TODO: Activate when unified timeline feature is implemented (DLD-250)
-  test.skip('should display subagent metadata inline with content', async ({ page }) => {
+  test('should display subagent metadata inline with content', async ({ page }) => {
     // Arrange
     const timeline = page.getByTestId('timeline-view');
 
@@ -167,8 +162,7 @@ test.describe('Timeline Integration', () => {
     await expect(visualizer.getByTestId('duration')).toContainText('1800');
   });
 
-  // TODO: Activate when unified timeline feature is implemented (DLD-250)
-  test.skip('should expand/collapse subagent details while maintaining timeline position', async ({ page }) => {
+  test('should expand/collapse subagent details while maintaining timeline position', async ({ page }) => {
     // Arrange
     const timeline = page.getByTestId('timeline-view');
     const subagentItem = timeline.locator('[data-testid="timeline-item"]').nth(1);
@@ -195,8 +189,7 @@ test.describe('Timeline Integration', () => {
     await expect(items).toHaveCount(3);
   });
 
-  // TODO: Activate when unified timeline feature is implemented (DLD-250)
-  test.skip('should handle sessions with no subagents gracefully', async ({ page }) => {
+  test('should handle sessions with no subagents gracefully', async ({ page }) => {
     // Note: This test would need a different fixture without subagents
     // For now, testing the timeline can handle mixed content
 
@@ -214,8 +207,7 @@ test.describe('Timeline Integration', () => {
     await expect(page.getByText(/error/i)).not.toBeVisible();
   });
 
-  // TODO: Activate when unified timeline feature is implemented (DLD-250)
-  test.skip('should support keyboard navigation through timeline items', async ({ page }) => {
+  test('should support keyboard navigation through timeline items', async ({ page }) => {
     // Arrange
     const timeline = page.getByTestId('timeline-view');
     const firstItem = timeline.locator('[data-testid="timeline-item"]').nth(0);
@@ -236,8 +228,7 @@ test.describe('Timeline Integration', () => {
     await expect(secondItem.getByTestId('subagent-details')).toBeVisible();
   });
 
-  // TODO: Activate when unified timeline feature is implemented (DLD-250)
-  test.skip('should maintain scroll position when expanding/collapsing items', async ({ page }) => {
+  test('should maintain scroll position when expanding/collapsing items', async ({ page }) => {
     // Arrange - Scroll to second item
     const timeline = page.getByTestId('timeline-view');
     const secondItem = timeline.locator('[data-testid="timeline-item"]').nth(1);
