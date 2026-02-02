@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, fireEvent } from '@testing-library/react';
 import { TranscriptViewer } from './TranscriptViewer';
 
 describe('TranscriptViewer', () => {
@@ -831,7 +831,7 @@ describe('TranscriptViewer', () => {
       // Assert
       await waitFor(() => {
         const collapsedView = queryByTestId('tool-detail-view');
-        expect(collapsedView).not.toBeVisible();
+        expect(collapsedView).not.toBeInTheDocument();
       });
     });
 
@@ -932,13 +932,11 @@ describe('TranscriptViewer', () => {
 
       // Simulate keyboard Enter
       messageWithTool.focus();
-      const enterEvent = new KeyboardEvent('keydown', { key: 'Enter' });
-      messageWithTool.dispatchEvent(enterEvent);
+      fireEvent.keyDown(messageWithTool, { key: 'Enter' });
 
       // Assert
       await waitFor(() => {
-        const expandIndicator = messageWithTool.querySelector('[data-testid="expand-indicator"]');
-        expect(expandIndicator).toHaveAttribute('aria-expanded', 'true');
+        expect(messageWithTool).toHaveAttribute('aria-expanded', 'true');
       });
     });
 
