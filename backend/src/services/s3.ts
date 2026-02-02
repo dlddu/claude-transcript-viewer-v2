@@ -127,6 +127,7 @@ export class S3Service {
             message: {
               role: 'user',
               content: 'Can you help me analyze this dataset?',
+              model: 'claude-sonnet-4-5',
             },
             cwd: '/app',
             version: '2.1.0',
