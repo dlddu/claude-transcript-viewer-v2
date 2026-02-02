@@ -251,7 +251,7 @@ describe('TranscriptViewer', () => {
       render(<TranscriptViewer transcript={mockTranscript} />);
 
       // Assert
-      expect(screen.getByText(/subagent/i)).toBeInTheDocument();
+      expect(screen.getByTestId('subagent-label')).toBeInTheDocument();
     });
 
     it('should apply different background color to subagent messages', () => {
@@ -404,7 +404,8 @@ describe('TranscriptViewer', () => {
       render(<TranscriptViewer transcript={mockTranscript} />);
 
       // Assert
-      expect(screen.getByText(/Data Analyzer/i)).toBeInTheDocument();
+      const subagentLabel = screen.getByTestId('subagent-label');
+      expect(subagentLabel).toHaveTextContent('Data Analyzer');
     });
   });
 });
