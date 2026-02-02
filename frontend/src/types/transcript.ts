@@ -5,6 +5,7 @@ export interface Subagent {
   content?: string;
   invoked_at?: string;
   transcript_file?: string;
+  messages?: TranscriptMessage[]; // Parsed messages from subagent transcript
 }
 
 export interface ToolUsage {
@@ -36,6 +37,7 @@ export interface TranscriptMessage {
   timestamp: string;
   uuid: string;
   parentUuid: string | null;
+  agentId?: string; // Identifies which agent (main or subagent) this message belongs to
   message?: {
     role: 'user' | 'assistant';
     content: MessageContent;

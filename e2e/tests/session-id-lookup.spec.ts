@@ -119,7 +119,8 @@ test.describe('Session ID Lookup E2E', () => {
     await expect(page.getByTestId('model-display')).toContainText('claude-sonnet-4-5');
 
     // Subagent sections should be visible (using mock data subagent name)
-    await expect(page.getByText('agent-a1b2c3d')).toBeVisible();
+    // Use .first() to handle multiple occurrences (subagent-label, subagent-header, etc.)
+    await expect(page.getByText('agent-a1b2c3d').first()).toBeVisible();
   });
 
   test('should allow searching for a different session ID after initial lookup', async ({ page }) => {

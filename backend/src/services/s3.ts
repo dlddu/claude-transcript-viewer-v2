@@ -25,6 +25,7 @@ export interface TranscriptMessage {
   timestamp: string;
   uuid: string;
   parentUuid: string | null;
+  agentId?: string; // Identifies which agent (main or subagent) this message belongs to
   message?: {
     role: 'user' | 'assistant';
     content: MessageContent;
@@ -109,6 +110,7 @@ export class S3Service {
             timestamp: '2026-02-01T05:00:00Z',
             uuid: 'msg-001',
             parentUuid: null,
+            agentId: 'session-abc123',
             message: {
               role: 'user',
               content: 'Can you help me analyze this dataset?',
@@ -122,12 +124,116 @@ export class S3Service {
             timestamp: '2026-02-01T05:00:05Z',
             uuid: 'msg-002',
             parentUuid: 'msg-001',
+            agentId: 'session-abc123',
             message: {
               role: 'assistant',
               content: [
                 { type: 'text', text: 'I\'d be happy to help you analyze the dataset.' },
-                { type: 'tool_use', id: 'tool-001', name: 'Read', input: { file_path: '/data/input.csv' } },
+                { type: 'tool_use', id: 'tool-001', name: 'DataAnalyzer', input: { file_path: '/data/input.csv' } },
               ],
+              model: 'claude-sonnet-4-5',
+            },
+            cwd: '/app',
+            version: '2.1.0',
+          },
+          {
+            type: 'user',
+            sessionId: 'agent-a1b2c3d',
+            timestamp: '2026-02-01T05:00:10Z',
+            uuid: 'sub-001',
+            parentUuid: null,
+            agentId: 'agent-a1b2c3d',
+            message: {
+              role: 'user',
+              content: 'Analyze the CSV file',
+            },
+            cwd: '/app',
+            version: '2.1.0',
+          },
+          {
+            type: 'assistant',
+            sessionId: 'agent-a1b2c3d',
+            timestamp: '2026-02-01T05:00:12Z',
+            uuid: 'sub-002',
+            parentUuid: 'sub-001',
+            agentId: 'agent-a1b2c3d',
+            message: {
+              role: 'assistant',
+              content: 'Starting data analysis. Found 1,000 rows with 15 columns.',
+              model: 'claude-sonnet-4-5',
+            },
+            cwd: '/app',
+            version: '2.1.0',
+          },
+          {
+            type: 'assistant',
+            sessionId: 'agent-a1b2c3d',
+            timestamp: '2026-02-01T05:00:18Z',
+            uuid: 'sub-003',
+            parentUuid: 'sub-002',
+            agentId: 'agent-a1b2c3d',
+            message: {
+              role: 'assistant',
+              content: 'Data quality check complete. Missing values: 23 (2.3%). No duplicate rows found.',
+              model: 'claude-sonnet-4-5',
+            },
+            cwd: '/app',
+            version: '2.1.0',
+          },
+          {
+            type: 'user',
+            sessionId: 'agent-xyz789',
+            timestamp: '2026-02-01T05:00:46Z',
+            uuid: 'viz-001',
+            parentUuid: null,
+            agentId: 'agent-xyz789',
+            message: {
+              role: 'user',
+              content: 'Create visualizations for the dataset',
+            },
+            cwd: '/app',
+            version: '2.1.0',
+          },
+          {
+            type: 'assistant',
+            sessionId: 'agent-xyz789',
+            timestamp: '2026-02-01T05:00:47Z',
+            uuid: 'viz-002',
+            parentUuid: 'viz-001',
+            agentId: 'agent-xyz789',
+            message: {
+              role: 'assistant',
+              content: 'Creating visualizations. Generating histogram for sales distribution.',
+              model: 'claude-sonnet-4-5',
+            },
+            cwd: '/app',
+            version: '2.1.0',
+          },
+          {
+            type: 'assistant',
+            sessionId: 'agent-xyz789',
+            timestamp: '2026-02-01T05:00:49Z',
+            uuid: 'viz-003',
+            parentUuid: 'viz-002',
+            agentId: 'agent-xyz789',
+            message: {
+              role: 'assistant',
+              content: 'All visualizations complete. Created 3 charts.',
+              model: 'claude-sonnet-4-5',
+            },
+            cwd: '/app',
+            version: '2.1.0',
+          },
+          {
+            type: 'assistant',
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:50Z',
+            uuid: 'msg-003',
+            parentUuid: 'msg-002',
+            agentId: 'session-abc123',
+            message: {
+              role: 'assistant',
+              content: 'Analysis complete! I\'ve examined the dataset and created visualizations to help you understand the patterns.',
               model: 'claude-sonnet-4-5',
             },
             cwd: '/app',
@@ -147,9 +253,82 @@ export class S3Service {
                 timestamp: '2026-02-01T05:00:10Z',
                 uuid: 'sub-001',
                 parentUuid: null,
+                agentId: 'agent-a1b2c3d',
                 message: {
                   role: 'user',
                   content: 'Analyze the CSV file',
+                },
+              },
+              {
+                type: 'assistant',
+                sessionId: 'agent-a1b2c3d',
+                timestamp: '2026-02-01T05:00:12Z',
+                uuid: 'sub-002',
+                parentUuid: 'sub-001',
+                agentId: 'agent-a1b2c3d',
+                message: {
+                  role: 'assistant',
+                  content: 'Starting data analysis. Found 1,000 rows with 15 columns.',
+                  model: 'claude-sonnet-4-5',
+                },
+              },
+              {
+                type: 'assistant',
+                sessionId: 'agent-a1b2c3d',
+                timestamp: '2026-02-01T05:00:18Z',
+                uuid: 'sub-003',
+                parentUuid: 'sub-002',
+                agentId: 'agent-a1b2c3d',
+                message: {
+                  role: 'assistant',
+                  content: 'Data quality check complete. Missing values: 23 (2.3%). No duplicate rows found.',
+                  model: 'claude-sonnet-4-5',
+                },
+              },
+            ],
+          },
+          {
+            id: 'agent-xyz789',
+            name: 'agent-xyz789',
+            transcript_file: 'session-abc123/agent-xyz789.jsonl',
+            content: '{"type":"user","sessionId":"agent-xyz789","timestamp":"2026-02-01T05:00:46Z","uuid":"viz-001","parentUuid":null,"message":{"role":"user","content":"Create visualizations for the dataset"}}',
+            messages: [
+              {
+                type: 'user',
+                sessionId: 'agent-xyz789',
+                timestamp: '2026-02-01T05:00:46Z',
+                uuid: 'viz-001',
+                parentUuid: null,
+                agentId: 'agent-xyz789',
+                message: {
+                  role: 'user',
+                  content: 'Create visualizations for the dataset',
+                },
+              },
+              {
+                type: 'assistant',
+                sessionId: 'agent-xyz789',
+                timestamp: '2026-02-01T05:00:47Z',
+                uuid: 'viz-002',
+                parentUuid: 'viz-001',
+                agentId: 'agent-xyz789',
+                message: {
+                  role: 'assistant',
+                  content: 'Creating visualizations. Generating histogram for sales distribution.',
+                  model: 'claude-sonnet-4-5',
+                },
+              },
+              {
+                type: 'assistant',
+                sessionId: 'agent-xyz789',
+                timestamp: '2026-02-01T05:00:49Z',
+                uuid: 'viz-003',
+                parentUuid: 'viz-002',
+                agentId: 'agent-xyz789',
+                message: {
+                  role: 'assistant',
+                  content: 'All visualizations complete. Created 3 charts.',
+                  model: 'claude-sonnet-4-5',
                 },
               },
             ],
@@ -167,6 +346,7 @@ export class S3Service {
             timestamp: '2026-02-01T06:00:00Z',
             uuid: 'msg-101',
             parentUuid: null,
+            agentId: 'session-xyz789',
             message: {
               role: 'user',
               content: 'Can you summarize this report?',
@@ -180,6 +360,7 @@ export class S3Service {
             timestamp: '2026-02-01T06:00:03Z',
             uuid: 'msg-102',
             parentUuid: 'msg-101',
+            agentId: 'session-xyz789',
             message: {
               role: 'assistant',
               content: 'I\'ll help you summarize the report. Let me review the key points.',
@@ -331,23 +512,34 @@ export class S3Service {
 
       // Handle JSONL format (newline-delimited JSON)
       let transcript: Transcript;
+      let mainMessages: TranscriptMessage[] = [];
+
       if (mainTranscriptKey.endsWith('.jsonl')) {
         const lines = bodyString.trim().split('\n').filter(line => line.trim());
-        const parsedLines = lines.map(line => JSON.parse(line));
+        mainMessages = lines.map(line => JSON.parse(line));
         transcript = {
           id: trimmedSessionId,
           session_id: trimmedSessionId,
           content: bodyString,
-          messages: parsedLines,
+          messages: mainMessages,
         } as Transcript;
       } else {
         transcript = JSON.parse(bodyString) as Transcript;
+        mainMessages = transcript.messages || [];
       }
+
+      // Add agentId to main messages (agentId = session_id for main agent)
+      mainMessages = mainMessages.map(msg => ({
+        ...msg,
+        agentId: msg.agentId || trimmedSessionId,
+      }));
 
       // Find and attach subagent files
       const subagentFiles = listResponse.Contents.filter(
         item => item.Key?.startsWith(`${trimmedSessionId}/`) && item.Key?.includes('agent-')
       );
+
+      const allMessages: TranscriptMessage[] = [...mainMessages];
 
       if (subagentFiles.length > 0) {
         const subagentTranscripts = await Promise.all(
@@ -365,11 +557,25 @@ export class S3Service {
               const fileName = item.Key.split('/').pop() || item.Key;
               const agentId = fileName.replace('.jsonl', '').replace('.json', '');
 
+              // Parse subagent JSONL
+              const subagentLines = subagentBody.trim().split('\n').filter(line => line.trim());
+              const subagentMessages: TranscriptMessage[] = subagentLines.map(line => {
+                const msg = JSON.parse(line);
+                return {
+                  ...msg,
+                  agentId: msg.agentId || agentId,
+                };
+              });
+
+              // Add subagent messages to the merged timeline
+              allMessages.push(...subagentMessages);
+
               return {
                 id: agentId,
                 name: agentId,
                 transcript_file: item.Key,
                 content: subagentBody,
+                messages: subagentMessages,
               };
             } catch {
               return null;
@@ -381,6 +587,16 @@ export class S3Service {
           (s): s is NonNullable<typeof s> => s !== null
         );
       }
+
+      // Sort all messages by timestamp in chronological order
+      allMessages.sort((a, b) => {
+        const timeA = new Date(a.timestamp).getTime();
+        const timeB = new Date(b.timestamp).getTime();
+        return timeA - timeB;
+      });
+
+      // Set the merged and sorted messages
+      transcript.messages = allMessages;
 
       return transcript;
     } catch (error: unknown) {
