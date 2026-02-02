@@ -136,8 +136,28 @@ export function TranscriptViewer({
       );
     }
 
+    // Extract metadata for timeline view
+    const timelineModelFromMessages = getModelFromMessages(messagesForTimeline);
+    const timelineSessionId = propTranscript?.session_id;
+    const timelineDisplayModel = propTranscript?.metadata?.model || timelineModelFromMessages;
+
     return (
       <div data-testid="transcript-viewer" className="transcript-viewer">
+        {/* Metadata section for timeline view */}
+        {(timelineSessionId || timelineDisplayModel) && (
+          <div className="metadata" data-testid="transcript-metadata">
+            {timelineSessionId && (
+              <span className="metadata-item" data-testid="session-id-display">
+                Session ID: {timelineSessionId}
+              </span>
+            )}
+            {timelineDisplayModel && (
+              <span className="metadata-item" data-testid="model-display">
+                {timelineDisplayModel}
+              </span>
+            )}
+          </div>
+        )}
         <div data-testid="timeline-view" className="timeline-view">
           {filteredMessages.map((msg) => {
               const isMainAgent = msg.agentId === 'main';

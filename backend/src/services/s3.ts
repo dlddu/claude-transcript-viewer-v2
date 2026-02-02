@@ -443,7 +443,8 @@ export class S3Service {
         let agentId = subagent.id;
         if (subagent.transcript_file) {
           const fileName = subagent.transcript_file.split('/').pop() || '';
-          const match = fileName.match(/agent-([^.]+)/);
+          // Match the full agent ID including the "agent-" prefix
+          const match = fileName.match(/(agent-[^.]+)/);
           if (match) {
             agentId = match[1];
           }
