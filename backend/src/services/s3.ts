@@ -164,14 +164,14 @@ export class S3Service {
         subagents: [
           {
             id: 'agent-a1b2c3d',
-            name: 'Data Analyzer Subagent',
+            name: 'agent-a1b2c3d',
             type: 'analysis',
             transcript_file: 'session-abc123/agent-a1b2c3d.jsonl',
             content: '{"type":"assistant","sessionId":"a1b2c3d","timestamp":"2026-02-01T05:00:15Z","uuid":"sub-001","parentUuid":null,"message":{"role":"assistant","content":"Starting data analysis. Found 1,000 rows and 15 columns detected.","model":"claude-sonnet-4-5"},"isSidechain":true,"metadata":{"total_tokens":456,"duration_ms":2100}}\n{"type":"assistant","sessionId":"a1b2c3d","timestamp":"2026-02-01T05:00:20Z","uuid":"sub-001-2","parentUuid":"sub-001","message":{"role":"assistant","content":"Data analysis in progress...","model":"claude-sonnet-4-5"},"isSidechain":true,"metadata":{"total_tokens":200,"duration_ms":1200}}\n{"type":"assistant","sessionId":"a1b2c3d","timestamp":"2026-02-01T05:00:25Z","uuid":"sub-001-3","parentUuid":"sub-001-2","message":{"role":"assistant","content":"Analysis complete. Found key insights.","model":"claude-sonnet-4-5"},"isSidechain":true,"metadata":{"total_tokens":300,"duration_ms":1500}}',
           },
           {
             id: 'agent-xyz9876',
-            name: 'Visualization Subagent',
+            name: 'agent-xyz9876',
             type: 'visualization',
             transcript_file: 'session-abc123/agent-xyz9876.jsonl',
             content: '{"type":"assistant","sessionId":"xyz9876","timestamp":"2026-02-01T05:00:45Z","uuid":"sub-002","parentUuid":null,"message":{"role":"assistant","content":"Creating visualizations. Generated 3 charts.","model":"claude-sonnet-4-5"},"isSidechain":true,"metadata":{"total_tokens":234,"duration_ms":1800}}\n{"type":"assistant","sessionId":"xyz9876","timestamp":"2026-02-01T05:00:50Z","uuid":"sub-002-2","parentUuid":"sub-002","message":{"role":"assistant","content":"Charts rendering...","model":"claude-sonnet-4-5"},"isSidechain":true,"metadata":{"total_tokens":150,"duration_ms":1000}}\n{"type":"assistant","sessionId":"xyz9876","timestamp":"2026-02-01T05:00:55Z","uuid":"sub-002-3","parentUuid":"sub-002-2","message":{"role":"assistant","content":"Visualization complete.","model":"claude-sonnet-4-5"},"isSidechain":true,"metadata":{"total_tokens":120,"duration_ms":800}}',
