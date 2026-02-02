@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { S3Service, type MergedTimeline } from './s3';
+import { S3Service } from './s3';
 
 describe('S3Service', () => {
   let s3Service: S3Service;

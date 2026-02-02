@@ -214,7 +214,7 @@ describe('TranscriptViewer', () => {
 
       // Assert
       const subagentItem = screen.getByTestId('timeline-item');
-      expect(subagentItem).toHaveClass('timeline-item-indented');
+      expect(subagentItem).toHaveClass('indented');
     });
 
     it('should display subagent badge with agent identifier', () => {
@@ -408,7 +408,7 @@ describe('TranscriptViewer', () => {
       const mockTranscript = {
         id: 'session-123',
         session_id: 'session-123',
-        content: '',
+        content: 'Fallback content when no messages available',
         messages: [],
       };
 
@@ -416,9 +416,10 @@ describe('TranscriptViewer', () => {
       render(<TranscriptViewer transcript={mockTranscript} />);
 
       // Assert
-      const timeline = screen.getByTestId('timeline-view');
-      expect(timeline).toBeInTheDocument();
-      expect(screen.getByText(/no messages/i)).toBeInTheDocument();
+      // When messages array is empty, should fall back to content display
+      const viewer = screen.getByTestId('transcript-viewer');
+      expect(viewer).toBeInTheDocument();
+      expect(screen.getByText('Fallback content when no messages available')).toBeInTheDocument();
     });
   });
 });

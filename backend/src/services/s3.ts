@@ -49,6 +49,7 @@ export interface TranscriptMessage {
 export interface SubagentTranscript {
   id: string;
   name: string;
+  type?: string;
   content?: string;
   messages?: TranscriptMessage[];
   transcript_file?: string;
