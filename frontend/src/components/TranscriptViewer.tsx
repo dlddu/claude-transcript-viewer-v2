@@ -185,7 +185,7 @@ export function TranscriptViewer({
                   <div className="timeline-item-header">
                     {!isMainAgent && (
                       <span data-testid="subagent-badge" className="subagent-badge">
-                        {msg.agentId}
+                        {msg.subagentType || msg.agentId}
                       </span>
                     )}
                     <span
@@ -197,7 +197,7 @@ export function TranscriptViewer({
                     </span>
                     {!isMainAgent && (
                       <span data-testid="subagent-name" className="subagent-name">
-                        {msg.agentId}
+                        {msg.subagentName || msg.agentId}
                       </span>
                     )}
                     {!isMainAgent && (

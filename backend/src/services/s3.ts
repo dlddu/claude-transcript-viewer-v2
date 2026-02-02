@@ -43,6 +43,9 @@ export interface TranscriptMessage {
     total_tokens?: number;
     duration_ms?: number;
   };
+  // Subagent metadata (attached during merge)
+  subagentName?: string;
+  subagentType?: string;
 }
 
 // Subagent transcript
@@ -113,7 +116,7 @@ export class S3Service {
       'session-abc123': {
         id: 'session-abc123',
         session_id: 'session-abc123',
-        content: '{"type":"user","sessionId":"session-abc123","timestamp":"2026-02-01T05:00:00Z","uuid":"msg-001","parentUuid":null,"message":{"role":"user","content":"Can you help me analyze this dataset?"}}\n{"type":"assistant","sessionId":"session-abc123","timestamp":"2026-02-01T05:00:05Z","uuid":"msg-002","parentUuid":"msg-001","message":{"role":"assistant","content":"I\'d be happy to help you analyze the dataset.","model":"claude-sonnet-4-5"}}',
+        content: '{"type":"user","sessionId":"session-abc123","timestamp":"2026-02-01T05:00:00Z","uuid":"msg-001","parentUuid":null,"message":{"role":"user","content":"Can you help me analyze this dataset?"}}',
         messages: [
           {
             type: 'user',
@@ -124,20 +127,6 @@ export class S3Service {
             message: {
               role: 'user',
               content: 'Can you help me analyze this dataset?',
-            },
-            cwd: '/app',
-            version: '2.1.0',
-          },
-          {
-            type: 'assistant',
-            sessionId: 'session-abc123',
-            timestamp: '2026-02-01T05:00:05Z',
-            uuid: 'msg-002',
-            parentUuid: 'msg-001',
-            message: {
-              role: 'assistant',
-              content: 'I\'d be happy to help you analyze the dataset.',
-              model: 'claude-sonnet-4-5',
             },
             cwd: '/app',
             version: '2.1.0',
@@ -458,6 +447,9 @@ export class S3Service {
             messagesWithAgentId.push({
               ...parsed,
               agentId,
+              // Attach subagent metadata to message
+              subagentName: subagent.name,
+              subagentType: subagent.type,
             });
           } catch {
             // Skip invalid lines

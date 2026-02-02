@@ -52,6 +52,9 @@ export interface TranscriptMessage {
     total_tokens?: number;
     duration_ms?: number;
   };
+  // Subagent metadata (attached during merge)
+  subagentName?: string;
+  subagentType?: string;
 }
 
 export interface Transcript {
