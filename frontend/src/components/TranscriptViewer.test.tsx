@@ -408,4 +408,580 @@ describe('TranscriptViewer', () => {
       expect(subagentLabel).toHaveTextContent('Data Analyzer');
     });
   });
+
+  describe('Tool Detail View - tool_use and tool_result display', () => {
+    it('should identify messages containing tool_use content blocks', () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'msg-002',
+            parentUuid: 'msg-001',
+            agentId: 'session-abc123',
+            message: {
+              role: 'assistant' as const,
+              content: [
+                { type: 'text', text: 'Let me analyze this for you.' },
+                {
+                  type: 'tool_use',
+                  id: 'tool-001',
+                  name: 'DataAnalyzer',
+                  input: { file_path: '/data/input.csv' }
+                }
+              ],
+              model: 'claude-sonnet-4-5'
+            }
+          }
+        ]
+      };
+
+      // Act
+      render(<TranscriptViewer transcript={mockTranscript} />);
+
+      // Assert
+      expect(screen.getByText('Let me analyze this for you.')).toBeInTheDocument();
+      const toolIndicators = screen.queryAllByTestId('tool-use-indicator');
+      expect(toolIndicators.length).toBeGreaterThan(0);
+    });
+
+    it('should display tool_use indicator for messages with tool_use blocks', () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'msg-002',
+            parentUuid: 'msg-001',
+            agentId: 'session-abc123',
+            message: {
+              role: 'assistant' as const,
+              content: [
+                { type: 'text', text: 'Using a tool' },
+                {
+                  type: 'tool_use',
+                  id: 'tool-001',
+                  name: 'DataAnalyzer',
+                  input: { file_path: '/data/test.csv' }
+                }
+              ]
+            }
+          }
+        ]
+      };
+
+      // Act
+      const { container } = render(<TranscriptViewer transcript={mockTranscript} />);
+
+      // Assert
+      const toolIndicator = container.querySelector('[data-testid="tool-use-indicator"]');
+      expect(toolIndicator).toBeInTheDocument();
+    });
+
+    it('should not display tool indicator for messages without tool_use', () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'user' as const,
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:00Z',
+            uuid: 'msg-001',
+            parentUuid: null,
+            agentId: 'session-abc123',
+            message: {
+              role: 'user' as const,
+              content: 'Regular message without tools'
+            }
+          }
+        ]
+      };
+
+      // Act
+      const { container } = render(<TranscriptViewer transcript={mockTranscript} />);
+
+      // Assert
+      const toolIndicator = container.querySelector('[data-testid="tool-use-indicator"]');
+      expect(toolIndicator).not.toBeInTheDocument();
+    });
+
+    it('should make messages with tool_use clickable', () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'msg-002',
+            parentUuid: 'msg-001',
+            agentId: 'session-abc123',
+            message: {
+              role: 'assistant' as const,
+              content: [
+                { type: 'text', text: 'Analyzing dataset' },
+                {
+                  type: 'tool_use',
+                  id: 'tool-001',
+                  name: 'DataAnalyzer',
+                  input: { file_path: '/data/input.csv' }
+                }
+              ]
+            }
+          }
+        ]
+      };
+
+      // Act
+      const { container } = render(<TranscriptViewer transcript={mockTranscript} />);
+
+      // Assert
+      const messageWithTool = container.querySelector('[data-testid="timeline-item"]');
+      expect(messageWithTool).toHaveAttribute('role', 'button');
+      expect(messageWithTool).toHaveAttribute('aria-expanded');
+    });
+
+    it('should display tool details when tool_use message is expanded', async () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'msg-002',
+            parentUuid: 'msg-001',
+            agentId: 'session-abc123',
+            message: {
+              role: 'assistant' as const,
+              content: [
+                { type: 'text', text: 'Analyzing data' },
+                {
+                  type: 'tool_use',
+                  id: 'tool-001',
+                  name: 'DataAnalyzer',
+                  input: { file_path: '/data/input.csv' }
+                }
+              ]
+            }
+          }
+        ]
+      };
+
+      // Act
+      const { getByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
+      const messageWithTool = getByTestId('timeline-item');
+
+      // Simulate click to expand
+      messageWithTool.click();
+
+      // Assert - Tool detail view should be visible
+      const toolDetailView = getByTestId('tool-detail-view');
+      expect(toolDetailView).toBeInTheDocument();
+      expect(toolDetailView).toBeVisible();
+    });
+
+    it('should display tool name in expanded detail view', async () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'msg-002',
+            parentUuid: 'msg-001',
+            agentId: 'session-abc123',
+            message: {
+              role: 'assistant' as const,
+              content: [
+                { type: 'text', text: 'Using tool' },
+                {
+                  type: 'tool_use',
+                  id: 'tool-001',
+                  name: 'DataAnalyzer',
+                  input: { file_path: '/data/input.csv' }
+                }
+              ]
+            }
+          }
+        ]
+      };
+
+      // Act
+      const { getByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
+      const messageWithTool = getByTestId('timeline-item');
+      messageWithTool.click();
+
+      // Assert
+      const toolName = getByTestId('tool-name');
+      expect(toolName).toHaveTextContent('DataAnalyzer');
+    });
+
+    it('should display tool ID in expanded detail view', async () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'msg-002',
+            parentUuid: 'msg-001',
+            agentId: 'session-abc123',
+            message: {
+              role: 'assistant' as const,
+              content: [
+                { type: 'text', text: 'Using tool' },
+                {
+                  type: 'tool_use',
+                  id: 'tool-001',
+                  name: 'DataAnalyzer',
+                  input: { file_path: '/data/input.csv' }
+                }
+              ]
+            }
+          }
+        ]
+      };
+
+      // Act
+      const { getByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
+      const messageWithTool = getByTestId('timeline-item');
+      messageWithTool.click();
+
+      // Assert
+      const toolId = getByTestId('tool-id');
+      expect(toolId).toHaveTextContent('tool-001');
+    });
+
+    it('should display tool input as formatted JSON', async () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'msg-002',
+            parentUuid: 'msg-001',
+            agentId: 'session-abc123',
+            message: {
+              role: 'assistant' as const,
+              content: [
+                { type: 'text', text: 'Using tool' },
+                {
+                  type: 'tool_use',
+                  id: 'tool-001',
+                  name: 'DataAnalyzer',
+                  input: { file_path: '/data/input.csv', format: 'csv' }
+                }
+              ]
+            }
+          }
+        ]
+      };
+
+      // Act
+      const { getByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
+      const messageWithTool = getByTestId('timeline-item');
+      messageWithTool.click();
+
+      // Assert
+      const toolInput = getByTestId('tool-input');
+      expect(toolInput).toBeInTheDocument();
+      expect(toolInput).toHaveTextContent('file_path');
+      expect(toolInput).toHaveTextContent('/data/input.csv');
+
+      // Should contain pre or code element for JSON formatting
+      const codeBlock = toolInput.querySelector('pre, code');
+      expect(codeBlock).toBeInTheDocument();
+    });
+
+    it('should match and display tool_result for corresponding tool_use', async () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'msg-002',
+            parentUuid: 'msg-001',
+            agentId: 'session-abc123',
+            message: {
+              role: 'assistant' as const,
+              content: [
+                { type: 'text', text: 'Using tool' },
+                {
+                  type: 'tool_use',
+                  id: 'tool-001',
+                  name: 'DataAnalyzer',
+                  input: { file_path: '/data/input.csv' }
+                }
+              ]
+            }
+          },
+          {
+            type: 'user' as const,
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:30Z',
+            uuid: 'msg-002b',
+            parentUuid: 'msg-002',
+            agentId: 'session-abc123',
+            message: {
+              role: 'user' as const,
+              content: [
+                {
+                  type: 'tool_result',
+                  tool_use_id: 'tool-001',
+                  content: 'Analysis complete. Found 1000 rows.'
+                }
+              ]
+            }
+          }
+        ]
+      };
+
+      // Act
+      const { getByTestId, getAllByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
+      const timelineItems = getAllByTestId('timeline-item');
+      const messageWithTool = timelineItems[0];
+      messageWithTool.click();
+
+      // Assert
+      const toolDetailView = getByTestId('tool-detail-view');
+      const toolOutput = getByTestId('tool-output');
+      expect(toolOutput).toBeInTheDocument();
+      expect(toolOutput).toHaveTextContent('Analysis complete. Found 1000 rows.');
+    });
+
+    it('should collapse tool details when clicked again', async () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'msg-002',
+            parentUuid: 'msg-001',
+            agentId: 'session-abc123',
+            message: {
+              role: 'assistant' as const,
+              content: [
+                { type: 'text', text: 'Using tool' },
+                {
+                  type: 'tool_use',
+                  id: 'tool-001',
+                  name: 'DataAnalyzer',
+                  input: { file_path: '/data/input.csv' }
+                }
+              ]
+            }
+          }
+        ]
+      };
+
+      // Act
+      const { getByTestId, queryByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
+      const messageWithTool = getByTestId('timeline-item');
+
+      // First click - expand
+      messageWithTool.click();
+      expect(getByTestId('tool-detail-view')).toBeVisible();
+
+      // Second click - collapse
+      messageWithTool.click();
+
+      // Assert
+      const toolDetailView = queryByTestId('tool-detail-view');
+      expect(toolDetailView).not.toBeVisible();
+    });
+
+    it('should show error when tool_result contains error', async () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'msg-002',
+            parentUuid: 'msg-001',
+            agentId: 'session-abc123',
+            message: {
+              role: 'assistant' as const,
+              content: [
+                { type: 'text', text: 'Using tool' },
+                {
+                  type: 'tool_use',
+                  id: 'tool-001',
+                  name: 'DataAnalyzer',
+                  input: { file_path: '/data/input.csv' }
+                }
+              ]
+            }
+          },
+          {
+            type: 'user' as const,
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:30Z',
+            uuid: 'msg-002b',
+            parentUuid: 'msg-002',
+            agentId: 'session-abc123',
+            message: {
+              role: 'user' as const,
+              content: [
+                {
+                  type: 'tool_result',
+                  tool_use_id: 'tool-001',
+                  content: 'Error: File not found',
+                  is_error: true
+                }
+              ]
+            }
+          }
+        ]
+      };
+
+      // Act
+      const { getByTestId, getAllByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
+      const timelineItems = getAllByTestId('timeline-item');
+      const messageWithTool = timelineItems[0];
+      messageWithTool.click();
+
+      // Assert
+      const toolOutput = getByTestId('tool-output');
+      expect(toolOutput).toHaveClass('tool-output-error');
+      expect(toolOutput).toHaveTextContent('Error: File not found');
+    });
+
+    it('should support keyboard navigation for expand/collapse', async () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'msg-002',
+            parentUuid: 'msg-001',
+            agentId: 'session-abc123',
+            message: {
+              role: 'assistant' as const,
+              content: [
+                { type: 'text', text: 'Using tool' },
+                {
+                  type: 'tool_use',
+                  id: 'tool-001',
+                  name: 'DataAnalyzer',
+                  input: { file_path: '/data/input.csv' }
+                }
+              ]
+            }
+          }
+        ]
+      };
+
+      // Act
+      const { getByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
+      const messageWithTool = getByTestId('timeline-item');
+
+      // Simulate keyboard Enter
+      messageWithTool.focus();
+      const enterEvent = new KeyboardEvent('keydown', { key: 'Enter' });
+      messageWithTool.dispatchEvent(enterEvent);
+
+      // Assert
+      const expandIndicator = messageWithTool.querySelector('[data-testid="expand-indicator"]');
+      expect(expandIndicator).toHaveAttribute('aria-expanded', 'true');
+    });
+
+    it('should handle multiple tool_use blocks in the same message', async () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'msg-002',
+            parentUuid: 'msg-001',
+            agentId: 'session-abc123',
+            message: {
+              role: 'assistant' as const,
+              content: [
+                { type: 'text', text: 'Using multiple tools' },
+                {
+                  type: 'tool_use',
+                  id: 'tool-001',
+                  name: 'DataAnalyzer',
+                  input: { file_path: '/data/input.csv' }
+                },
+                {
+                  type: 'tool_use',
+                  id: 'tool-002',
+                  name: 'Visualizer',
+                  input: { chart_type: 'bar' }
+                }
+              ]
+            }
+          }
+        ]
+      };
+
+      // Act
+      const { getByTestId, getAllByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
+      const messageWithTool = getByTestId('timeline-item');
+      messageWithTool.click();
+
+      // Assert
+      const toolDetailViews = getAllByTestId('tool-detail-view');
+      expect(toolDetailViews.length).toBeGreaterThanOrEqual(2);
+    });
+  });
 });

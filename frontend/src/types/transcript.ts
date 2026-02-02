@@ -28,6 +28,7 @@ export type MessageContent = string | Array<{
   input?: unknown;
   tool_use_id?: string;
   content?: string;
+  is_error?: boolean;
 }>;
 
 // Individual message in a transcript (JSONL line)

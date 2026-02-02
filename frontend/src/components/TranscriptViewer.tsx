@@ -14,6 +14,38 @@ function getMessageText(content: MessageContent): string {
     .join('\n');
 }
 
+// Helper function to check if message has tool_use content blocks
+function hasToolUse(content: MessageContent): boolean {
+  if (typeof content === 'string') {
+    return false;
+  }
+  return content.some(block => block.type === 'tool_use');
+}
+
+// Helper function to extract tool_use blocks from content
+function getToolUseBlocks(content: MessageContent) {
+  if (typeof content === 'string') {
+    return [];
+  }
+  return content.filter(block => block.type === 'tool_use');
+}
+
+// Helper function to find tool_result for a given tool_use_id
+function findToolResult(messages: TranscriptMessage[], toolUseId: string) {
+  for (const msg of messages) {
+    if (!msg.message || typeof msg.message.content === 'string') continue;
+
+    const toolResult = msg.message.content.find(
+      block => block.type === 'tool_result' && block.tool_use_id === toolUseId
+    );
+
+    if (toolResult) {
+      return toolResult;
+    }
+  }
+  return null;
+}
+
 // Helper function to extract model from messages
 function getModelFromMessages(messages?: TranscriptMessage[]): string | undefined {
   if (!messages) return undefined;
@@ -33,6 +65,7 @@ interface TranscriptViewerProps {
 export function TranscriptViewer({ transcript: propTranscript, error: propError }: TranscriptViewerProps = {}) {
   const [expandedSubagents, setExpandedSubagents] = useState<Set<string>>(new Set());
   const [subagentData, setSubagentData] = useState<Map<string, Transcript>>(new Map());
+  const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
 
   // If transcript is provided as prop, use it; otherwise show loading
   const isProvidedTranscript = propTranscript !== undefined;
@@ -65,6 +98,28 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
       } catch (error) {
         console.error('Failed to fetch subagent transcript:', error);
       }
+    }
+  };
+
+  const toggleToolDetail = (messageUuid: string) => {
+    setExpandedTools(prev => {
+      const next = new Set(prev);
+      if (next.has(messageUuid)) {
+        next.delete(messageUuid);
+      } else {
+        next.add(messageUuid);
+      }
+      return next;
+    });
+  };
+
+  const handleToolClick = (messageUuid: string) => {
+    toggleToolDetail(messageUuid);
+  };
+
+  const handleToolKeyDown = (event: React.KeyboardEvent, messageUuid: string) => {
+    if (event.key === 'Enter') {
+      toggleToolDetail(messageUuid);
     }
   };
 
@@ -111,10 +166,13 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
               .filter(msg => msg.type !== 'queue-operation' && msg.message)
               .map((msg) => {
                 const isSubagent = msg.agentId && msg.agentId !== transcript.session_id;
+                const hasTool = hasToolUse(msg.message!.content);
+                const isExpanded = expandedTools.has(msg.uuid);
                 const messageClasses = [
                   'message',
                   `message-${msg.message?.role}`,
-                  isSubagent ? 'message-subagent' : ''
+                  isSubagent ? 'message-subagent' : '',
+                  hasTool ? 'message-with-tool' : ''
                 ].filter(Boolean).join(' ');
 
                 // Find subagent name if available
@@ -122,15 +180,81 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
                   ? transcript.subagents?.find(s => s.id === msg.agentId)?.name || msg.agentId
                   : null;
 
+                // Get tool_use blocks if present
+                const toolUseBlocks = hasTool ? getToolUseBlocks(msg.message!.content) : [];
+
                 return (
-                  <div key={msg.uuid} className={messageClasses} data-testid="timeline-item">
+                  <div
+                    key={msg.uuid}
+                    className={messageClasses}
+                    data-testid="timeline-item"
+                    role={hasTool ? 'button' : undefined}
+                    aria-expanded={hasTool ? isExpanded : undefined}
+                    tabIndex={hasTool ? 0 : undefined}
+                    onClick={hasTool ? () => handleToolClick(msg.uuid) : undefined}
+                    onKeyDown={hasTool ? (e) => handleToolKeyDown(e, msg.uuid) : undefined}
+                    style={hasTool ? { cursor: 'pointer' } : undefined}
+                  >
                     {isSubagent && subagentName && (
                       <div className="subagent-label" data-testid="subagent-label">
                         [Subagent: {subagentName}]
                       </div>
                     )}
-                    <div className="message-role">{msg.message?.role === 'user' ? 'User' : 'Assistant'}:</div>
+                    <div className="message-role">
+                      {msg.message?.role === 'user' ? 'User' : 'Assistant'}:
+                      {hasTool && (
+                        <span className="tool-use-indicator" data-testid="tool-use-indicator">
+                          🔧
+                        </span>
+                      )}
+                      {hasTool && (
+                        <span className="expand-indicator" data-testid="expand-indicator" aria-expanded={isExpanded}>
+                          {isExpanded ? '▼' : '▶'}
+                        </span>
+                      )}
+                    </div>
                     <div className="message-content">{getMessageText(msg.message!.content)}</div>
+
+                    {hasTool && isExpanded && (
+                      <div className="tool-details">
+                        {toolUseBlocks.map((toolBlock) => {
+                          const toolResult = findToolResult(transcript.messages!, toolBlock.id!);
+                          const isError = toolResult && 'is_error' in toolResult && toolResult.is_error;
+
+                          return (
+                            <div key={toolBlock.id} className="tool-detail-view" data-testid="tool-detail-view">
+                              <div className="tool-header">
+                                <div className="tool-name" data-testid="tool-name">
+                                  Tool: {toolBlock.name}
+                                </div>
+                                <div className="tool-id" data-testid="tool-id">
+                                  ID: {toolBlock.id}
+                                </div>
+                              </div>
+
+                              <div className="tool-section">
+                                <div className="tool-section-title">Input:</div>
+                                <div className="tool-input" data-testid="tool-input">
+                                  <pre><code>{JSON.stringify(toolBlock.input, null, 2)}</code></pre>
+                                </div>
+                              </div>
+
+                              {toolResult && (
+                                <div className="tool-section">
+                                  <div className="tool-section-title">Output:</div>
+                                  <div
+                                    className={`tool-output ${isError ? 'tool-output-error' : ''}`}
+                                    data-testid="tool-output"
+                                  >
+                                    <pre><code>{typeof toolResult.content === 'string' ? toolResult.content : JSON.stringify(toolResult.content, null, 2)}</code></pre>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
                   </div>
                 );
               })}

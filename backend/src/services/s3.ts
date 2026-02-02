@@ -16,6 +16,7 @@ export type MessageContent = string | Array<{
   input?: unknown;
   tool_use_id?: string;
   content?: string;
+  is_error?: boolean;
 }>;
 
 // Individual message in a transcript (JSONL line)
@@ -132,6 +133,26 @@ export class S3Service {
                 { type: 'tool_use', id: 'tool-001', name: 'DataAnalyzer', input: { file_path: '/data/input.csv' } },
               ],
               model: 'claude-sonnet-4-5',
+            },
+            cwd: '/app',
+            version: '2.1.0',
+          },
+          {
+            type: 'user',
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:08Z',
+            uuid: 'msg-002b',
+            parentUuid: 'msg-002',
+            agentId: 'session-abc123',
+            message: {
+              role: 'user',
+              content: [
+                {
+                  type: 'tool_result',
+                  tool_use_id: 'tool-001',
+                  content: 'Analysis complete. Found 1000 rows with 15 columns. Data quality: 97.7%'
+                }
+              ]
             },
             cwd: '/app',
             version: '2.1.0',
