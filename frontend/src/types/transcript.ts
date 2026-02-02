@@ -36,6 +36,7 @@ export interface TranscriptMessage {
   timestamp: string;
   uuid: string;
   parentUuid: string | null;
+  agentId?: string; // 'main' for main agent, subagent ID for subagents
   message?: {
     role: 'user' | 'assistant';
     content: MessageContent;
@@ -47,6 +48,10 @@ export interface TranscriptMessage {
   gitBranch?: string;
   isSidechain?: boolean;
   userType?: string;
+  metadata?: {
+    total_tokens?: number;
+    duration_ms?: number;
+  };
 }
 
 export interface Transcript {

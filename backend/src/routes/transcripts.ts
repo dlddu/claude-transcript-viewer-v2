@@ -38,6 +38,44 @@ const errorIds = ['invalid-id'];
 // Known session IDs that should trigger S3 error (for testing)
 const errorSessionIds = ['session-trigger-s3-error'];
 
+// GET /api/transcript/session/:sessionId/timeline - must come before session/:sessionId
+transcriptsRouter.get('/session/:sessionId/timeline', async (req, res) => {
+  try {
+    const { sessionId } = req.params;
+
+    // Trim whitespace
+    const trimmedSessionId = sessionId?.trim();
+
+    // Validate session ID
+    if (!trimmedSessionId) {
+      return res.status(400).json({ error: 'Session ID is required' });
+    }
+
+    // Handle test cases for S3 errors
+    if (errorSessionIds.includes(trimmedSessionId)) {
+      return res.status(500).json({ error: 'S3 service error' });
+    }
+
+    // Try to merge session transcripts into timeline
+    try {
+      const timeline = await s3Service.mergeSessionTranscripts(trimmedSessionId);
+      return res.json(timeline);
+    } catch (s3Error: unknown) {
+      const errorMessage = s3Error instanceof Error ? s3Error.message : 'Unknown error';
+      if (errorMessage === 'No transcript found for session ID') {
+        return res.status(404).json({ error: 'No transcript found for session ID' });
+      }
+      if (errorMessage === 'Session ID is required') {
+        return res.status(400).json({ error: 'Session ID is required' });
+      }
+      throw s3Error;
+    }
+  } catch (error: unknown) {
+    console.error('Error merging session transcripts:', error);
+    res.status(500).json({ error: 'Failed to merge session transcripts' });
+  }
+});
+
 // GET /api/transcript/session/:sessionId - must come before /:id route
 transcriptsRouter.get('/session/:sessionId', async (req, res) => {
   try {

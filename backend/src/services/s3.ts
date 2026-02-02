@@ -25,6 +25,7 @@ export interface TranscriptMessage {
   timestamp: string;
   uuid: string;
   parentUuid: string | null;
+  agentId?: string; // 'main' for main agent, subagent ID for subagents
   message?: {
     role: 'user' | 'assistant';
     content: MessageContent;
@@ -38,6 +39,10 @@ export interface TranscriptMessage {
   gitBranch?: string;
   isSidechain?: boolean;
   userType?: string;
+  metadata?: {
+    total_tokens?: number;
+    duration_ms?: number;
+  };
 }
 
 // Subagent transcript
@@ -57,6 +62,12 @@ export interface Transcript {
   messages?: TranscriptMessage[];
   subagents?: SubagentTranscript[];
   [key: string]: unknown;
+}
+
+// Merged timeline result
+export interface MergedTimeline {
+  sessionId: string;
+  messages: TranscriptMessage[];
 }
 
 // Mock data for unit tests (when S3 is not available)
@@ -124,10 +135,7 @@ export class S3Service {
             parentUuid: 'msg-001',
             message: {
               role: 'assistant',
-              content: [
-                { type: 'text', text: 'I\'d be happy to help you analyze the dataset.' },
-                { type: 'tool_use', id: 'tool-001', name: 'Read', input: { file_path: '/data/input.csv' } },
-              ],
+              content: 'I\'d be happy to help you analyze the dataset.',
               model: 'claude-sonnet-4-5',
             },
             cwd: '/app',
@@ -136,23 +144,18 @@ export class S3Service {
         ],
         subagents: [
           {
-            id: 'agent-a1b2c3d',
-            name: 'agent-a1b2c3d',
+            id: 'a1b2c3d',
+            name: 'Data Analyzer Subagent',
+            type: 'analysis',
             transcript_file: 'session-abc123/agent-a1b2c3d.jsonl',
-            content: '{"type":"user","sessionId":"agent-a1b2c3d","timestamp":"2026-02-01T05:00:10Z","uuid":"sub-001","parentUuid":null,"message":{"role":"user","content":"Analyze the CSV file"}}',
-            messages: [
-              {
-                type: 'user',
-                sessionId: 'agent-a1b2c3d',
-                timestamp: '2026-02-01T05:00:10Z',
-                uuid: 'sub-001',
-                parentUuid: null,
-                message: {
-                  role: 'user',
-                  content: 'Analyze the CSV file',
-                },
-              },
-            ],
+            content: '{"type":"assistant","sessionId":"a1b2c3d","timestamp":"2026-02-01T05:00:15Z","uuid":"sub-001","parentUuid":null,"message":{"role":"assistant","content":"Starting data analysis. Found 1,000 rows and 15 columns detected."},"isSidechain":true,"metadata":{"total_tokens":456,"duration_ms":2100}}',
+          },
+          {
+            id: 'xyz9876',
+            name: 'Visualization Subagent',
+            type: 'visualization',
+            transcript_file: 'session-abc123/agent-xyz9876.jsonl',
+            content: '{"type":"assistant","sessionId":"xyz9876","timestamp":"2026-02-01T05:00:45Z","uuid":"sub-002","parentUuid":null,"message":{"role":"assistant","content":"Creating visualizations. Generated 3 charts."},"isSidechain":true,"metadata":{"total_tokens":234,"duration_ms":1800}}',
           },
         ],
       },
@@ -394,5 +397,83 @@ export class S3Service {
       }
       throw error;
     }
+  }
+
+  async mergeSessionTranscripts(sessionId: string): Promise<MergedTimeline> {
+    // Trim whitespace
+    const trimmedSessionId = sessionId.trim();
+
+    if (!trimmedSessionId) {
+      throw new Error('Session ID is required');
+    }
+
+    // Get transcript with subagents
+    const transcript = await this.getTranscriptBySessionId(trimmedSessionId);
+
+    // Parse main agent messages from JSONL content
+    const mainMessages: TranscriptMessage[] = [];
+    if (transcript.messages) {
+      mainMessages.push(...transcript.messages);
+    } else if (transcript.content) {
+      // Parse JSONL content
+      const lines = transcript.content.trim().split('\n').filter(line => line.trim());
+      for (const line of lines) {
+        try {
+          const parsed = JSON.parse(line) as TranscriptMessage;
+          mainMessages.push(parsed);
+        } catch {
+          // Skip invalid lines
+        }
+      }
+    }
+
+    // Add agentId = 'main' to main agent messages
+    const messagesWithAgentId: TranscriptMessage[] = mainMessages.map(msg => ({
+      ...msg,
+      agentId: 'main',
+    }));
+
+    // Parse subagent messages
+    if (transcript.subagents && transcript.subagents.length > 0) {
+      for (const subagent of transcript.subagents) {
+        if (!subagent.content) continue;
+
+        // Extract agentId from filename or use subagent id
+        let agentId = subagent.id;
+        if (subagent.transcript_file) {
+          const fileName = subagent.transcript_file.split('/').pop() || '';
+          const match = fileName.match(/agent-([^.]+)/);
+          if (match) {
+            agentId = match[1];
+          }
+        }
+
+        // Parse JSONL content
+        const lines = subagent.content.trim().split('\n').filter(line => line.trim());
+        for (const line of lines) {
+          try {
+            const parsed = JSON.parse(line) as TranscriptMessage;
+            messagesWithAgentId.push({
+              ...parsed,
+              agentId,
+            });
+          } catch {
+            // Skip invalid lines
+          }
+        }
+      }
+    }
+
+    // Sort all messages by timestamp
+    messagesWithAgentId.sort((a, b) => {
+      const timeA = new Date(a.timestamp).getTime();
+      const timeB = new Date(b.timestamp).getTime();
+      return timeA - timeB;
+    });
+
+    return {
+      sessionId: trimmedSessionId,
+      messages: messagesWithAgentId,
+    };
   }
 }

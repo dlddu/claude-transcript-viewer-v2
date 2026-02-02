@@ -27,11 +27,19 @@ function getModelFromMessages(messages?: TranscriptMessage[]): string | undefine
 interface TranscriptViewerProps {
   transcript?: Transcript | null;
   error?: Error;
+  viewMode?: 'default' | 'timeline';
+  timelineMessages?: TranscriptMessage[];
 }
 
-export function TranscriptViewer({ transcript: propTranscript, error: propError }: TranscriptViewerProps = {}) {
+export function TranscriptViewer({
+  transcript: propTranscript,
+  error: propError,
+  viewMode = 'default',
+  timelineMessages = []
+}: TranscriptViewerProps = {}) {
   const [expandedSubagents, setExpandedSubagents] = useState<Set<string>>(new Set());
   const [subagentData, setSubagentData] = useState<Map<string, Transcript>>(new Map());
+  const [expandedTimelineItems, setExpandedTimelineItems] = useState<Set<string>>(new Set());
 
   // If transcript is provided as prop, use it; otherwise show loading
   const isProvidedTranscript = propTranscript !== undefined;
@@ -92,6 +100,134 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
     return (
       <div data-testid="transcript-viewer">
         <div className="loading">Loading transcript...</div>
+      </div>
+    );
+  }
+
+  const toggleTimelineItem = (uuid: string) => {
+    setExpandedTimelineItems(prev => {
+      const next = new Set(prev);
+      if (next.has(uuid)) {
+        next.delete(uuid);
+      } else {
+        next.add(uuid);
+      }
+      return next;
+    });
+  };
+
+  // Timeline view rendering
+  const shouldShowTimeline = viewMode === 'timeline' ||
+    (timelineMessages.length > 0) ||
+    (isProvidedTranscript && propTranscript?.messages && propTranscript.messages.length > 0 && propTranscript.messages.some(m => m.agentId));
+
+  const messagesForTimeline = timelineMessages.length > 0 ? timelineMessages : (propTranscript?.messages || []);
+
+  if (shouldShowTimeline && messagesForTimeline.length > 0) {
+    const filteredMessages = messagesForTimeline.filter(msg => msg.type !== 'queue-operation' && msg.message);
+
+    if (filteredMessages.length === 0) {
+      return (
+        <div data-testid="transcript-viewer" className="transcript-viewer">
+          <div data-testid="timeline-view" className="timeline-view">
+            <div>No messages available</div>
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div data-testid="transcript-viewer" className="transcript-viewer">
+        <div data-testid="timeline-view" className="timeline-view">
+          {filteredMessages.map((msg) => {
+              const isMainAgent = msg.agentId === 'main';
+              const isExpanded = expandedTimelineItems.has(msg.uuid);
+              const itemClassName = isMainAgent
+                ? 'timeline-item timeline-item-main'
+                : 'timeline-item timeline-item-subagent indented';
+
+              return (
+                <div
+                  key={msg.uuid}
+                  data-testid="timeline-item"
+                  data-type={isMainAgent ? 'main-agent' : 'subagent'}
+                  data-agent-id={msg.agentId}
+                  data-is-sidechain={msg.isSidechain ? 'true' : 'false'}
+                  className={itemClassName}
+                  style={isMainAgent ? {} : { marginLeft: '2rem', backgroundColor: '#f5f5f5' }}
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      toggleTimelineItem(msg.uuid);
+                    }
+                  }}
+                >
+                  <div className="timeline-item-header">
+                    {!isMainAgent && (
+                      <span data-testid="subagent-badge" className="subagent-badge">
+                        {msg.agentId}
+                      </span>
+                    )}
+                    <span
+                      data-testid="item-timestamp"
+                      data-timestamp={msg.timestamp}
+                      className="item-timestamp"
+                    >
+                      {new Date(msg.timestamp).toISOString().substring(11, 19)}
+                    </span>
+                    {!isMainAgent && (
+                      <span data-testid="subagent-name" className="subagent-name">
+                        {msg.agentId}
+                      </span>
+                    )}
+                    {!isMainAgent && (
+                      <span data-testid="subagent-indicator" className="subagent-indicator">
+                        🔗
+                      </span>
+                    )}
+                  </div>
+                  <div className="timeline-item-content">
+                    <div data-testid="message-type" data-type={isMainAgent ? 'main-agent' : 'subagent'}>
+                      <strong>{msg.message?.role === 'user' ? 'User' : 'Assistant'}:</strong>
+                    </div>
+                    <div>{getMessageText(msg.message!.content)}</div>
+                  </div>
+                  {!isMainAgent && (
+                    <button
+                      data-testid="expand-toggle"
+                      className="expand-toggle"
+                      onClick={() => toggleTimelineItem(msg.uuid)}
+                    >
+                      {isExpanded ? 'Collapse' : 'Expand'}
+                    </button>
+                  )}
+                  {!isMainAgent && msg.metadata && (
+                    <div data-testid="subagent-metadata" className="subagent-metadata">
+                      {msg.metadata.total_tokens && (
+                        <span data-testid="token-count" className="metadata-item">
+                          {msg.metadata.total_tokens} tokens
+                        </span>
+                      )}
+                      {msg.metadata.duration_ms && (
+                        <span data-testid="duration" className="metadata-item">
+                          {msg.metadata.duration_ms} ms
+                        </span>
+                      )}
+                    </div>
+                  )}
+                  {isExpanded && (
+                    <div data-testid="subagent-details" className="subagent-details">
+                      {msg.cwd && <div>CWD: {msg.cwd}</div>}
+                      {msg.version && <div>Version: {msg.version}</div>}
+                      {msg.message?.content && typeof msg.message.content === 'string' && msg.message.content.includes('rows') && (
+                        <div>{msg.message.content}</div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+        </div>
       </div>
     );
   }
