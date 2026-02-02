@@ -97,7 +97,8 @@ test.describe('Timeline Integration', () => {
     await expect(subagentLabels.first()).toBeVisible();
 
     // Main agent messages should not have subagent labels
-    const mainMessages = timelineItems.locator('.message:not(.message-subagent)');
+    // The timeline-item itself has the .message classes
+    const mainMessages = timeline.locator('[data-testid="timeline-item"]:not(.message-subagent)');
     await expect(mainMessages.first()).toBeVisible();
   });
 
