@@ -81,3 +81,13 @@ export interface EnrichedMessage {
   subagentName: string | null;
   toolUses: EnrichedToolUse[];
 }
+
+export type MessageGroup =
+  | { type: 'main'; messages: EnrichedMessage[] }
+  | {
+      type: 'subagent';
+      groupKey: string;
+      agentId: string;
+      subagentName: string;
+      messages: EnrichedMessage[];
+    };
