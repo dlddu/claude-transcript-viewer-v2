@@ -299,7 +299,8 @@ jobs:
           sudo mv kubectl /usr/local/bin/
 
       - name: Run K8s manifest validation tests
-        run: npx tsx --test e2e/tests/k8s-manifests.spec.ts
+        working-directory: backend
+        run: pnpm exec tsx --test ../e2e/tests/k8s-manifests.spec.ts
 
   lint:
     name: Lint
