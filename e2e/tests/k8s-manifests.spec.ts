@@ -552,7 +552,7 @@ describe('K8s Manifests - kubectl dry-run validation', () => {
 
     // Act & Assert
     assert.doesNotThrow(() => {
-      execCommand(`kubectl create --dry-run=client --validate=false -f ${deploymentPath} -o yaml`);
+      execCommand(`KUBECONFIG=/dev/null kubectl create --dry-run=client --validate=false -f ${deploymentPath} -o yaml`);
     }, 'deployment.yaml should pass kubectl dry-run validation');
   });
 
@@ -568,7 +568,7 @@ describe('K8s Manifests - kubectl dry-run validation', () => {
 
     // Act & Assert
     assert.doesNotThrow(() => {
-      execCommand(`kubectl create --dry-run=client --validate=false -f ${servicePath} -o yaml`);
+      execCommand(`KUBECONFIG=/dev/null kubectl create --dry-run=client --validate=false -f ${servicePath} -o yaml`);
     }, 'service.yaml should pass kubectl dry-run validation');
   });
 
@@ -584,7 +584,7 @@ describe('K8s Manifests - kubectl dry-run validation', () => {
 
     // Act & Assert
     assert.doesNotThrow(() => {
-      execCommand(`kubectl create --dry-run=client --validate=false -f ${configmapPath} -o yaml`);
+      execCommand(`KUBECONFIG=/dev/null kubectl create --dry-run=client --validate=false -f ${configmapPath} -o yaml`);
     }, 'configmap.example.yaml should pass kubectl dry-run validation');
   });
 
@@ -600,7 +600,7 @@ describe('K8s Manifests - kubectl dry-run validation', () => {
 
     // Act & Assert
     assert.doesNotThrow(() => {
-      execCommand(`kubectl create --dry-run=client --validate=false -f ${secretPath} -o yaml`);
+      execCommand(`KUBECONFIG=/dev/null kubectl create --dry-run=client --validate=false -f ${secretPath} -o yaml`);
     }, 'secret.example.yaml should pass kubectl dry-run validation');
   });
 
@@ -613,7 +613,7 @@ describe('K8s Manifests - kubectl dry-run validation', () => {
 
     // Arrange & Act & Assert
     assert.doesNotThrow(() => {
-      execCommand(`kubectl create --dry-run=client --validate=false -f ${K8S_DIR}/ -o yaml`);
+      execCommand(`KUBECONFIG=/dev/null kubectl create --dry-run=client --validate=false -f ${K8S_DIR}/ -o yaml`);
     }, 'All manifests should be valid when applied together');
   });
 });
