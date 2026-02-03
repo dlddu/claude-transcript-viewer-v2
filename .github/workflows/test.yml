@@ -296,10 +296,10 @@ jobs:
         uses: azure/setup-kubectl@v4
 
       - name: Run K8s backend manifest validation tests
-        run: node --test e2e/tests/k8s-manifests.spec.ts
+        run: pnpm tsx --test e2e/tests/k8s-manifests.spec.ts
 
       - name: Run K8s frontend manifest validation tests
-        run: node --test e2e/tests/k8s-frontend-manifests.spec.ts
+        run: pnpm tsx --test e2e/tests/k8s-frontend-manifests.spec.ts
 
   lint:
     name: Lint
