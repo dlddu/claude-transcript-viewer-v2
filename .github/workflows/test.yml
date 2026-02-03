@@ -188,6 +188,77 @@ jobs:
           path: e2e/playwright-report/
           retention-days: 30
 
+  docker-e2e-tests:
+    name: Docker Build E2E Tests (Skipped)
+    runs-on: ubuntu-latest
+    if: false  # Initially skipped - enable when Dockerfiles are implemented
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build frontend Docker image
+        run: |
+          cd frontend
+          docker build -t claude-transcript-viewer-frontend:test .
+
+      - name: Build backend Docker image
+        run: |
+          cd backend
+          docker build -t claude-transcript-viewer-backend:test .
+
+      - name: Test frontend container
+        run: |
+          docker run -d --name frontend-test -p 8080:80 claude-transcript-viewer-frontend:test
+          sleep 3
+          curl -f http://localhost:8080 || exit 1
+          docker stop frontend-test
+          docker rm frontend-test
+
+      - name: Test backend container
+        run: |
+          docker run -d --name backend-test -p 3001:3000 \
+            -e AWS_ACCESS_KEY_ID=test \
+            -e AWS_SECRET_ACCESS_KEY=test \
+            -e S3_BUCKET=test-bucket \
+            claude-transcript-viewer-backend:test
+          sleep 5
+          curl -f http://localhost:3001/api/health || exit 1
+          docker stop backend-test
+          docker rm backend-test
+
+      - name: Check image sizes
+        run: |
+          frontend_size=$(docker inspect claude-transcript-viewer-frontend:test --format='{{.Size}}')
+          backend_size=$(docker inspect claude-transcript-viewer-backend:test --format='{{.Size}}')
+          frontend_mb=$((frontend_size / 1024 / 1024))
+          backend_mb=$((backend_size / 1024 / 1024))
+          echo "Frontend image size: ${frontend_mb}MB"
+          echo "Backend image size: ${backend_mb}MB"
+          if [ $frontend_mb -gt 100 ]; then
+            echo "Warning: Frontend image size exceeds 100MB"
+          fi
+          if [ $backend_mb -gt 300 ]; then
+            echo "Warning: Backend image size exceeds 300MB"
+          fi
+
+      - name: Run Docker build tests
+        run: node --test e2e/tests/docker-build.spec.ts
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
