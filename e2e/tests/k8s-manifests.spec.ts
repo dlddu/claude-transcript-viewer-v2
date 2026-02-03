@@ -38,6 +38,8 @@ const execCommand = (command: string, cwd?: string): string => {
 const isKubectlAvailable = (): boolean => {
   try {
     execCommand('kubectl version --client');
+    // Also verify that dry-run actually works without a cluster
+    execCommand('KUBECONFIG=/dev/null kubectl create --dry-run=client --validate=false -f - -o yaml <<< \'{"apiVersion":"v1","kind":"ConfigMap","metadata":{"name":"test"}}\'');
     return true;
   } catch {
     return false;
