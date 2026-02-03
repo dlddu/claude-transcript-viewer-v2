@@ -188,6 +188,20 @@ jobs:
           path: e2e/playwright-report/
           retention-days: 30
 
+  workflow-validation-tests:
+    name: Workflow File Validation (Skipped)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run Docker Publish Workflow validation tests
+        run: node --test e2e/tests/docker-publish-workflow.spec.ts
+
   docker-e2e-tests:
     name: Docker Build E2E Tests (Skipped)
     runs-on: ubuntu-latest
