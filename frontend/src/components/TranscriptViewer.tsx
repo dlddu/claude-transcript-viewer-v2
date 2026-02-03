@@ -1,50 +1,8 @@
-import { useState } from 'react';
-import type { Transcript, TranscriptMessage, MessageContent } from '../types/transcript';
+import { useMemo, useState } from 'react';
+import type { Transcript, TranscriptMessage } from '../types/transcript';
+import { enrichMessages } from '../utils/enrichMessages';
 import { useTranscriptData } from '../hooks/useTranscriptData';
 import './TranscriptViewer.css';
-
-// Helper function to extract text from message content
-function getMessageText(content: MessageContent): string {
-  if (typeof content === 'string') {
-    return content;
-  }
-  return content
-    .filter(block => block.type === 'text' && block.text)
-    .map(block => block.text)
-    .join('\n');
-}
-
-// Helper function to check if message has tool_use content blocks
-function hasToolUse(content: MessageContent): boolean {
-  if (typeof content === 'string') {
-    return false;
-  }
-  return content.some(block => block.type === 'tool_use');
-}
-
-// Helper function to extract tool_use blocks from content
-function getToolUseBlocks(content: MessageContent) {
-  if (typeof content === 'string') {
-    return [];
-  }
-  return content.filter(block => block.type === 'tool_use');
-}
-
-// Helper function to find tool_result for a given tool_use_id
-function findToolResult(messages: TranscriptMessage[], toolUseId: string) {
-  for (const msg of messages) {
-    if (!msg.message || typeof msg.message.content === 'string') continue;
-
-    const toolResult = msg.message.content.find(
-      block => block.type === 'tool_result' && block.tool_use_id === toolUseId
-    );
-
-    if (toolResult) {
-      return toolResult;
-    }
-  }
-  return null;
-}
 
 // Helper function to extract model from messages
 function getModelFromMessages(messages?: TranscriptMessage[]): string | undefined {
@@ -66,10 +24,18 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
   const [expandedSubagents, setExpandedSubagents] = useState<Set<string>>(new Set());
   const [subagentData, setSubagentData] = useState<Map<string, Transcript>>(new Map());
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
+  const [debugMode, setDebugMode] = useState(false);
 
   // If transcript is provided as prop, use it; otherwise show loading
   const isProvidedTranscript = propTranscript !== undefined;
   const isProvidedError = propError !== undefined;
+
+  const transcript = isProvidedTranscript ? propTranscript : null;
+
+  const enrichedMessages = useMemo(() => {
+    if (!transcript?.messages) return [];
+    return enrichMessages(transcript.messages, transcript.session_id, transcript.subagents);
+  }, [transcript?.messages, transcript?.session_id, transcript?.subagents]);
 
   const toggleSubagent = async (subagentId: string, transcriptFile?: string) => {
     const isExpanded = expandedSubagents.has(subagentId);
@@ -152,56 +118,51 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
     );
   }
 
-  const transcript = propTranscript!;
-  const modelFromMessages = getModelFromMessages(transcript.messages);
-  const displayModel = transcript.metadata?.model || modelFromMessages;
+  const modelFromMessages = getModelFromMessages(transcript!.messages);
+  const displayModel = transcript!.metadata?.model || modelFromMessages;
 
   return (
     <div data-testid="transcript-viewer" className="transcript-viewer">
       <div className="transcript-content">
         {/* Render messages if available, otherwise fall back to content */}
-        {transcript.messages && transcript.messages.length > 0 ? (
+        {enrichedMessages.length > 0 ? (
           <div className="messages" data-testid="timeline-view">
-            {transcript.messages
-              .filter(msg => msg.type !== 'queue-operation' && msg.message)
-              .map((msg) => {
-                const isSubagent = msg.agentId && msg.agentId !== transcript.session_id;
-                const hasTool = hasToolUse(msg.message!.content);
-                const isExpanded = expandedTools.has(msg.uuid);
+            <button
+              className={`debug-toggle ${debugMode ? 'debug-toggle-active' : ''}`}
+              onClick={() => setDebugMode(prev => !prev)}
+              data-testid="debug-toggle"
+            >
+              {debugMode ? 'Debug ON' : 'Debug OFF'}
+            </button>
+            {enrichedMessages.map((enriched) => {
+                const hasTool = enriched.toolUses.length > 0;
+                const isExpanded = expandedTools.has(enriched.raw.uuid);
                 const messageClasses = [
                   'message',
-                  `message-${msg.message?.role}`,
-                  isSubagent ? 'message-subagent' : '',
+                  `message-${enriched.raw.message?.role}`,
+                  enriched.isSubagent ? 'message-subagent' : '',
                   hasTool ? 'message-with-tool' : ''
                 ].filter(Boolean).join(' ');
 
-                // Find subagent name if available
-                const subagentName = isSubagent
-                  ? transcript.subagents?.find(s => s.id === msg.agentId)?.name || msg.agentId
-                  : null;
-
-                // Get tool_use blocks if present
-                const toolUseBlocks = hasTool ? getToolUseBlocks(msg.message!.content) : [];
-
                 return (
                   <div
-                    key={msg.uuid}
+                    key={enriched.raw.uuid}
                     className={messageClasses}
                     data-testid="timeline-item"
                     role={hasTool ? 'button' : undefined}
                     aria-expanded={hasTool ? isExpanded : undefined}
                     tabIndex={hasTool ? 0 : undefined}
-                    onClick={hasTool ? () => handleToolClick(msg.uuid) : undefined}
-                    onKeyDown={hasTool ? (e) => handleToolKeyDown(e, msg.uuid) : undefined}
+                    onClick={hasTool ? () => handleToolClick(enriched.raw.uuid) : undefined}
+                    onKeyDown={hasTool ? (e) => handleToolKeyDown(e, enriched.raw.uuid) : undefined}
                     style={hasTool ? { cursor: 'pointer' } : undefined}
                   >
-                    {isSubagent && subagentName && (
+                    {enriched.isSubagent && enriched.subagentName && (
                       <div className="subagent-label" data-testid="subagent-label">
-                        [Subagent: {subagentName}]
+                        [Subagent: {enriched.subagentName}]
                       </div>
                     )}
                     <div className="message-role">
-                      {msg.message?.role === 'user' ? 'User' : 'Assistant'}:
+                      {enriched.raw.message?.role === 'user' ? 'User' : 'Assistant'}:
                       {hasTool && (
                         <span className="tool-use-indicator" data-testid="tool-use-indicator">
                           🔧
@@ -213,40 +174,37 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
                         </span>
                       )}
                     </div>
-                    <div className="message-content">{getMessageText(msg.message!.content)}</div>
+                    <div className="message-content">{enriched.text}</div>
 
                     {hasTool && isExpanded && (
                       <div className="tool-details">
-                        {toolUseBlocks.map((toolBlock) => {
-                          const toolResult = findToolResult(transcript.messages!, toolBlock.id!);
-                          const isError = toolResult && 'is_error' in toolResult && toolResult.is_error;
-
+                        {enriched.toolUses.map((tool) => {
                           return (
-                            <div key={toolBlock.id} className="tool-detail-view" data-testid="tool-detail-view">
+                            <div key={tool.id} className="tool-detail-view" data-testid="tool-detail-view">
                               <div className="tool-header">
                                 <div className="tool-name" data-testid="tool-name">
-                                  Tool: {toolBlock.name}
+                                  Tool: {tool.name}
                                 </div>
                                 <div className="tool-id" data-testid="tool-id">
-                                  ID: {toolBlock.id}
+                                  ID: {tool.id}
                                 </div>
                               </div>
 
                               <div className="tool-section">
                                 <div className="tool-section-title">Input:</div>
                                 <div className="tool-input" data-testid="tool-input">
-                                  <pre><code>{JSON.stringify(toolBlock.input, null, 2)}</code></pre>
+                                  <pre><code>{JSON.stringify(tool.input, null, 2)}</code></pre>
                                 </div>
                               </div>
 
-                              {toolResult && (
+                              {tool.result && (
                                 <div className="tool-section">
                                   <div className="tool-section-title">Output:</div>
                                   <div
-                                    className={`tool-output ${isError ? 'tool-output-error' : ''}`}
+                                    className={`tool-output ${tool.result.is_error ? 'tool-output-error' : ''}`}
                                     data-testid="tool-output"
                                   >
-                                    <pre><code>{typeof toolResult.content === 'string' ? toolResult.content : JSON.stringify(toolResult.content, null, 2)}</code></pre>
+                                    <pre><code>{tool.result.content}</code></pre>
                                   </div>
                                 </div>
                               )}
@@ -255,20 +213,27 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
                         })}
                       </div>
                     )}
+
+                    {debugMode && (
+                      <details className="debug-data" data-testid="debug-data" onClick={(e) => e.stopPropagation()}>
+                        <summary>Raw Data</summary>
+                        <pre><code>{JSON.stringify(enriched, null, 2)}</code></pre>
+                      </details>
+                    )}
                   </div>
                 );
               })}
           </div>
         ) : (
-          <div className="main-content">{transcript.content}</div>
+          <div className="main-content">{transcript!.content}</div>
         )}
 
         {/* Metadata */}
-        {(transcript.metadata || transcript.session_id || displayModel) && (
+        {(transcript!.metadata || transcript!.session_id || displayModel) && (
           <div className="metadata" data-testid="transcript-metadata">
-            {transcript.session_id && (
+            {transcript!.session_id && (
               <span className="metadata-item" data-testid="session-id-display">
-                Session ID: {transcript.session_id}
+                Session ID: {transcript!.session_id}
               </span>
             )}
             {displayModel && (
@@ -276,24 +241,24 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
                 {displayModel}
               </span>
             )}
-            {transcript.metadata?.total_tokens && (
+            {transcript!.metadata?.total_tokens && (
               <span className="metadata-item">
-                {transcript.metadata.total_tokens} tokens
+                {transcript!.metadata.total_tokens} tokens
               </span>
             )}
-            {transcript.metadata?.duration_ms && (
+            {transcript!.metadata?.duration_ms && (
               <span className="metadata-item">
-                {transcript.metadata.duration_ms} ms
+                {transcript!.metadata.duration_ms} ms
               </span>
             )}
           </div>
         )}
 
         {/* Tools Used */}
-        {transcript.tools_used && transcript.tools_used.length > 0 && (
+        {transcript!.tools_used && transcript!.tools_used.length > 0 && (
           <div className="tools-used">
             <h3>Tools Used:</h3>
-            {transcript.tools_used.map((tool, index) => (
+            {transcript!.tools_used.map((tool, index) => (
               <div key={index} className="tool-item">
                 {tool.name} ({tool.invocations} invocations)
               </div>
@@ -302,10 +267,10 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
         )}
 
         {/* Subagents */}
-        {transcript.subagents && transcript.subagents.length > 0 && (
+        {transcript!.subagents && transcript!.subagents.length > 0 && (
           <div className="subagents">
             <h3>Subagents:</h3>
-            {transcript.subagents.map((subagent) => {
+            {transcript!.subagents.map((subagent) => {
               const isExpanded = expandedSubagents.has(subagent.id);
               const loadedData = subagentData.get(subagent.id);
               const contentToShow = loadedData?.content || subagent.content;
