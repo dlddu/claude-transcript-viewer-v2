@@ -393,6 +393,8 @@ jobs:
           kubectl apply -f k8s/backend/service.yaml
           kubectl set image deployment/claude-transcript-viewer-backend \
             backend=claude-transcript-viewer-backend:test
+          kubectl set env deployment/claude-transcript-viewer-backend \
+            AWS_ENDPOINT_URL=http://localstack:4566
           kubectl patch deployment claude-transcript-viewer-backend --type=json \
             -p='[{"op": "replace", "path": "/spec/replicas", "value": 1}]'
 
