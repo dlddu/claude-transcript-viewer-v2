@@ -43,7 +43,18 @@ test.describe('Timeline Integration', () => {
     // Main agent content should be present
     await expect(timeline.getByText(/Can you help me analyze this dataset/i)).toBeVisible();
 
-    // Subagent content should be present inline (not in separate sections)
+    // Subagent groups should be present (collapsed by default)
+    const subagentGroups = timeline.locator('[data-testid="subagent-group"]');
+    await expect(subagentGroups.first()).toBeVisible();
+
+    // Expand all subagent groups to verify content
+    const groupHeaders = timeline.locator('[data-testid="subagent-group-header"]');
+    const count = await groupHeaders.count();
+    for (let i = 0; i < count; i++) {
+      await groupHeaders.nth(i).click();
+    }
+
+    // Subagent content should be visible after expanding
     await expect(timeline.getByText(/Starting data analysis/i)).toBeVisible();
     await expect(timeline.getByText(/Creating visualizations/i)).toBeVisible();
 
@@ -57,21 +68,20 @@ test.describe('Timeline Integration', () => {
     // Arrange
     const timeline = page.getByTestId('timeline-view');
 
-    // Act - Get all timeline items
-    const timelineItems = timeline.locator('[data-testid="timeline-item"]');
-
-    // Assert - Messages should contain expected content
-    // Note: Current implementation doesn't distinguish between main-agent and subagent in data-type
-    // Subagent messages have .message-subagent class and data-testid="subagent-label"
-
     // Verify main agent content is present
     await expect(timeline).toContainText(/Can you help me analyze this dataset/i);
 
-    // Verify subagent content is present with labels
-    const subagentLabels = timeline.locator('[data-testid="subagent-label"]');
-    await expect(subagentLabels.first()).toBeVisible();
+    // Verify subagent groups are present with group headers
+    const groupHeaders = timeline.locator('[data-testid="subagent-group-header"]');
+    await expect(groupHeaders.first()).toBeVisible();
 
-    // Subagent messages should have the subagent label shown
+    // Expand subagent groups to see messages
+    const count = await groupHeaders.count();
+    for (let i = 0; i < count; i++) {
+      await groupHeaders.nth(i).click();
+    }
+
+    // Subagent messages should be visible after expanding
     await expect(timeline.getByText(/Starting data analysis/i)).toBeVisible();
     await expect(timeline.getByText(/Creating visualizations/i)).toBeVisible();
   });
@@ -85,19 +95,16 @@ test.describe('Timeline Integration', () => {
   test('should visually distinguish between main and subagent messages', async ({ page }) => {
     // Arrange
     const timeline = page.getByTestId('timeline-view');
-    const timelineItems = timeline.locator('[data-testid="timeline-item"]');
 
-    // Assert - Subagent messages should have different visual styling
-    // Current implementation uses .message-subagent class for subagent messages
-    const subagentMessages = timeline.locator('.message-subagent');
-    await expect(subagentMessages.first()).toBeVisible();
+    // Assert - Subagent groups should have different visual styling
+    const subagentGroups = timeline.locator('.subagent-group');
+    await expect(subagentGroups.first()).toBeVisible();
 
-    // Subagent messages should have labels
-    const subagentLabels = timeline.locator('[data-testid="subagent-label"]');
-    await expect(subagentLabels.first()).toBeVisible();
+    // Subagent group headers should show subagent names
+    const groupHeaders = timeline.locator('[data-testid="subagent-group-header"]');
+    await expect(groupHeaders.first()).toBeVisible();
 
-    // Main agent messages should not have subagent labels
-    // The timeline-item itself has the .message classes
+    // Main agent messages should not be inside subagent groups
     const mainMessages = timeline.locator('[data-testid="timeline-item"]:not(.message-subagent)');
     await expect(mainMessages.first()).toBeVisible();
   });
@@ -108,10 +115,24 @@ test.describe('Timeline Integration', () => {
     // This test should be implemented when inline metadata display is added
   });
 
-  test.skip('should expand/collapse subagent details while maintaining timeline position', async ({ page }) => {
-    // Skip: Current implementation does not support expand/collapse in timeline items
-    // Subagents have expand/collapse in separate section, not inline in timeline
-    // This test should be implemented when inline expand/collapse is added
+  test('should expand/collapse subagent details while maintaining timeline position', async ({ page }) => {
+    const timeline = page.getByTestId('timeline-view');
+
+    // Subagent groups should be collapsed by default
+    const groupHeaders = timeline.locator('[data-testid="subagent-group-header"]');
+    await expect(groupHeaders.first()).toBeVisible();
+
+    // Group body should not be visible
+    const groupBody = timeline.locator('[data-testid="subagent-group-body"]');
+    await expect(groupBody).not.toBeVisible();
+
+    // Click to expand
+    await groupHeaders.first().click();
+    await expect(groupBody.first()).toBeVisible();
+
+    // Click to collapse
+    await groupHeaders.first().click();
+    await expect(groupBody).not.toBeVisible();
   });
 
   test('should handle sessions with no subagents gracefully', async ({ page }) => {
@@ -124,7 +145,7 @@ test.describe('Timeline Integration', () => {
     // Assert - Timeline should still work with only main agent messages
     await expect(timeline).toBeVisible();
 
-    // Should show messages (both main and subagent messages use .message class)
+    // Should show messages (main agent messages are directly visible)
     const messageItems = timeline.locator('[data-testid="timeline-item"]');
     await expect(messageItems.first()).toBeVisible();
 
