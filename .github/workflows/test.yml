@@ -389,7 +389,8 @@ jobs:
 
       - name: Deploy backend to kind cluster
         run: |
-          kubectl apply -f k8s/backend/
+          kubectl apply -f k8s/backend/deployment.yaml
+          kubectl apply -f k8s/backend/service.yaml
           kubectl set image deployment/claude-transcript-viewer-backend \
             backend=claude-transcript-viewer-backend:test
           kubectl patch deployment claude-transcript-viewer-backend --type=json \
@@ -397,7 +398,8 @@ jobs:
 
       - name: Deploy frontend to kind cluster
         run: |
-          kubectl apply -f k8s/frontend/
+          kubectl apply -f k8s/frontend/deployment.yaml
+          kubectl apply -f k8s/frontend/service.yaml
           kubectl set image deployment/claude-transcript-viewer-frontend \
             frontend=claude-transcript-viewer-frontend:test
           kubectl patch deployment claude-transcript-viewer-frontend --type=json \
