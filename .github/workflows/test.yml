@@ -226,14 +226,10 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build frontend Docker image
-        run: |
-          cd frontend
-          docker build -t claude-transcript-viewer-frontend:test .
+        run: docker build -t claude-transcript-viewer-frontend:test -f frontend/Dockerfile .
 
       - name: Build backend Docker image
-        run: |
-          cd backend
-          docker build -t claude-transcript-viewer-backend:test .
+        run: docker build -t claude-transcript-viewer-backend:test -f backend/Dockerfile .
 
       - name: Test frontend container
         run: |
@@ -352,14 +348,10 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build frontend Docker image
-        run: |
-          cd frontend
-          docker build -t claude-transcript-viewer-frontend:test .
+        run: docker build -t claude-transcript-viewer-frontend:test -f frontend/Dockerfile .
 
       - name: Build backend Docker image
-        run: |
-          cd backend
-          docker build -t claude-transcript-viewer-backend:test .
+        run: docker build -t claude-transcript-viewer-backend:test -f backend/Dockerfile .
 
       - name: Create kind cluster
         uses: helm/kind-action@v1

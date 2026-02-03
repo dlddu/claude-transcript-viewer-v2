@@ -6,14 +6,15 @@ RUN corepack enable
 
 WORKDIR /app
 
-# Copy package files
-COPY package.json pnpm-lock.yaml ./
+# Copy lockfile from monorepo root and backend package.json
+COPY pnpm-lock.yaml ./
+COPY backend/package.json ./
 
 # Install all dependencies (including dev dependencies for build)
 RUN pnpm install --frozen-lockfile
 
-# Copy source code and tsconfig
-COPY . .
+# Copy backend source code and tsconfig
+COPY backend/ ./
 
 # Build TypeScript code
 RUN pnpm build
@@ -29,8 +30,9 @@ WORKDIR /app
 # Set production environment
 ENV NODE_ENV=production
 
-# Copy package files
-COPY package.json pnpm-lock.yaml ./
+# Copy lockfile from monorepo root and backend package.json
+COPY pnpm-lock.yaml ./
+COPY backend/package.json ./
 
 # Install production dependencies only
 RUN pnpm install --prod --frozen-lockfile

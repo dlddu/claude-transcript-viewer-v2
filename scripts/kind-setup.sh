@@ -87,10 +87,10 @@ echo_step "Building Docker images..."
 cd "$REPO_ROOT"
 
 echo_step "Building frontend Docker image..."
-docker build -t claude-transcript-viewer-frontend:local -f frontend/Dockerfile frontend/
+docker build -t claude-transcript-viewer-frontend:local -f frontend/Dockerfile .
 
 echo_step "Building backend Docker image..."
-docker build -t claude-transcript-viewer-backend:local -f backend/Dockerfile backend/
+docker build -t claude-transcript-viewer-backend:local -f backend/Dockerfile .
 
 # Load images into kind
 echo_step "Loading Docker images into kind cluster..."

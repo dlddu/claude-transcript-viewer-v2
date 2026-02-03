@@ -6,14 +6,15 @@ RUN corepack enable
 
 WORKDIR /app
 
-# Copy package files
-COPY package.json pnpm-lock.yaml ./
+# Copy lockfile from monorepo root and frontend package.json
+COPY pnpm-lock.yaml ./
+COPY frontend/package.json ./
 
 # Install dependencies
 RUN pnpm install --frozen-lockfile
 
-# Copy source code
-COPY . .
+# Copy frontend source code
+COPY frontend/ ./
 
 # Build the application
 RUN pnpm build
