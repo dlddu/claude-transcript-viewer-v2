@@ -366,29 +366,58 @@ jobs:
           docker pull localstack/localstack:3.0
           kind load docker-image localstack/localstack:3.0 --name test-cluster
 
-      - name: Deploy LocalStack to kind cluster
+      - name: Create test ConfigMaps and Secrets
         run: |
-          kubectl apply -f k8s/localstack/
+          # Backend ConfigMap
+          kubectl create configmap claude-transcript-viewer-config \
+            --from-literal=PORT=3000 \
+            --from-literal=AWS_REGION=us-east-1 \
+            --from-literal=S3_BUCKET=test-transcripts \
+            --from-literal=AWS_ENDPOINT_URL=http://localstack:4566
+
+          # Backend Secret
+          kubectl create secret generic claude-transcript-viewer-secrets \
+            --from-literal=AWS_ACCESS_KEY_ID=test \
+            --from-literal=AWS_SECRET_ACCESS_KEY=test
+
+          # Frontend ConfigMap
+          kubectl create configmap claude-transcript-viewer-frontend-config \
+            --from-literal=VITE_API_URL=http://claude-transcript-viewer-backend
+
+      - name: Deploy LocalStack to kind cluster
+        run: kubectl apply -f k8s/localstack/
 
       - name: Deploy backend to kind cluster
         run: |
           kubectl apply -f k8s/backend/
+          kubectl set image deployment/claude-transcript-viewer-backend \
+            backend=claude-transcript-viewer-backend:test
+          kubectl patch deployment claude-transcript-viewer-backend --type=json \
+            -p='[{"op": "replace", "path": "/spec/replicas", "value": 1}]'
 
       - name: Deploy frontend to kind cluster
         run: |
           kubectl apply -f k8s/frontend/
+          kubectl set image deployment/claude-transcript-viewer-frontend \
+            frontend=claude-transcript-viewer-frontend:test
+          kubectl patch deployment claude-transcript-viewer-frontend --type=json \
+            -p='[{"op": "replace", "path": "/spec/replicas", "value": 1}, {"op": "replace", "path": "/spec/template/spec/securityContext/runAsNonRoot", "value": false}, {"op": "remove", "path": "/spec/template/spec/securityContext/runAsUser"}, {"op": "replace", "path": "/spec/template/spec/containers/0/securityContext/runAsNonRoot", "value": false}, {"op": "remove", "path": "/spec/template/spec/containers/0/securityContext/runAsUser"}]'
 
-      - name: Wait for LocalStack to be ready
+      - name: Wait for all deployments to be ready
         run: |
-          kubectl wait --for=condition=ready pod -l app=localstack --timeout=120s
-          kubectl wait --for=condition=ready --timeout=120s pod -l app=claude-transcript-viewer-backend
-          kubectl wait --for=condition=ready --timeout=120s pod -l app=claude-transcript-viewer-frontend
+          kubectl rollout status deployment/localstack --timeout=120s
+          kubectl rollout status deployment/claude-transcript-viewer-backend --timeout=120s
+          kubectl rollout status deployment/claude-transcript-viewer-frontend --timeout=120s
 
       - name: Setup S3 test data in LocalStack
         run: |
-          kubectl exec -it deploy/localstack -- awslocal s3 mb s3://test-transcripts
-          kubectl cp e2e/fixtures/sample-main-transcript.json localstack:/tmp/
-          kubectl exec -it deploy/localstack -- awslocal s3 cp /tmp/sample-main-transcript.json s3://test-transcripts/
+          kubectl exec deploy/localstack -- awslocal s3 mb s3://test-transcripts
+          for f in e2e/fixtures/*.json e2e/fixtures/*.jsonl; do
+            [ -f "$f" ] && kubectl cp "$f" "$(kubectl get pod -l app=localstack -o jsonpath='{.items[0].metadata.name}'):/tmp/$(basename $f)"
+          done
+          for f in e2e/fixtures/*.json e2e/fixtures/*.jsonl; do
+            [ -f "$f" ] && kubectl exec deploy/localstack -- awslocal s3 cp "/tmp/$(basename $f)" "s3://test-transcripts/$(basename $f)"
+          done
 
       - name: Port forward services
         run: |
