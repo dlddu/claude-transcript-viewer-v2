@@ -257,7 +257,7 @@ jobs:
           fi
 
       - name: Run Docker build tests
-        run: pnpm --filter @claude-transcript-viewer/e2e test:docker
+        run: node --test e2e/tests/docker-build.spec.ts
 
   lint:
     name: Lint

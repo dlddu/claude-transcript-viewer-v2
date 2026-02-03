@@ -1,7 +1,8 @@
-import { describe, it, expect } from 'vitest';
-import { execSync } from 'child_process';
-import { existsSync } from 'fs';
-import { resolve } from 'path';
+import { describe, it } from 'node:test';
+import assert from 'node:assert';
+import { execSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 
 /**
  * Docker Build E2E Tests
@@ -11,7 +12,7 @@ import { resolve } from 'path';
  *
  * To run these tests:
  * 1. Ensure Docker is installed and running
- * 2. Run: pnpm --filter @claude-transcript-viewer/e2e test docker-build.spec.ts
+ * 2. Run: node --test e2e/tests/docker-build.spec.ts
  */
 
 const REPO_ROOT = resolve(__dirname, '../..');
@@ -39,13 +40,13 @@ const isDockerAvailable = (): boolean => {
   }
 };
 
-describe.skip('Docker Build - Frontend', () => {
+describe('Docker Build - Frontend', { skip: true }, () => {
   it('should have a Dockerfile in frontend directory', () => {
     // Arrange
     const dockerfilePath = resolve(FRONTEND_DIR, 'Dockerfile');
 
     // Assert
-    expect(existsSync(dockerfilePath)).toBe(true);
+    assert.strictEqual(existsSync(dockerfilePath), true);
   });
 
   it('should have a .dockerignore in frontend directory', () => {
@@ -53,7 +54,7 @@ describe.skip('Docker Build - Frontend', () => {
     const dockerignorePath = resolve(FRONTEND_DIR, '.dockerignore');
 
     // Assert
-    expect(existsSync(dockerignorePath)).toBe(true);
+    assert.strictEqual(existsSync(dockerignorePath), true);
   });
 
   it('should build frontend Docker image successfully', () => {
@@ -73,8 +74,8 @@ describe.skip('Docker Build - Frontend', () => {
     );
 
     // Assert
-    expect(output).toContain('Successfully built');
-    expect(output).toContain('Successfully tagged');
+    assert.ok(output.includes('Successfully built'));
+    assert.ok(output.includes('Successfully tagged'));
 
     // Cleanup
     execCommand(`docker rmi ${imageName}`);
@@ -89,13 +90,12 @@ describe.skip('Docker Build - Frontend', () => {
 
     // Arrange
     const dockerfilePath = resolve(FRONTEND_DIR, 'Dockerfile');
-    const fs = require('fs');
-    const dockerfileContent = fs.readFileSync(dockerfilePath, 'utf-8');
+    const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
 
     // Assert
-    expect(dockerfileContent).toContain('FROM node:20-alpine');
-    expect(dockerfileContent).toContain('FROM nginx:alpine');
-    expect(dockerfileContent).toContain('AS build');
+    assert.ok(dockerfileContent.includes('FROM node:20-alpine'));
+    assert.ok(dockerfileContent.includes('FROM nginx:alpine'));
+    assert.ok(dockerfileContent.includes('AS build'));
   });
 
   it('should produce an optimized image size under 100MB', () => {
@@ -119,7 +119,7 @@ describe.skip('Docker Build - Frontend', () => {
     const sizeInMB = sizeInBytes / (1024 * 1024);
 
     // Assert
-    expect(sizeInMB).toBeLessThan(100);
+    assert.ok(sizeInMB < 100);
 
     // Cleanup
     execCommand(`docker rmi ${imageName}`);
@@ -150,7 +150,7 @@ describe.skip('Docker Build - Frontend', () => {
       const curlOutput = execCommand('curl -f http://localhost:8080');
 
       // Assert
-      expect(curlOutput).toContain('<!DOCTYPE html>');
+      assert.ok(curlOutput.includes('<!DOCTYPE html>'));
     } finally {
       // Cleanup
       execCommand(`docker stop ${containerName}`, REPO_ROOT);
@@ -162,11 +162,10 @@ describe.skip('Docker Build - Frontend', () => {
   it('should exclude node_modules from build context', () => {
     // Arrange
     const dockerignorePath = resolve(FRONTEND_DIR, '.dockerignore');
-    const fs = require('fs');
-    const dockerignoreContent = fs.readFileSync(dockerignorePath, 'utf-8');
+    const dockerignoreContent = readFileSync(dockerignorePath, 'utf-8');
 
     // Assert
-    expect(dockerignoreContent).toContain('node_modules');
+    assert.ok(dockerignoreContent.includes('node_modules'));
   });
 
   it('should use non-root user for security', () => {
@@ -178,25 +177,24 @@ describe.skip('Docker Build - Frontend', () => {
 
     // Arrange
     const dockerfilePath = resolve(FRONTEND_DIR, 'Dockerfile');
-    const fs = require('fs');
-    const dockerfileContent = fs.readFileSync(dockerfilePath, 'utf-8');
+    const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
 
     // Assert - nginx:alpine already runs as nginx user by default
     // OR Dockerfile explicitly sets USER directive
     const hasUserDirective = dockerfileContent.includes('USER');
     const usesNginxAlpine = dockerfileContent.includes('nginx:alpine');
 
-    expect(hasUserDirective || usesNginxAlpine).toBe(true);
+    assert.strictEqual(hasUserDirective || usesNginxAlpine, true);
   });
 });
 
-describe.skip('Docker Build - Backend', () => {
+describe('Docker Build - Backend', { skip: true }, () => {
   it('should have a Dockerfile in backend directory', () => {
     // Arrange
     const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
 
     // Assert
-    expect(existsSync(dockerfilePath)).toBe(true);
+    assert.strictEqual(existsSync(dockerfilePath), true);
   });
 
   it('should have a .dockerignore in backend directory', () => {
@@ -204,7 +202,7 @@ describe.skip('Docker Build - Backend', () => {
     const dockerignorePath = resolve(BACKEND_DIR, '.dockerignore');
 
     // Assert
-    expect(existsSync(dockerignorePath)).toBe(true);
+    assert.strictEqual(existsSync(dockerignorePath), true);
   });
 
   it('should build backend Docker image successfully', () => {
@@ -224,8 +222,8 @@ describe.skip('Docker Build - Backend', () => {
     );
 
     // Assert
-    expect(output).toContain('Successfully built');
-    expect(output).toContain('Successfully tagged');
+    assert.ok(output.includes('Successfully built'));
+    assert.ok(output.includes('Successfully tagged'));
 
     // Cleanup
     execCommand(`docker rmi ${imageName}`);
@@ -240,11 +238,10 @@ describe.skip('Docker Build - Backend', () => {
 
     // Arrange
     const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
-    const fs = require('fs');
-    const dockerfileContent = fs.readFileSync(dockerfilePath, 'utf-8');
+    const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
 
     // Assert
-    expect(dockerfileContent).toContain('FROM node:20-alpine');
+    assert.ok(dockerfileContent.includes('FROM node:20-alpine'));
   });
 
   it('should produce an optimized image size under 300MB', () => {
@@ -268,7 +265,7 @@ describe.skip('Docker Build - Backend', () => {
     const sizeInMB = sizeInBytes / (1024 * 1024);
 
     // Assert
-    expect(sizeInMB).toBeLessThan(300);
+    assert.ok(sizeInMB < 300);
 
     // Cleanup
     execCommand(`docker rmi ${imageName}`);
@@ -283,11 +280,10 @@ describe.skip('Docker Build - Backend', () => {
 
     // Arrange
     const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
-    const fs = require('fs');
-    const dockerfileContent = fs.readFileSync(dockerfilePath, 'utf-8');
+    const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
 
     // Assert
-    expect(dockerfileContent).toContain('EXPOSE 3000');
+    assert.ok(dockerfileContent.includes('EXPOSE 3000'));
   });
 
   it('should run Express app and respond to health check', () => {
@@ -315,8 +311,8 @@ describe.skip('Docker Build - Backend', () => {
       const curlOutput = execCommand('curl -f http://localhost:3001/api/health');
 
       // Assert
-      expect(curlOutput).toBeDefined();
-      expect(curlOutput.length).toBeGreaterThan(0);
+      assert.ok(curlOutput !== undefined);
+      assert.ok(curlOutput.length > 0);
     } finally {
       // Cleanup
       execCommand(`docker stop ${containerName}`, REPO_ROOT);
@@ -328,12 +324,11 @@ describe.skip('Docker Build - Backend', () => {
   it('should exclude node_modules and dist from build context', () => {
     // Arrange
     const dockerignorePath = resolve(BACKEND_DIR, '.dockerignore');
-    const fs = require('fs');
-    const dockerignoreContent = fs.readFileSync(dockerignorePath, 'utf-8');
+    const dockerignoreContent = readFileSync(dockerignorePath, 'utf-8');
 
     // Assert
-    expect(dockerignoreContent).toContain('node_modules');
-    expect(dockerignoreContent).toContain('dist');
+    assert.ok(dockerignoreContent.includes('node_modules'));
+    assert.ok(dockerignoreContent.includes('dist'));
   });
 
   it('should use non-root user for security', () => {
@@ -345,11 +340,10 @@ describe.skip('Docker Build - Backend', () => {
 
     // Arrange
     const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
-    const fs = require('fs');
-    const dockerfileContent = fs.readFileSync(dockerfilePath, 'utf-8');
+    const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
 
     // Assert
-    expect(dockerfileContent).toContain('USER node');
+    assert.ok(dockerfileContent.includes('USER node'));
   });
 
   it('should run dist/index.js as entrypoint', () => {
@@ -361,42 +355,38 @@ describe.skip('Docker Build - Backend', () => {
 
     // Arrange
     const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
-    const fs = require('fs');
-    const dockerfileContent = fs.readFileSync(dockerfilePath, 'utf-8');
+    const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
 
     // Assert
-    expect(dockerfileContent).toContain('CMD');
-    expect(dockerfileContent).toContain('node');
-    expect(dockerfileContent).toContain('dist/index.js');
+    assert.ok(dockerfileContent.includes('CMD'));
+    assert.ok(dockerfileContent.includes('node'));
+    assert.ok(dockerfileContent.includes('dist/index.js'));
   });
 });
 
-describe.skip('Docker Build - .dockerignore Optimization', () => {
+describe('Docker Build - .dockerignore Optimization', { skip: true }, () => {
   it('should exclude .git directory from frontend build', () => {
     // Arrange
     const dockerignorePath = resolve(FRONTEND_DIR, '.dockerignore');
-    const fs = require('fs');
-    const dockerignoreContent = fs.readFileSync(dockerignorePath, 'utf-8');
+    const dockerignoreContent = readFileSync(dockerignorePath, 'utf-8');
 
     // Assert
-    expect(dockerignoreContent).toContain('.git');
+    assert.ok(dockerignoreContent.includes('.git'));
   });
 
   it('should exclude .git directory from backend build', () => {
     // Arrange
     const dockerignorePath = resolve(BACKEND_DIR, '.dockerignore');
-    const fs = require('fs');
-    const dockerignoreContent = fs.readFileSync(dockerignorePath, 'utf-8');
+    const dockerignoreContent = readFileSync(dockerignorePath, 'utf-8');
 
     // Assert
-    expect(dockerignoreContent).toContain('.git');
+    assert.ok(dockerignoreContent.includes('.git'));
   });
 
   it('should exclude test files from frontend build', () => {
     // Arrange
     const dockerignorePath = resolve(FRONTEND_DIR, '.dockerignore');
-    const fs = require('fs');
-    const dockerignoreContent = fs.readFileSync(dockerignorePath, 'utf-8');
+    const dockerignoreContent = readFileSync(dockerignorePath, 'utf-8');
 
     // Assert
     const excludesTests =
@@ -404,30 +394,28 @@ describe.skip('Docker Build - .dockerignore Optimization', () => {
       dockerignoreContent.includes('*.test.tsx') ||
       dockerignoreContent.includes('**/*.test.*');
 
-    expect(excludesTests).toBe(true);
+    assert.strictEqual(excludesTests, true);
   });
 
   it('should exclude test files from backend build', () => {
     // Arrange
     const dockerignorePath = resolve(BACKEND_DIR, '.dockerignore');
-    const fs = require('fs');
-    const dockerignoreContent = fs.readFileSync(dockerignorePath, 'utf-8');
+    const dockerignoreContent = readFileSync(dockerignorePath, 'utf-8');
 
     // Assert
     const excludesTests =
       dockerignoreContent.includes('*.test.ts') ||
       dockerignoreContent.includes('**/*.test.*');
 
-    expect(excludesTests).toBe(true);
+    assert.strictEqual(excludesTests, true);
   });
 
   it('should exclude README and documentation from builds', () => {
     // Arrange
     const frontendDockerignorePath = resolve(FRONTEND_DIR, '.dockerignore');
     const backendDockerignorePath = resolve(BACKEND_DIR, '.dockerignore');
-    const fs = require('fs');
-    const frontendContent = fs.readFileSync(frontendDockerignorePath, 'utf-8');
-    const backendContent = fs.readFileSync(backendDockerignorePath, 'utf-8');
+    const frontendContent = readFileSync(frontendDockerignorePath, 'utf-8');
+    const backendContent = readFileSync(backendDockerignorePath, 'utf-8');
 
     // Assert
     const frontendExcludesDocs =
@@ -435,6 +423,6 @@ describe.skip('Docker Build - .dockerignore Optimization', () => {
     const backendExcludesDocs =
       backendContent.includes('README') || backendContent.includes('*.md');
 
-    expect(frontendExcludesDocs || backendExcludesDocs).toBe(true);
+    assert.strictEqual(frontendExcludesDocs || backendExcludesDocs, true);
   });
 });
