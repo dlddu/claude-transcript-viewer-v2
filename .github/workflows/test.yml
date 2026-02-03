@@ -273,6 +273,30 @@ jobs:
       - name: Run Docker build tests
         run: node --test e2e/tests/docker-build.spec.ts
 
+  k8s-manifest-validation:
+    name: Kubernetes Manifest Validation (Skipped)
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Run K8s manifest validation tests
+        run: node --test e2e/tests/k8s-manifests.spec.ts
+
+      - name: Install kubectl (optional for dry-run tests)
+        run: |
+          curl -LO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+
+      - name: Validate manifests with kubectl dry-run
+        run: |
+          kubectl create --dry-run=client -f k8s/backend/ -o yaml
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
