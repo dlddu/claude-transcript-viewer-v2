@@ -62,3 +62,22 @@ export interface Transcript {
   tools_used?: ToolUsage[];
   messages?: TranscriptMessage[];
 }
+
+export interface EnrichedToolUse {
+  id: string;
+  name: string;
+  input: unknown;
+  result: {
+    content: string;
+    is_error?: boolean;
+    sourceMessageUuid: string;
+  } | null;
+}
+
+export interface EnrichedMessage {
+  raw: TranscriptMessage;
+  text: string;
+  isSubagent: boolean;
+  subagentName: string | null;
+  toolUses: EnrichedToolUse[];
+}
