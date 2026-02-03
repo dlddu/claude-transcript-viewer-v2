@@ -200,7 +200,7 @@ jobs:
           node-version: '20'
 
       - name: Run Docker Publish Workflow validation tests
-        run: node --test e2e/tests/docker-publish-workflow.spec.ts
+        run: node --test e2e/tests/docker-publish-workflow.spec.mjs
 
   docker-e2e-tests:
     name: Docker Build E2E Tests (Skipped)
