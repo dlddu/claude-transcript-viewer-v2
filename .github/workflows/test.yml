@@ -301,6 +301,111 @@ jobs:
       - name: Run K8s frontend manifest validation tests
         run: pnpm tsx --test e2e/tests/k8s-frontend-manifests.spec.ts
 
+      - name: Run K8s LocalStack manifest validation tests
+        run: pnpm tsx --test e2e/tests/k8s-localstack-manifests.spec.ts
+
+  kind-e2e-tests:
+    name: E2E Tests in kind Cluster
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v3
+        with:
+          version: 8
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Create kind cluster
+        uses: helm/kind-action@v1
+
+      - name: Build frontend Docker image
+        run: docker build -t frontend:test ./frontend
+
+      - name: Build backend Docker image
+        run: docker build -t backend:test ./backend
+
+      - name: Load frontend image into kind
+        run: kind load docker-image frontend:test
+
+      - name: Load backend image into kind
+        run: kind load docker-image backend:test
+
+      - name: Deploy LocalStack
+        run: kubectl apply -f k8s/localstack/
+
+      - name: Wait for LocalStack to be ready
+        run: kubectl wait --for=condition=ready pod -l app=localstack --timeout=120s
+
+      - name: Create backend ConfigMap
+        run: |
+          kubectl create configmap claude-transcript-viewer-config \
+            --from-literal=PORT=3000 \
+            --from-literal=AWS_REGION=us-east-1 \
+            --from-literal=S3_BUCKET=test-transcripts
+
+      - name: Create backend Secret
+        run: |
+          kubectl create secret generic claude-transcript-viewer-secrets \
+            --from-literal=AWS_ACCESS_KEY_ID=test \
+            --from-literal=AWS_SECRET_ACCESS_KEY=test
+
+      - name: Deploy backend
+        run: |
+          kubectl apply -f k8s/backend/
+          kubectl set image deployment/claude-transcript-viewer-backend backend=backend:test
+          kubectl patch deployment claude-transcript-viewer-backend -p '{"spec":{"template":{"spec":{"containers":[{"name":"backend","imagePullPolicy":"Never"}]}}}}'
+          kubectl set env deployment/claude-transcript-viewer-backend AWS_ENDPOINT_URL=http://localstack:4566
+
+      - name: Wait for backend to be ready
+        run: kubectl wait --for=condition=ready pod -l app=claude-transcript-viewer-backend --timeout=120s
+
+      - name: Create frontend ConfigMap
+        run: |
+          kubectl create configmap claude-transcript-viewer-frontend-config \
+            --from-literal=VITE_API_URL=http://claude-transcript-viewer-backend
+
+      - name: Deploy frontend
+        run: |
+          kubectl apply -f k8s/frontend/
+          kubectl set image deployment/claude-transcript-viewer-frontend frontend=frontend:test
+          kubectl patch deployment claude-transcript-viewer-frontend -p '{"spec":{"template":{"spec":{"containers":[{"name":"frontend","imagePullPolicy":"Never"}]}}}}'
+
+      - name: Wait for frontend to be ready
+        run: kubectl wait --for=condition=ready pod -l app=claude-transcript-viewer-frontend --timeout=120s
+
+      - name: Setup port-forwarding
+        run: |
+          kubectl port-forward service/claude-transcript-viewer-frontend 5173:80 &
+          kubectl port-forward service/claude-transcript-viewer-backend 3000:80 &
+          sleep 5
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run E2E tests
+        env:
+          BASE_URL: http://localhost:5173
+        run: pnpm --filter @claude-transcript-viewer/e2e test
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: playwright-report-kind
+          path: e2e/playwright-report/
+          retention-days: 30
+
   lint:
     name: Lint
     runs-on: ubuntu-latest
