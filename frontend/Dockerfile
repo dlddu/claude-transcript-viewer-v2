@@ -1,8 +1,8 @@
 # Build stage
 FROM node:20-alpine AS build
 
-# Enable corepack for pnpm
-RUN corepack enable
+# Enable corepack and install correct pnpm version
+RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
 
 WORKDIR /app
 
