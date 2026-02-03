@@ -295,9 +295,11 @@ jobs:
       - name: Install kubectl
         uses: azure/setup-kubectl@v4
 
-      - name: Run K8s manifest validation tests
-        working-directory: backend
-        run: pnpm exec tsx --test ../e2e/tests/k8s-manifests.spec.ts
+      - name: Run K8s backend manifest validation tests
+        run: node --test e2e/tests/k8s-manifests.spec.ts
+
+      - name: Run K8s frontend manifest validation tests
+        run: node --test e2e/tests/k8s-frontend-manifests.spec.ts
 
   lint:
     name: Lint

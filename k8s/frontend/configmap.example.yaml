@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: claude-transcript-viewer-frontend-config
+  labels:
+    app: claude-transcript-viewer-frontend
+    tier: frontend
+data:
+  VITE_API_URL: "http://claude-transcript-viewer-backend"
