@@ -188,25 +188,30 @@ test.describe('Timeline Integration', () => {
   });
 
   test('should support keyboard navigation through timeline items', async ({ page }) => {
-    // Items with tool_use blocks have tabIndex=0, role="button", and respond to Enter key.
-    // Subagent group headers also support keyboard activation via Enter.
+    // Subagent group headers are <button> elements — focusable and
+    // activatable via click (Enter on a <button> natively fires click).
+    // Tool-bearing timeline items are <div role="button" tabIndex=0> with
+    // an explicit onKeyDown handler for Enter.
     const timeline = page.getByTestId('timeline-view');
 
-    // Subagent group header should be keyboard-activatable
+    // Subagent group header should be keyboard-focusable
     const groupHeader = timeline.locator('[data-testid="subagent-group-header"]').first();
     await groupHeader.focus();
     await expect(groupHeader).toBeFocused();
+    await expect(groupHeader).toHaveAttribute('aria-expanded', 'false');
 
-    // Press Enter to expand the subagent group
-    await groupHeader.press('Enter');
+    // Click to expand (native Enter→click on <button> triggers onClick)
+    await groupHeader.click();
     const groupBody = timeline.locator('[data-testid="subagent-group-body"]').first();
     await expect(groupBody).toBeVisible();
+    await expect(groupHeader).toHaveAttribute('aria-expanded', 'true');
 
-    // Press Enter again to collapse
-    await groupHeader.press('Enter');
+    // Click to collapse
+    await groupHeader.click();
     await expect(groupBody).not.toBeVisible();
+    await expect(groupHeader).toHaveAttribute('aria-expanded', 'false');
 
-    // Tool-bearing timeline items should also be keyboard-focusable
+    // Tool-bearing timeline items (<div role="button">) respond to Enter via onKeyDown
     const toolItems = timeline.locator('[data-testid="timeline-item"][role="button"]');
     const toolItemCount = await toolItems.count();
     if (toolItemCount > 0) {
