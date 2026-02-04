@@ -74,6 +74,12 @@ jobs:
         run: |
           timeout 60 bash -c 'until curl -f http://localhost:4566/_localstack/health; do sleep 2; done'
 
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-awscli-local
+
       - name: Create S3 bucket and upload test fixtures
         env:
           AWS_ACCESS_KEY_ID: test
@@ -155,6 +161,12 @@ jobs:
         run: |
           timeout 60 bash -c 'until curl -f http://localhost:4566/_localstack/health; do sleep 2; done'
 
+      - name: Cache pip packages
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: pip-${{ runner.os }}-awscli-local
+
       - name: Setup S3 test data
         env:
           AWS_ACCESS_KEY_ID: test
@@ -203,7 +215,7 @@ jobs:
           retention-days: 30
 
   workflow-validation-tests:
-    name: Workflow File Validation (Skipped)
+    name: Workflow File Validation
     runs-on: ubuntu-latest
 
     steps:
@@ -217,9 +229,8 @@ jobs:
         run: node --test e2e/tests/docker-publish-workflow.spec.mjs
 
   docker-e2e-tests:
-    name: Docker Build E2E Tests (Skipped)
+    name: Docker Build E2E Tests
     runs-on: ubuntu-latest
-    if: false  # Initially skipped - enable when Dockerfiles are implemented
 
     steps:
       - uses: actions/checkout@v4
@@ -240,10 +251,25 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build frontend Docker image
-        run: docker build --build-arg VITE_API_URL=http://localhost:3000 -t claude-transcript-viewer-frontend:test -f frontend/Dockerfile .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./frontend/Dockerfile
+          load: true
+          tags: claude-transcript-viewer-frontend:test
+          build-args: VITE_API_URL=http://localhost:3000
+          cache-from: type=gha,scope=docker-e2e-frontend
+          cache-to: type=gha,scope=docker-e2e-frontend,mode=max
 
       - name: Build backend Docker image
-        run: docker build -t claude-transcript-viewer-backend:test -f backend/Dockerfile .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./backend/Dockerfile
+          load: true
+          tags: claude-transcript-viewer-backend:test
+          cache-from: type=gha,scope=docker-e2e-backend
+          cache-to: type=gha,scope=docker-e2e-backend,mode=max
 
       - name: Test frontend container
         run: |
@@ -281,7 +307,7 @@ jobs:
           fi
 
       - name: Run Docker build tests
-        run: node --test e2e/tests/docker-build.spec.ts
+        run: pnpm tsx --test e2e/tests/docker-build.spec.ts
 
   k8s-manifest-validation:
     name: Kubernetes Manifest Validation
