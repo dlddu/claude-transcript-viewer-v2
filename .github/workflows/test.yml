@@ -94,7 +94,7 @@ jobs:
           awslocal s3 mb s3://test-transcripts
 
           # Upload test fixtures
-          awslocal s3 cp e2e/fixtures/sample-main-transcript.json s3://test-transcripts/transcript-20260201-001.json
+          awslocal s3 cp e2e/fixtures/transcript-20260201-001.json s3://test-transcripts/transcript-20260201-001.json
           awslocal s3 cp e2e/fixtures/subagent-data-analyzer-20260201-001.json s3://test-transcripts/subagent-data-analyzer-20260201-001.json
           awslocal s3 cp e2e/fixtures/subagent-visualizer-20260201-001.json s3://test-transcripts/subagent-visualizer-20260201-001.json
 

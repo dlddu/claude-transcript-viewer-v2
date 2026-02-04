@@ -17,7 +17,7 @@ import { test, expect } from '@playwright/test';
  * - Timeline provides visual distinction between main and subagent content
  *
  * Fixture Data:
- * - e2e/fixtures/sample-main-transcript.json
+ * - e2e/fixtures/transcript-20260201-001.json
  *   - session_id: "session-abc123"
  *   - Main agent invoked at: 2026-02-01T05:00:00Z
  *   - Subagent 1 (Data Analyzer) invoked at: 2026-02-01T05:00:15Z
