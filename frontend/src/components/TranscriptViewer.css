@@ -61,6 +61,73 @@
   display: inline-block;
 }
 
+/* Subagent Group Styles */
+.subagent-group {
+  margin-left: 2rem;
+  border-left: 3px solid #ff9800;
+  border-radius: 6px;
+  overflow: hidden;
+}
+
+.subagent-group-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1rem;
+  background: #fff3e0;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: #e65100;
+  transition: background-color 0.2s;
+}
+
+.subagent-group-header:hover {
+  background: #ffe0b2;
+}
+
+.subagent-group-header-expanded {
+  border-bottom: 1px solid #ffcc80;
+}
+
+.subagent-group-indicator {
+  font-size: 0.75rem;
+  color: #ff9800;
+  flex-shrink: 0;
+}
+
+.subagent-group-name {
+  flex-grow: 1;
+}
+
+.subagent-group-count {
+  font-weight: 400;
+  font-size: 0.8125rem;
+  color: #bf6c00;
+  background: rgba(255, 152, 0, 0.15);
+  padding: 0.125rem 0.5rem;
+  border-radius: 10px;
+}
+
+.subagent-group-body {
+  padding: 0.5rem;
+  background: #fafafa;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.subagent-group-body .message-subagent {
+  margin-left: 0;
+}
+
+.subagent-group-body .message-subagent::before {
+  display: none;
+}
+
 .message-role {
   font-weight: 600;
   margin-bottom: 0.5rem;

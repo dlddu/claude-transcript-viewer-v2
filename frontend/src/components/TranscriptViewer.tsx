@@ -1,6 +1,7 @@
 import { useMemo, useState } from 'react';
-import type { Transcript, TranscriptMessage } from '../types/transcript';
+import type { Transcript, TranscriptMessage, EnrichedMessage } from '../types/transcript';
 import { enrichMessages } from '../utils/enrichMessages';
+import { groupMessages } from '../utils/groupMessages';
 import { useTranscriptData } from '../hooks/useTranscriptData';
 import './TranscriptViewer.css';
 
@@ -24,6 +25,7 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
   const [expandedSubagents, setExpandedSubagents] = useState<Set<string>>(new Set());
   const [subagentData, setSubagentData] = useState<Map<string, Transcript>>(new Map());
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
+  const [expandedSubagentGroups, setExpandedSubagentGroups] = useState<Set<string>>(new Set());
   const [debugMode, setDebugMode] = useState(false);
 
   // If transcript is provided as prop, use it; otherwise show loading
@@ -36,6 +38,8 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
     if (!transcript?.messages) return [];
     return enrichMessages(transcript.messages, transcript.session_id, transcript.subagents);
   }, [transcript?.messages, transcript?.session_id, transcript?.subagents]);
+
+  const messageGroups = useMemo(() => groupMessages(enrichedMessages), [enrichedMessages]);
 
   const toggleSubagent = async (subagentId: string, transcriptFile?: string) => {
     const isExpanded = expandedSubagents.has(subagentId);
@@ -79,6 +83,18 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
     });
   };
 
+  const toggleSubagentGroup = (groupKey: string) => {
+    setExpandedSubagentGroups(prev => {
+      const next = new Set(prev);
+      if (next.has(groupKey)) {
+        next.delete(groupKey);
+      } else {
+        next.add(groupKey);
+      }
+      return next;
+    });
+  };
+
   const handleToolClick = (messageUuid: string) => {
     toggleToolDetail(messageUuid);
   };
@@ -87,6 +103,96 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
     if (event.key === 'Enter') {
       toggleToolDetail(messageUuid);
     }
+  };
+
+  const renderMessage = (enriched: EnrichedMessage, showSubagentLabel: boolean) => {
+    const hasTool = enriched.toolUses.length > 0;
+    const isExpanded = expandedTools.has(enriched.raw.uuid);
+    const messageClasses = [
+      'message',
+      `message-${enriched.raw.message?.role}`,
+      enriched.isSubagent ? 'message-subagent' : '',
+      hasTool ? 'message-with-tool' : ''
+    ].filter(Boolean).join(' ');
+
+    return (
+      <div
+        key={enriched.raw.uuid}
+        className={messageClasses}
+        data-testid="timeline-item"
+        role={hasTool ? 'button' : undefined}
+        aria-expanded={hasTool ? isExpanded : undefined}
+        tabIndex={hasTool ? 0 : undefined}
+        onClick={hasTool ? () => handleToolClick(enriched.raw.uuid) : undefined}
+        onKeyDown={hasTool ? (e) => handleToolKeyDown(e, enriched.raw.uuid) : undefined}
+        style={hasTool ? { cursor: 'pointer' } : undefined}
+      >
+        {showSubagentLabel && enriched.isSubagent && enriched.subagentName && (
+          <div className="subagent-label" data-testid="subagent-label">
+            [Subagent: {enriched.subagentName}]
+          </div>
+        )}
+        <div className="message-role">
+          {enriched.raw.message?.role === 'user' ? 'User' : 'Assistant'}:
+          {hasTool && (
+            <span className="tool-use-indicator" data-testid="tool-use-indicator">
+              🔧
+            </span>
+          )}
+          {hasTool && (
+            <span className="expand-indicator" data-testid="expand-indicator" aria-expanded={isExpanded}>
+              {isExpanded ? '▼' : '▶'}
+            </span>
+          )}
+        </div>
+        <div className="message-content">{enriched.text}</div>
+
+        {hasTool && isExpanded && (
+          <div className="tool-details">
+            {enriched.toolUses.map((tool) => {
+              return (
+                <div key={tool.id} className="tool-detail-view" data-testid="tool-detail-view">
+                  <div className="tool-header">
+                    <div className="tool-name" data-testid="tool-name">
+                      Tool: {tool.name}
+                    </div>
+                    <div className="tool-id" data-testid="tool-id">
+                      ID: {tool.id}
+                    </div>
+                  </div>
+
+                  <div className="tool-section">
+                    <div className="tool-section-title">Input:</div>
+                    <div className="tool-input" data-testid="tool-input">
+                      <pre><code>{JSON.stringify(tool.input, null, 2)}</code></pre>
+                    </div>
+                  </div>
+
+                  {tool.result && (
+                    <div className="tool-section">
+                      <div className="tool-section-title">Output:</div>
+                      <div
+                        className={`tool-output ${tool.result.is_error ? 'tool-output-error' : ''}`}
+                        data-testid="tool-output"
+                      >
+                        <pre><code>{tool.result.content}</code></pre>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+
+        {debugMode && (
+          <details className="debug-data" data-testid="debug-data" onClick={(e) => e.stopPropagation()}>
+            <summary>Raw Data</summary>
+            <pre><code>{JSON.stringify(enriched, null, 2)}</code></pre>
+          </details>
+        )}
+      </div>
+    );
   };
 
   // Handle error state
@@ -134,95 +240,48 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
             >
               {debugMode ? 'Debug ON' : 'Debug OFF'}
             </button>
-            {enrichedMessages.map((enriched) => {
-                const hasTool = enriched.toolUses.length > 0;
-                const isExpanded = expandedTools.has(enriched.raw.uuid);
-                const messageClasses = [
-                  'message',
-                  `message-${enriched.raw.message?.role}`,
-                  enriched.isSubagent ? 'message-subagent' : '',
-                  hasTool ? 'message-with-tool' : ''
-                ].filter(Boolean).join(' ');
+            {messageGroups.map((group) => {
+              if (group.type === 'main') {
+                return renderMessage(group.messages[0], true);
+              }
 
-                return (
-                  <div
-                    key={enriched.raw.uuid}
-                    className={messageClasses}
-                    data-testid="timeline-item"
-                    role={hasTool ? 'button' : undefined}
-                    aria-expanded={hasTool ? isExpanded : undefined}
-                    tabIndex={hasTool ? 0 : undefined}
-                    onClick={hasTool ? () => handleToolClick(enriched.raw.uuid) : undefined}
-                    onKeyDown={hasTool ? (e) => handleToolKeyDown(e, enriched.raw.uuid) : undefined}
-                    style={hasTool ? { cursor: 'pointer' } : undefined}
+              const isGroupExpanded = expandedSubagentGroups.has(group.groupKey);
+              return (
+                <div
+                  key={group.groupKey}
+                  className="subagent-group"
+                  data-testid="subagent-group"
+                >
+                  <button
+                    className={`subagent-group-header ${isGroupExpanded ? 'subagent-group-header-expanded' : ''}`}
+                    onClick={() => toggleSubagentGroup(group.groupKey)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        toggleSubagentGroup(group.groupKey);
+                      }
+                    }}
+                    aria-expanded={isGroupExpanded}
+                    data-testid="subagent-group-header"
                   >
-                    {enriched.isSubagent && enriched.subagentName && (
-                      <div className="subagent-label" data-testid="subagent-label">
-                        [Subagent: {enriched.subagentName}]
-                      </div>
-                    )}
-                    <div className="message-role">
-                      {enriched.raw.message?.role === 'user' ? 'User' : 'Assistant'}:
-                      {hasTool && (
-                        <span className="tool-use-indicator" data-testid="tool-use-indicator">
-                          🔧
-                        </span>
-                      )}
-                      {hasTool && (
-                        <span className="expand-indicator" data-testid="expand-indicator" aria-expanded={isExpanded}>
-                          {isExpanded ? '▼' : '▶'}
-                        </span>
-                      )}
+                    <span className="subagent-group-indicator">
+                      {isGroupExpanded ? '▼' : '▶'}
+                    </span>
+                    <span className="subagent-group-name">
+                      [Subagent: {group.subagentName}]
+                    </span>
+                    <span className="subagent-group-count" data-testid="subagent-group-count">
+                      {group.messages.length} message{group.messages.length !== 1 ? 's' : ''}
+                    </span>
+                  </button>
+
+                  {isGroupExpanded && (
+                    <div className="subagent-group-body" data-testid="subagent-group-body">
+                      {group.messages.map((enriched) => renderMessage(enriched, false))}
                     </div>
-                    <div className="message-content">{enriched.text}</div>
-
-                    {hasTool && isExpanded && (
-                      <div className="tool-details">
-                        {enriched.toolUses.map((tool) => {
-                          return (
-                            <div key={tool.id} className="tool-detail-view" data-testid="tool-detail-view">
-                              <div className="tool-header">
-                                <div className="tool-name" data-testid="tool-name">
-                                  Tool: {tool.name}
-                                </div>
-                                <div className="tool-id" data-testid="tool-id">
-                                  ID: {tool.id}
-                                </div>
-                              </div>
-
-                              <div className="tool-section">
-                                <div className="tool-section-title">Input:</div>
-                                <div className="tool-input" data-testid="tool-input">
-                                  <pre><code>{JSON.stringify(tool.input, null, 2)}</code></pre>
-                                </div>
-                              </div>
-
-                              {tool.result && (
-                                <div className="tool-section">
-                                  <div className="tool-section-title">Output:</div>
-                                  <div
-                                    className={`tool-output ${tool.result.is_error ? 'tool-output-error' : ''}`}
-                                    data-testid="tool-output"
-                                  >
-                                    <pre><code>{tool.result.content}</code></pre>
-                                  </div>
-                                </div>
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )}
-
-                    {debugMode && (
-                      <details className="debug-data" data-testid="debug-data" onClick={(e) => e.stopPropagation()}>
-                        <summary>Raw Data</summary>
-                        <pre><code>{JSON.stringify(enriched, null, 2)}</code></pre>
-                      </details>
-                    )}
-                  </div>
-                );
-              })}
+                  )}
+                </div>
+              );
+            })}
           </div>
         ) : (
           <div className="main-content">{transcript!.content}</div>

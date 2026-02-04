@@ -119,9 +119,10 @@ describe('TranscriptViewer', () => {
       // Act
       render(<TranscriptViewer transcript={mockTranscript} />);
 
-      // Assert
+      // Assert - main message is visible directly
       expect(screen.getByText('Main agent message')).toBeInTheDocument();
-      expect(screen.getByText('Subagent message')).toBeInTheDocument();
+      // Subagent message is inside a collapsed group, so check for the group header
+      expect(screen.getByTestId('subagent-group-header')).toBeInTheDocument();
     });
 
     it('should render messages in chronological order', () => {
@@ -173,16 +174,18 @@ describe('TranscriptViewer', () => {
       // Act
       const { container } = render(<TranscriptViewer transcript={mockTranscript} />);
 
-      // Assert
-      const messages = container.querySelectorAll('.message');
-      expect(messages).toHaveLength(3);
+      // Assert - main messages are directly visible
+      const mainMessages = container.querySelectorAll('.message:not(.message-subagent)');
+      expect(mainMessages).toHaveLength(2);
+      expect(mainMessages[0]).toHaveTextContent('First message');
+      expect(mainMessages[1]).toHaveTextContent('Third message');
 
-      expect(messages[0]).toHaveTextContent('First message');
-      expect(messages[1]).toHaveTextContent('Second message');
-      expect(messages[2]).toHaveTextContent('Third message');
+      // Subagent group is between them
+      const subagentGroup = container.querySelector('.subagent-group');
+      expect(subagentGroup).toBeInTheDocument();
     });
 
-    it('should visually distinguish subagent messages with indentation', () => {
+    it('should visually distinguish subagent messages with a group container', () => {
       // Arrange
       const mockTranscript = {
         id: 'test-transcript',
@@ -219,13 +222,13 @@ describe('TranscriptViewer', () => {
       // Act
       const { container } = render(<TranscriptViewer transcript={mockTranscript} />);
 
-      // Assert
-      const subagentMessage = container.querySelector('.message-subagent');
-      expect(subagentMessage).toBeInTheDocument();
-      expect(subagentMessage).toHaveClass('message-subagent');
+      // Assert - subagent messages are wrapped in a group
+      const subagentGroup = container.querySelector('.subagent-group');
+      expect(subagentGroup).toBeInTheDocument();
+      expect(subagentGroup).toHaveClass('subagent-group');
     });
 
-    it('should display subagent label for subagent messages', () => {
+    it('should display subagent name in group header', () => {
       // Arrange
       const mockTranscript = {
         id: 'test-transcript',
@@ -250,11 +253,13 @@ describe('TranscriptViewer', () => {
       // Act
       render(<TranscriptViewer transcript={mockTranscript} />);
 
-      // Assert
-      expect(screen.getByTestId('subagent-label')).toBeInTheDocument();
+      // Assert - subagent name is shown in the group header
+      const groupHeader = screen.getByTestId('subagent-group-header');
+      expect(groupHeader).toBeInTheDocument();
+      expect(groupHeader).toHaveTextContent('agent-a1b2c3d');
     });
 
-    it('should apply different background color to subagent messages', () => {
+    it('should apply different background color to subagent group', () => {
       // Arrange
       const mockTranscript = {
         id: 'test-transcript',
@@ -293,11 +298,10 @@ describe('TranscriptViewer', () => {
 
       // Assert
       const mainMessage = container.querySelector('.message:not(.message-subagent)');
-      const subagentMessage = container.querySelector('.message-subagent');
+      const subagentGroup = container.querySelector('.subagent-group');
 
       expect(mainMessage).toBeInTheDocument();
-      expect(subagentMessage).toBeInTheDocument();
-      expect(subagentMessage).toHaveClass('message-subagent');
+      expect(subagentGroup).toBeInTheDocument();
     });
 
     it('should identify main vs subagent by comparing agentId to session_id', () => {
@@ -337,10 +341,12 @@ describe('TranscriptViewer', () => {
       // Act
       const { container } = render(<TranscriptViewer transcript={mockTranscript} />);
 
-      // Assert
-      const messages = container.querySelectorAll('.message');
-      expect(messages[0]).not.toHaveClass('message-subagent');
-      expect(messages[1]).toHaveClass('message-subagent');
+      // Assert - main message is rendered directly, subagent is in a group
+      const mainMessages = container.querySelectorAll('.message:not(.message-subagent)');
+      expect(mainMessages[0]).not.toHaveClass('message-subagent');
+
+      const subagentGroup = container.querySelector('.subagent-group');
+      expect(subagentGroup).toBeInTheDocument();
     });
 
     it('should handle messages without agentId field gracefully', () => {
@@ -372,7 +378,7 @@ describe('TranscriptViewer', () => {
       expect(screen.getByText('Legacy message')).toBeInTheDocument();
     });
 
-    it('should display subagent name when available', () => {
+    it('should display subagent name when available in group header', () => {
       // Arrange
       const mockTranscript = {
         id: 'test-transcript',
@@ -404,8 +410,353 @@ describe('TranscriptViewer', () => {
       render(<TranscriptViewer transcript={mockTranscript} />);
 
       // Assert
-      const subagentLabel = screen.getByTestId('subagent-label');
-      expect(subagentLabel).toHaveTextContent('Data Analyzer');
+      const groupHeader = screen.getByTestId('subagent-group-header');
+      expect(groupHeader).toHaveTextContent('Data Analyzer');
+    });
+  });
+
+  describe('Subagent Group Collapse/Expand', () => {
+    it('should render subagent groups collapsed by default', () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'agent-a',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'sub-001',
+            parentUuid: null,
+            agentId: 'agent-a',
+            message: { role: 'assistant' as const, content: 'Subagent message' },
+          },
+        ],
+      };
+
+      // Act
+      render(<TranscriptViewer transcript={mockTranscript} />);
+
+      // Assert
+      expect(screen.getByTestId('subagent-group-header')).toBeInTheDocument();
+      expect(screen.getByTestId('subagent-group-header')).toHaveAttribute('aria-expanded', 'false');
+      expect(screen.queryByTestId('subagent-group-body')).not.toBeInTheDocument();
+    });
+
+    it('should expand subagent group when header is clicked', async () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'agent-a',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'sub-001',
+            parentUuid: null,
+            agentId: 'agent-a',
+            message: { role: 'assistant' as const, content: 'Subagent message' },
+          },
+        ],
+      };
+
+      // Act
+      render(<TranscriptViewer transcript={mockTranscript} />);
+      screen.getByTestId('subagent-group-header').click();
+
+      // Assert
+      await waitFor(() => {
+        expect(screen.getByTestId('subagent-group-body')).toBeInTheDocument();
+        expect(screen.getByText('Subagent message')).toBeInTheDocument();
+      });
+    });
+
+    it('should collapse subagent group when header is clicked again', async () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'agent-a',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'sub-001',
+            parentUuid: null,
+            agentId: 'agent-a',
+            message: { role: 'assistant' as const, content: 'Subagent message' },
+          },
+        ],
+      };
+
+      // Act
+      render(<TranscriptViewer transcript={mockTranscript} />);
+      const header = screen.getByTestId('subagent-group-header');
+
+      // Expand
+      header.click();
+      await waitFor(() => {
+        expect(screen.getByTestId('subagent-group-body')).toBeInTheDocument();
+      });
+
+      // Collapse
+      header.click();
+      await waitFor(() => {
+        expect(screen.queryByTestId('subagent-group-body')).not.toBeInTheDocument();
+      });
+    });
+
+    it('should display message count in group header', () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'agent-a',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'sub-001',
+            parentUuid: null,
+            agentId: 'agent-a',
+            message: { role: 'assistant' as const, content: 'msg1' },
+          },
+          {
+            type: 'user' as const,
+            sessionId: 'agent-a',
+            timestamp: '2026-02-01T05:00:10Z',
+            uuid: 'sub-002',
+            parentUuid: null,
+            agentId: 'agent-a',
+            message: { role: 'user' as const, content: 'msg2' },
+          },
+          {
+            type: 'assistant' as const,
+            sessionId: 'agent-a',
+            timestamp: '2026-02-01T05:00:15Z',
+            uuid: 'sub-003',
+            parentUuid: null,
+            agentId: 'agent-a',
+            message: { role: 'assistant' as const, content: 'msg3' },
+          },
+        ],
+      };
+
+      // Act
+      render(<TranscriptViewer transcript={mockTranscript} />);
+
+      // Assert
+      const count = screen.getByTestId('subagent-group-count');
+      expect(count).toHaveTextContent('3 messages');
+    });
+
+    it('should display singular message count for single message group', () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'agent-a',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'sub-001',
+            parentUuid: null,
+            agentId: 'agent-a',
+            message: { role: 'assistant' as const, content: 'msg1' },
+          },
+        ],
+      };
+
+      // Act
+      render(<TranscriptViewer transcript={mockTranscript} />);
+
+      // Assert
+      const count = screen.getByTestId('subagent-group-count');
+      expect(count).toHaveTextContent('1 message');
+    });
+
+    it('should group consecutive subagent messages from same agentId', () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'agent-a',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'sub-001',
+            parentUuid: null,
+            agentId: 'agent-a',
+            message: { role: 'assistant' as const, content: 'msg1' },
+          },
+          {
+            type: 'assistant' as const,
+            sessionId: 'agent-a',
+            timestamp: '2026-02-01T05:00:10Z',
+            uuid: 'sub-002',
+            parentUuid: null,
+            agentId: 'agent-a',
+            message: { role: 'assistant' as const, content: 'msg2' },
+          },
+          {
+            type: 'assistant' as const,
+            sessionId: 'agent-a',
+            timestamp: '2026-02-01T05:00:15Z',
+            uuid: 'sub-003',
+            parentUuid: null,
+            agentId: 'agent-a',
+            message: { role: 'assistant' as const, content: 'msg3' },
+          },
+        ],
+      };
+
+      // Act
+      const { container } = render(<TranscriptViewer transcript={mockTranscript} />);
+
+      // Assert - only 1 subagent group
+      const groups = container.querySelectorAll('.subagent-group');
+      expect(groups).toHaveLength(1);
+      expect(screen.getByTestId('subagent-group-count')).toHaveTextContent('3 messages');
+    });
+
+    it('should create separate groups for different subagents', () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'agent-a',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'sub-001',
+            parentUuid: null,
+            agentId: 'agent-a',
+            message: { role: 'assistant' as const, content: 'Agent A message' },
+          },
+          {
+            type: 'assistant' as const,
+            sessionId: 'agent-b',
+            timestamp: '2026-02-01T05:00:10Z',
+            uuid: 'sub-002',
+            parentUuid: null,
+            agentId: 'agent-b',
+            message: { role: 'assistant' as const, content: 'Agent B message' },
+          },
+        ],
+      };
+
+      // Act
+      const { container } = render(<TranscriptViewer transcript={mockTranscript} />);
+
+      // Assert
+      const groups = container.querySelectorAll('.subagent-group');
+      expect(groups).toHaveLength(2);
+    });
+
+    it('should maintain expand state of one group when toggling another', async () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'agent-a',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'sub-001',
+            parentUuid: null,
+            agentId: 'agent-a',
+            message: { role: 'assistant' as const, content: 'Agent A message' },
+          },
+          {
+            type: 'assistant' as const,
+            sessionId: 'agent-b',
+            timestamp: '2026-02-01T05:00:10Z',
+            uuid: 'sub-002',
+            parentUuid: null,
+            agentId: 'agent-b',
+            message: { role: 'assistant' as const, content: 'Agent B message' },
+          },
+        ],
+      };
+
+      // Act
+      render(<TranscriptViewer transcript={mockTranscript} />);
+      const headers = screen.getAllByTestId('subagent-group-header');
+
+      // Expand first group
+      headers[0].click();
+      await waitFor(() => {
+        expect(headers[0]).toHaveAttribute('aria-expanded', 'true');
+      });
+
+      // Expand second group
+      headers[1].click();
+      await waitFor(() => {
+        expect(headers[1]).toHaveAttribute('aria-expanded', 'true');
+      });
+
+      // First group should still be expanded
+      expect(headers[0]).toHaveAttribute('aria-expanded', 'true');
+    });
+
+    it('should show tool details inside expanded subagent group', async () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'agent-a',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'sub-001',
+            parentUuid: null,
+            agentId: 'agent-a',
+            message: {
+              role: 'assistant' as const,
+              content: [
+                { type: 'text', text: 'Using tool' },
+                {
+                  type: 'tool_use',
+                  id: 'tool-001',
+                  name: 'DataAnalyzer',
+                  input: { file_path: '/data/input.csv' },
+                },
+              ],
+            },
+          },
+        ],
+      };
+
+      // Act
+      render(<TranscriptViewer transcript={mockTranscript} />);
+
+      // Expand the subagent group first
+      screen.getByTestId('subagent-group-header').click();
+      await waitFor(() => {
+        expect(screen.getByTestId('subagent-group-body')).toBeInTheDocument();
+      });
+
+      // Then click the message to expand tool details
+      screen.getByTestId('timeline-item').click();
+      await waitFor(() => {
+        expect(screen.getByTestId('tool-detail-view')).toBeInTheDocument();
+        expect(screen.getByTestId('tool-name')).toHaveTextContent('DataAnalyzer');
+      });
     });
   });
 
