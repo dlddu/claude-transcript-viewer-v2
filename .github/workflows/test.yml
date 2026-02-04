@@ -2,7 +2,7 @@ name: Test
 
 on:
   push:
-    branches: [main, dld-247-infra-test-setup, 'claude/**']
+    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:
