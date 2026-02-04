@@ -44,7 +44,16 @@ export function useTranscriptData(transcriptId: string): UseTranscriptDataResult
         const response = await fetch(`${apiUrl}/api/transcripts/${transcriptId}`);
 
         if (!response.ok) {
-          throw new Error(`Failed to fetch transcript: ${response.statusText}`);
+          let errorMessage = `Failed to fetch transcript: ${response.statusText}`;
+          try {
+            const errorData = await response.json();
+            if (errorData.error) {
+              errorMessage = errorData.error;
+            }
+          } catch {
+            // Use default error message if response body is not JSON
+          }
+          throw new Error(errorMessage);
         }
 
         const transcript = await response.json();
