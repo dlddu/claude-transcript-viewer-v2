@@ -268,7 +268,7 @@ describe('Kind Cluster Workflow - Docker Build Integration', () => {
 
     // Assert
     assert.ok(
-      content.includes('docker build') && content.includes('frontend'),
+      (content.includes('docker build') || content.includes('docker/build-push-action')) && content.includes('frontend'),
       'Kind E2E job should build frontend Docker image'
     );
   });
@@ -279,7 +279,7 @@ describe('Kind Cluster Workflow - Docker Build Integration', () => {
 
     // Assert
     assert.ok(
-      content.includes('docker build') && content.includes('backend'),
+      (content.includes('docker build') || content.includes('docker/build-push-action')) && content.includes('backend'),
       'Kind E2E job should build backend Docker image'
     );
   });
@@ -290,7 +290,7 @@ describe('Kind Cluster Workflow - Docker Build Integration', () => {
 
     // Assert
     assert.ok(
-      content.includes('-t ') || content.includes('--tag'),
+      content.includes('-t ') || content.includes('--tag') || content.includes('tags:'),
       'Kind E2E job should tag Docker images'
     );
   });

@@ -307,7 +307,7 @@ jobs:
           fi
 
       - name: Run Docker build tests
-        run: node --test e2e/tests/docker-build.spec.ts
+        run: pnpm tsx --test e2e/tests/docker-build.spec.ts
 
   k8s-manifest-validation:
     name: Kubernetes Manifest Validation
