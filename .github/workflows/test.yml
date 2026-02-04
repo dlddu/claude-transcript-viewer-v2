@@ -203,7 +203,7 @@ jobs:
           retention-days: 30
 
   workflow-validation-tests:
-    name: Workflow File Validation (Skipped)
+    name: Workflow File Validation
     runs-on: ubuntu-latest
 
     steps:
@@ -217,9 +217,8 @@ jobs:
         run: node --test e2e/tests/docker-publish-workflow.spec.mjs
 
   docker-e2e-tests:
-    name: Docker Build E2E Tests (Skipped)
+    name: Docker Build E2E Tests
     runs-on: ubuntu-latest
-    if: false  # Initially skipped - enable when Dockerfiles are implemented
 
     steps:
       - uses: actions/checkout@v4
