@@ -18,6 +18,10 @@ RUN pnpm install --frozen-lockfile --filter @claude-transcript-viewer/frontend..
 # Copy frontend source code
 COPY frontend/ ./frontend/
 
+# Accept VITE_API_URL as build argument so Vite can inline it at build time
+ARG VITE_API_URL
+ENV VITE_API_URL=$VITE_API_URL
+
 # Build the application
 WORKDIR /app/frontend
 RUN pnpm build
