@@ -66,6 +66,15 @@ const mockTranscripts: Record<string, unknown> = {
       duration_ms: 2100,
     },
   },
+  'subagent-visualizer-20260201-001': {
+    id: 'subagent-visualizer-20260201-001',
+    content: 'Subagent: Creating visualizations...\n\nStep 1: Generating histogram\n- Created distribution plot for sales_amount\n\nStep 2: Creating time series plot\n- Generated trend line for sales over time\n\nStep 3: Building correlation heatmap\n- Analyzed correlations between numeric columns\n\nAll visualizations complete.',
+    metadata: {
+      model: 'claude-sonnet-4-5',
+      total_tokens: 234,
+      duration_ms: 1800,
+    },
+  },
 };
 
 // Known test IDs that should return 404 (for testing)

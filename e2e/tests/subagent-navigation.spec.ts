@@ -1,23 +1,23 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('Subagent Navigation', () => {
-  // These tests require full navigation implementation (DLD-248+)
-  // Skipping for infrastructure setup issue
-
-  test.skip('should navigate to data analyzer subagent', async ({ page }) => {
+  test.beforeEach(async ({ page }) => {
     await page.goto('/transcript/transcript-20260201-001');
+    // Wait for transcript to load
+    await expect(page.getByText('Data Analyzer Subagent')).toBeVisible();
+  });
+
+  test('should navigate to data analyzer subagent', async ({ page }) => {
     await page.getByText('Data Analyzer Subagent').click();
     await expect(page.locator('.subagent-expanded')).toBeVisible();
   });
 
-  test.skip('should navigate to visualizer subagent', async ({ page }) => {
-    await page.goto('/transcript/transcript-20260201-001');
+  test('should navigate to visualizer subagent', async ({ page }) => {
     await page.getByText('Visualization Subagent').click();
     await expect(page.locator('.subagent-expanded')).toBeVisible();
   });
 
-  test.skip('should collapse subagent when clicked again', async ({ page }) => {
-    await page.goto('/transcript/transcript-20260201-001');
+  test('should collapse subagent when clicked again', async ({ page }) => {
     const subagentButton = page.getByText('Data Analyzer Subagent');
     await subagentButton.click();
     await expect(page.locator('.subagent-expanded')).toBeVisible();
@@ -25,15 +25,13 @@ test.describe('Subagent Navigation', () => {
     await expect(page.locator('.subagent-expanded')).not.toBeVisible();
   });
 
-  test.skip('should display subagent metadata', async ({ page }) => {
-    await page.goto('/transcript/transcript-20260201-001');
+  test('should display subagent metadata', async ({ page }) => {
     await page.getByText('Data Analyzer Subagent').click();
-    await expect(page.getByText(/567.*tokens/i)).toBeVisible();
+    await expect(page.getByText(/456.*tokens/i)).toBeVisible();
   });
 
-  test.skip('should show visualization results', async ({ page }) => {
-    await page.goto('/transcript/transcript-20260201-001');
+  test('should show visualization results', async ({ page }) => {
     await page.getByText('Visualization Subagent').click();
-    await expect(page.getByText(/line_chart/i)).toBeVisible();
+    await expect(page.getByText(/Creating visualizations/i)).toBeVisible();
   });
 });
