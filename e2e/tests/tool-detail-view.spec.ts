@@ -6,25 +6,20 @@ import { test, expect } from '@playwright/test';
  * Purpose: Test the tool detail view functionality that displays tool_use input/output
  * details in an expandable/collapsible view when users click on messages containing tool_use.
  *
- * Test Status: ACTIVE (9 tests enabled)
- * - Most tests have been activated and are passing
- * - 4 tests remain skipped due to unimplemented features:
- *   1. Visual indicator class checks (expanded/active/open)
- *   2. Syntax highlighting for JSON
- *   3. Multiple tool_use blocks in same message (no fixture data)
- *   4. Full accessibility attributes (role="region", aria-label)
+ * Test Status: ACTIVE (all 13 tests enabled)
  *
  * Expected Behavior:
  * - Messages containing tool_use can be clicked to expand details
  * - Expanded view shows tool name, input parameters, and output (if available)
  * - Clicking again collapses the details
  * - Visual indication shows whether details are expanded or collapsed
+ * - JSON input is rendered with syntax highlighting
+ * - Accessibility attributes are present (role, aria-expanded, aria-label)
  *
  * Fixture Data:
  * - e2e/fixtures/session-abc123.jsonl
- *   - msg-002 contains tool_use content block
- *   - Tool name: "DataAnalyzer"
- *   - Input: {"file_path": "/data/input.csv"}
+ *   - msg-002 contains single tool_use content block (DataAnalyzer)
+ *   - msg-005 contains multiple tool_use content blocks (FileReader, SchemaValidator)
  */
 test.describe('Tool Detail View', () => {
   test.beforeEach(async ({ page }) => {
@@ -119,7 +114,7 @@ test.describe('Tool Detail View', () => {
     await expect(page.getByTestId('tool-detail-view')).not.toBeVisible();
   });
 
-  test.skip('should show visual indicator when tool details are expanded', async ({ page }) => {
+  test('should show visual indicator when tool details are expanded', async ({ page }) => {
     // Arrange
     const timeline = page.getByTestId('timeline-view');
     const messageWithTool = timeline.locator('[data-testid="timeline-item"]').filter({
@@ -130,10 +125,10 @@ test.describe('Tool Detail View', () => {
     await messageWithTool.click();
 
     // Assert - Visual indicator should show expanded state
-    // Could be an icon change (chevron down -> up), highlight, or class change
-    await expect(messageWithTool).toHaveClass(/expanded|active|open/);
+    // The message element should have the 'expanded' class
+    await expect(messageWithTool).toHaveClass(/expanded/);
 
-    // Or check for specific expand indicator
+    // Check for specific expand indicator
     const expandIndicator = messageWithTool.locator('[data-testid="expand-indicator"]');
     await expect(expandIndicator).toHaveAttribute('aria-expanded', 'true');
   });
@@ -169,14 +164,30 @@ test.describe('Tool Detail View', () => {
     await expect(toolDetail.getByTestId('tool-id')).toContainText('tool-001');
   });
 
-  test.skip('should handle multiple tool_use blocks in same message', async ({ page }) => {
-    // Note: This test requires a fixture with multiple tool_use blocks
-    // Skipping as current fixture (session-abc123.jsonl) has single tool_use per message
+  test('should handle multiple tool_use blocks in same message', async ({ page }) => {
+    // Arrange - Find the message with multiple tool_use blocks (msg-005)
+    const timeline = page.getByTestId('timeline-view');
+    const messageWithMultipleTools = timeline.locator('[data-testid="timeline-item"]').filter({
+      hasText: /I'll read the config and validate the schema/i
+    });
+    await expect(messageWithMultipleTools).toBeVisible();
 
-    // Arrange - Navigate to message with multiple tools
     // Act - Click to expand
+    await messageWithMultipleTools.click();
+
     // Assert - All tool details should be visible
-    // Each tool should have its own expandable section
+    const toolDetailViews = messageWithMultipleTools.locator('[data-testid="tool-detail-view"]');
+    await expect(toolDetailViews).toHaveCount(2);
+
+    // Each tool should have its own section with correct names
+    const toolNames = messageWithMultipleTools.locator('[data-testid="tool-name"]');
+    await expect(toolNames.nth(0)).toContainText('FileReader');
+    await expect(toolNames.nth(1)).toContainText('SchemaValidator');
+
+    // Each tool should have its own ID
+    const toolIds = messageWithMultipleTools.locator('[data-testid="tool-id"]');
+    await expect(toolIds.nth(0)).toContainText('tool-002');
+    await expect(toolIds.nth(1)).toContainText('tool-003');
   });
 
   test('should support keyboard navigation for expand/collapse', async ({ page }) => {
@@ -240,7 +251,7 @@ test.describe('Tool Detail View', () => {
     await expect(page.getByTestId('tool-detail-view')).not.toBeVisible();
   });
 
-  test.skip('should highlight syntax in tool input JSON', async ({ page }) => {
+  test('should highlight syntax in tool input JSON', async ({ page }) => {
     // Arrange
     const timeline = page.getByTestId('timeline-view');
     const messageWithTool = timeline.locator('[data-testid="timeline-item"]').filter({
@@ -253,13 +264,15 @@ test.describe('Tool Detail View', () => {
     // Assert - JSON syntax highlighting should be applied
     const toolInput = page.getByTestId('tool-input');
 
-    // Check for syntax highlighting classes or styled elements
-    // Common patterns: .token, .string, .property, etc.
-    const syntaxElements = toolInput.locator('.token, .hljs-string, .hljs-attr');
-    await expect(syntaxElements.first()).toBeVisible();
+    // Check for syntax highlighting classes
+    const keyElements = toolInput.locator('.json-key');
+    await expect(keyElements.first()).toBeVisible();
+
+    const stringElements = toolInput.locator('.json-string');
+    await expect(stringElements.first()).toBeVisible();
   });
 
-  test.skip('should be accessible via screen reader', async ({ page }) => {
+  test('should be accessible via screen reader', async ({ page }) => {
     // Arrange
     const timeline = page.getByTestId('timeline-view');
     const messageWithTool = timeline.locator('[data-testid="timeline-item"]').filter({
@@ -269,12 +282,13 @@ test.describe('Tool Detail View', () => {
     // Assert - Accessibility attributes should be present
     // Should have appropriate ARIA attributes
     await expect(messageWithTool).toHaveAttribute('role', 'button');
-    await expect(messageWithTool).toHaveAttribute('aria-expanded');
+    await expect(messageWithTool).toHaveAttribute('aria-expanded', 'false');
 
     // Tool detail view should have accessible labels
     await messageWithTool.click();
+    await expect(messageWithTool).toHaveAttribute('aria-expanded', 'true');
     const toolDetail = page.getByTestId('tool-detail-view');
     await expect(toolDetail).toHaveAttribute('role', 'region');
-    await expect(toolDetail).toHaveAttribute('aria-label');
+    await expect(toolDetail).toHaveAttribute('aria-label', /Tool details for DataAnalyzer/);
   });
 });

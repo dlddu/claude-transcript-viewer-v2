@@ -344,6 +344,31 @@
   color: #333;
 }
 
+/* JSON Syntax Highlighting */
+.json-key {
+  color: #881391;
+}
+
+.json-string {
+  color: #1a7f37;
+}
+
+.json-number {
+  color: #0550ae;
+}
+
+.json-boolean {
+  color: #cf222e;
+}
+
+.json-null {
+  color: #6e7781;
+}
+
+.json-punctuation {
+  color: #57606a;
+}
+
 .tool-output-error {
   background: #ffebee;
   border-color: #ef9a9a;
