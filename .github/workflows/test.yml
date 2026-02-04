@@ -408,6 +408,23 @@ jobs:
           cache-from: type=gha,scope=kind-backend
           cache-to: type=gha,scope=kind-backend,mode=max
 
+      - name: Cache LocalStack Docker image
+        id: localstack-cache
+        uses: actions/cache@v4
+        with:
+          path: /tmp/localstack-image.tar
+          key: localstack-image-3.0
+
+      - name: Pull LocalStack image
+        if: steps.localstack-cache.outputs.cache-hit != 'true'
+        run: |
+          docker pull localstack/localstack:3.0
+          docker save localstack/localstack:3.0 -o /tmp/localstack-image.tar
+
+      - name: Load LocalStack image from cache
+        if: steps.localstack-cache.outputs.cache-hit == 'true'
+        run: docker load -i /tmp/localstack-image.tar
+
       - name: Create kind cluster
         uses: helm/kind-action@v1
         with:
@@ -416,10 +433,10 @@ jobs:
 
       - name: Load Docker images into kind
         run: |
-          kind load docker-image claude-transcript-viewer-frontend:test --name test-cluster
-          kind load docker-image claude-transcript-viewer-backend:test --name test-cluster
-          docker pull localstack/localstack:3.0
-          kind load docker-image localstack/localstack:3.0 --name test-cluster
+          kind load docker-image claude-transcript-viewer-frontend:test --name test-cluster &
+          kind load docker-image claude-transcript-viewer-backend:test --name test-cluster &
+          kind load docker-image localstack/localstack:3.0 --name test-cluster &
+          wait
 
       - name: Create test ConfigMaps and Secrets
         run: |
