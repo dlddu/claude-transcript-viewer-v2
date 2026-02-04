@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: localstack
+  labels:
+    app: localstack
+    tier: testing
+spec:
+  type: ClusterIP
+  selector:
+    app: localstack
+    tier: testing
+  ports:
+    - name: edge
+      protocol: TCP
+      port: 4566
+      targetPort: 4566
