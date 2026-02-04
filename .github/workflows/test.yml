@@ -136,8 +136,20 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Cache Playwright browsers
+        id: playwright-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('e2e/package.json') }}
+
       - name: Install Playwright browsers
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
         run: pnpm --filter @claude-transcript-viewer/e2e exec playwright install --with-deps chromium
+
+      - name: Install Playwright system dependencies
+        if: steps.playwright-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @claude-transcript-viewer/e2e exec playwright install-deps chromium
 
       - name: Wait for LocalStack
         run: |
@@ -350,10 +362,25 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build frontend Docker image
-        run: docker build --build-arg VITE_API_URL=http://localhost:3000 -t claude-transcript-viewer-frontend:test -f frontend/Dockerfile .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./frontend/Dockerfile
+          load: true
+          tags: claude-transcript-viewer-frontend:test
+          build-args: VITE_API_URL=http://localhost:3000
+          cache-from: type=gha,scope=kind-frontend
+          cache-to: type=gha,scope=kind-frontend,mode=max
 
       - name: Build backend Docker image
-        run: docker build -t claude-transcript-viewer-backend:test -f backend/Dockerfile .
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./backend/Dockerfile
+          load: true
+          tags: claude-transcript-viewer-backend:test
+          cache-from: type=gha,scope=kind-backend
+          cache-to: type=gha,scope=kind-backend,mode=max
 
       - name: Create kind cluster
         uses: helm/kind-action@v1
@@ -432,8 +459,20 @@ jobs:
           kubectl port-forward svc/localstack 4566:4566 &
           sleep 5
 
+      - name: Cache Playwright browsers
+        id: playwright-cache-kind
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('e2e/package.json') }}
+
       - name: Install Playwright browsers
+        if: steps.playwright-cache-kind.outputs.cache-hit != 'true'
         run: pnpm --filter @claude-transcript-viewer/e2e exec playwright install --with-deps chromium
+
+      - name: Install Playwright system dependencies
+        if: steps.playwright-cache-kind.outputs.cache-hit == 'true'
+        run: pnpm --filter @claude-transcript-viewer/e2e exec playwright install-deps chromium
 
       - name: Run E2E tests against kind cluster
         env:
@@ -476,6 +515,17 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Cache ESLint
+        uses: actions/cache@v4
+        with:
+          path: |
+            frontend/.eslintcache
+            backend/.eslintcache
+          key: eslint-${{ runner.os }}-${{ hashFiles('**/eslint*') }}-${{ github.sha }}
+          restore-keys: |
+            eslint-${{ runner.os }}-${{ hashFiles('**/eslint*') }}-
+            eslint-${{ runner.os }}-
 
       - name: Run linters
         run: pnpm lint
