@@ -18,6 +18,10 @@ coverage/
 e2e/playwright-report/
 e2e/test-results/
 e2e/playwright/.cache/
+test-results/
+
+# Lock files from non-primary package managers
+e2e/package-lock.json
 
 # Environment variables
 .env
