@@ -119,7 +119,7 @@ test.describe('Tool Detail View', () => {
     await expect(page.getByTestId('tool-detail-view')).not.toBeVisible();
   });
 
-  test.skip('should show visual indicator when tool details are expanded', async ({ page }) => {
+  test('should show visual indicator when tool details are expanded', async ({ page }) => {
     // Arrange
     const timeline = page.getByTestId('timeline-view');
     const messageWithTool = timeline.locator('[data-testid="timeline-item"]').filter({
@@ -169,7 +169,7 @@ test.describe('Tool Detail View', () => {
     await expect(toolDetail.getByTestId('tool-id')).toContainText('tool-001');
   });
 
-  test.skip('should handle multiple tool_use blocks in same message', async ({ page }) => {
+  test('should handle multiple tool_use blocks in same message', async ({ page }) => {
     // Note: This test requires a fixture with multiple tool_use blocks
     // Skipping as current fixture (session-abc123.jsonl) has single tool_use per message
 
@@ -240,7 +240,7 @@ test.describe('Tool Detail View', () => {
     await expect(page.getByTestId('tool-detail-view')).not.toBeVisible();
   });
 
-  test.skip('should highlight syntax in tool input JSON', async ({ page }) => {
+  test('should highlight syntax in tool input JSON', async ({ page }) => {
     // Arrange
     const timeline = page.getByTestId('timeline-view');
     const messageWithTool = timeline.locator('[data-testid="timeline-item"]').filter({
@@ -259,7 +259,7 @@ test.describe('Tool Detail View', () => {
     await expect(syntaxElements.first()).toBeVisible();
   });
 
-  test.skip('should be accessible via screen reader', async ({ page }) => {
+  test('should be accessible via screen reader', async ({ page }) => {
     // Arrange
     const timeline = page.getByTestId('timeline-view');
     const messageWithTool = timeline.locator('[data-testid="timeline-item"]').filter({

@@ -44,7 +44,7 @@ const isDockerAvailable = (): boolean => {
   }
 };
 
-describe('Docker Build - Frontend', { skip: true }, () => {
+describe('Docker Build - Frontend', () => {
   it('should have a Dockerfile in frontend directory', () => {
     // Arrange
     const dockerfilePath = resolve(FRONTEND_DIR, 'Dockerfile');
@@ -192,7 +192,7 @@ describe('Docker Build - Frontend', { skip: true }, () => {
   });
 });
 
-describe('Docker Build - Backend', { skip: true }, () => {
+describe('Docker Build - Backend', () => {
   it('should have a Dockerfile in backend directory', () => {
     // Arrange
     const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
@@ -368,7 +368,7 @@ describe('Docker Build - Backend', { skip: true }, () => {
   });
 });
 
-describe('Docker Build - .dockerignore Optimization', { skip: true }, () => {
+describe('Docker Build - .dockerignore Optimization', () => {
   it('should exclude .git directory from frontend build', () => {
     // Arrange
     const dockerignorePath = resolve(FRONTEND_DIR, '.dockerignore');

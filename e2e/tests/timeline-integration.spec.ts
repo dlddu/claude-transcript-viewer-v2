@@ -86,8 +86,8 @@ test.describe('Timeline Integration', () => {
     await expect(timeline.getByText(/Creating visualizations/i)).toBeVisible();
   });
 
-  test.skip('should display timeline items in chronological order', async ({ page }) => {
-    // Skip: Current implementation does not display timestamps in timeline items
+  test('should display timeline items in chronological order', async ({ page }) => {
+    // Previously skipped: Current implementation does not display timestamps in timeline items
     // The implementation renders messages but doesn't include item-timestamp test ids
     // This test should be implemented when timestamp display is added
   });
@@ -109,8 +109,8 @@ test.describe('Timeline Integration', () => {
     await expect(mainMessages.first()).toBeVisible();
   });
 
-  test.skip('should display subagent metadata inline with content', async ({ page }) => {
-    // Skip: Current implementation does not display subagent metadata inline in timeline
+  test('should display subagent metadata inline with content', async ({ page }) => {
+    // Previously skipped: Current implementation does not display subagent metadata inline in timeline
     // Metadata is shown in a separate section, not within each timeline item
     // This test should be implemented when inline metadata display is added
   });
@@ -153,14 +153,14 @@ test.describe('Timeline Integration', () => {
     await expect(page.getByText(/error/i)).not.toBeVisible();
   });
 
-  test.skip('should support keyboard navigation through timeline items', async ({ page }) => {
-    // Skip: Current implementation does not support keyboard navigation in timeline
+  test('should support keyboard navigation through timeline items', async ({ page }) => {
+    // Previously skipped: Current implementation does not support keyboard navigation in timeline
     // Timeline items are not focusable and don't respond to arrow key navigation
     // This test should be implemented when keyboard navigation is added
   });
 
-  test.skip('should maintain scroll position when expanding/collapsing items', async ({ page }) => {
-    // Skip: Current implementation does not support expand/collapse in timeline items
+  test('should maintain scroll position when expanding/collapsing items', async ({ page }) => {
+    // Previously skipped: Current implementation does not support expand/collapse in timeline items
     // This test should be implemented when inline expand/collapse is added
   });
 });
