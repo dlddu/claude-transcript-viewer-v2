@@ -446,3 +446,48 @@
   font-family: 'Courier New', Courier, monospace;
   color: #444;
 }
+
+/* Mobile Layout Optimization */
+@media (max-width: 640px) {
+  .message {
+    padding: 0.5rem;
+  }
+
+  .transcript-viewer {
+    padding: 0.5rem;
+  }
+
+  .transcript-content {
+    padding: 0.75rem;
+  }
+
+  .messages {
+    gap: 0.5rem;
+  }
+
+  .message-role {
+    margin-bottom: 0.25rem;
+    font-size: 0.875rem;
+  }
+
+  .subagent-group {
+    margin-left: 1rem;
+  }
+
+  .subagent-group-header {
+    padding: 0.5rem 0.75rem;
+  }
+
+  .subagent-group-body {
+    padding: 0.25rem;
+  }
+
+  .tool-detail-view {
+    padding: 0.5rem;
+  }
+
+  .tool-input,
+  .tool-output {
+    padding: 0.5rem;
+  }
+}
