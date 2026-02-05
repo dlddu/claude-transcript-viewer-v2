@@ -1070,7 +1070,7 @@ describe('TranscriptViewer', () => {
       const toolInput = await findByTestId('tool-input');
       expect(toolInput).toBeInTheDocument();
       expect(toolInput).toHaveTextContent('file_path');
-      expect(toolInput).toHaveTextContent('/data/input.csv');
+      expect(toolInput).toHaveTextContent('input.csv');
 
       // Should contain pre or code element for JSON formatting
       const codeBlock = toolInput.querySelector('pre, code');
