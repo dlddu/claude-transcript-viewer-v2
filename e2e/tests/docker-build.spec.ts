@@ -32,6 +32,19 @@ const execCommand = (command: string, cwd?: string): string => {
   }
 };
 
+const tryExec = (command: string): void => {
+  try {
+    execCommand(command);
+  } catch {
+    // Ignore cleanup errors
+  }
+};
+
+const dockerImageExists = (imageName: string): boolean => {
+  const output = execCommand(`docker images -q ${imageName}`);
+  return output.trim().length > 0;
+};
+
 const isDockerAvailable = (): boolean => {
   try {
     execCommand('docker --version');
@@ -62,18 +75,15 @@ describe('Docker Build - Frontend', () => {
     // Arrange
     const imageName = 'claude-transcript-viewer-frontend:test';
 
-    // Act
-    const output = execCommand(
-      `docker build -t ${imageName} .`,
-      FRONTEND_DIR
-    );
+    try {
+      // Act - Build from repo root with explicit Dockerfile path
+      execCommand(`docker build -t ${imageName} -f frontend/Dockerfile .`);
 
-    // Assert
-    assert.ok(output.includes('Successfully built'));
-    assert.ok(output.includes('Successfully tagged'));
-
-    // Cleanup
-    execCommand(`docker rmi ${imageName}`);
+      // Assert - Verify image was created
+      assert.strictEqual(dockerImageExists(imageName), true);
+    } finally {
+      tryExec(`docker rmi ${imageName}`);
+    }
   });
 
   it('should use multi-stage build with node and nginx', () => {
@@ -91,21 +101,22 @@ describe('Docker Build - Frontend', () => {
     // Arrange
     const imageName = 'claude-transcript-viewer-frontend:test';
 
-    // Act - Build image
-    execCommand(`docker build -t ${imageName} .`, FRONTEND_DIR);
+    try {
+      // Act - Build from repo root with explicit Dockerfile path
+      execCommand(`docker build -t ${imageName} -f frontend/Dockerfile .`);
 
-    // Get image size
-    const inspectOutput = execCommand(
-      `docker inspect ${imageName} --format='{{.Size}}'`
-    );
-    const sizeInBytes = parseInt(inspectOutput.trim(), 10);
-    const sizeInMB = sizeInBytes / (1024 * 1024);
+      // Get image size
+      const inspectOutput = execCommand(
+        `docker inspect ${imageName} --format='{{.Size}}'`
+      );
+      const sizeInBytes = parseInt(inspectOutput.trim(), 10);
+      const sizeInMB = sizeInBytes / (1024 * 1024);
 
-    // Assert
-    assert.ok(sizeInMB < 100);
-
-    // Cleanup
-    execCommand(`docker rmi ${imageName}`);
+      // Assert
+      assert.ok(sizeInMB < 100, `Frontend image size ${sizeInMB.toFixed(1)}MB exceeds 100MB`);
+    } finally {
+      tryExec(`docker rmi ${imageName}`);
+    }
   });
 
   it('should run nginx on port 80 when container starts', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
@@ -114,8 +125,8 @@ describe('Docker Build - Frontend', () => {
     const containerName = 'claude-frontend-test';
 
     try {
-      // Act - Build and run
-      execCommand(`docker build -t ${imageName} .`, FRONTEND_DIR);
+      // Act - Build from repo root and run
+      execCommand(`docker build -t ${imageName} -f frontend/Dockerfile .`);
       execCommand(
         `docker run -d --name ${containerName} -p 8080:80 ${imageName}`
       );
@@ -129,10 +140,9 @@ describe('Docker Build - Frontend', () => {
       // Assert
       assert.ok(curlOutput.includes('<!DOCTYPE html>'));
     } finally {
-      // Cleanup
-      execCommand(`docker stop ${containerName}`, REPO_ROOT);
-      execCommand(`docker rm ${containerName}`, REPO_ROOT);
-      execCommand(`docker rmi ${imageName}`, REPO_ROOT);
+      tryExec(`docker stop ${containerName}`);
+      tryExec(`docker rm ${containerName}`);
+      tryExec(`docker rmi ${imageName}`);
     }
   });
 
@@ -180,18 +190,15 @@ describe('Docker Build - Backend', () => {
     // Arrange
     const imageName = 'claude-transcript-viewer-backend:test';
 
-    // Act
-    const output = execCommand(
-      `docker build -t ${imageName} .`,
-      BACKEND_DIR
-    );
+    try {
+      // Act - Build from repo root with explicit Dockerfile path
+      execCommand(`docker build -t ${imageName} -f backend/Dockerfile .`);
 
-    // Assert
-    assert.ok(output.includes('Successfully built'));
-    assert.ok(output.includes('Successfully tagged'));
-
-    // Cleanup
-    execCommand(`docker rmi ${imageName}`);
+      // Assert - Verify image was created
+      assert.strictEqual(dockerImageExists(imageName), true);
+    } finally {
+      tryExec(`docker rmi ${imageName}`);
+    }
   });
 
   it('should use node:20-alpine base image', () => {
@@ -207,21 +214,22 @@ describe('Docker Build - Backend', () => {
     // Arrange
     const imageName = 'claude-transcript-viewer-backend:test';
 
-    // Act - Build image
-    execCommand(`docker build -t ${imageName} .`, BACKEND_DIR);
+    try {
+      // Act - Build from repo root with explicit Dockerfile path
+      execCommand(`docker build -t ${imageName} -f backend/Dockerfile .`);
 
-    // Get image size
-    const inspectOutput = execCommand(
-      `docker inspect ${imageName} --format='{{.Size}}'`
-    );
-    const sizeInBytes = parseInt(inspectOutput.trim(), 10);
-    const sizeInMB = sizeInBytes / (1024 * 1024);
+      // Get image size
+      const inspectOutput = execCommand(
+        `docker inspect ${imageName} --format='{{.Size}}'`
+      );
+      const sizeInBytes = parseInt(inspectOutput.trim(), 10);
+      const sizeInMB = sizeInBytes / (1024 * 1024);
 
-    // Assert
-    assert.ok(sizeInMB < 300);
-
-    // Cleanup
-    execCommand(`docker rmi ${imageName}`);
+      // Assert
+      assert.ok(sizeInMB < 300, `Backend image size ${sizeInMB.toFixed(1)}MB exceeds 300MB`);
+    } finally {
+      tryExec(`docker rmi ${imageName}`);
+    }
   });
 
   it('should expose port 3000', () => {
@@ -239,8 +247,8 @@ describe('Docker Build - Backend', () => {
     const containerName = 'claude-backend-test';
 
     try {
-      // Act - Build and run
-      execCommand(`docker build -t ${imageName} .`, BACKEND_DIR);
+      // Act - Build from repo root and run
+      execCommand(`docker build -t ${imageName} -f backend/Dockerfile .`);
       execCommand(
         `docker run -d --name ${containerName} -p 3001:3000 -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e S3_BUCKET=test-bucket ${imageName}`
       );
@@ -255,10 +263,9 @@ describe('Docker Build - Backend', () => {
       assert.ok(curlOutput !== undefined);
       assert.ok(curlOutput.length > 0);
     } finally {
-      // Cleanup
-      execCommand(`docker stop ${containerName}`, REPO_ROOT);
-      execCommand(`docker rm ${containerName}`, REPO_ROOT);
-      execCommand(`docker rmi ${imageName}`, REPO_ROOT);
+      tryExec(`docker stop ${containerName}`);
+      tryExec(`docker rm ${containerName}`);
+      tryExec(`docker rmi ${imageName}`);
     }
   });
 
