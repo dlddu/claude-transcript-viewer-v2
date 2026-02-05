@@ -94,6 +94,9 @@ test.describe('Timeline Integration', () => {
     //   sub-002 (05:00:12) "Starting data analysis" (subagent a1b2c3d)
     //   ...
     //   msg-003 (05:00:50) "Analysis complete!" (main)
+    //   msg-004 (05:01:00) "Now read the config file" (user)
+    //   msg-005 (05:01:05) "I'll read the config" (main, with multiple tools)
+    //   msg-006 (05:01:50) "The config file is valid" (main)
     const timeline = page.getByTestId('timeline-view');
 
     // Expand all subagent groups to reveal their messages
@@ -112,7 +115,7 @@ test.describe('Timeline Integration', () => {
     await expect(items.first()).toContainText(/Can you help me analyze this dataset/i);
 
     // Last main-agent message should be the concluding message (latest timestamp)
-    await expect(items.last()).toContainText(/Analysis complete|visualizations/i);
+    await expect(items.last()).toContainText(/config file is valid|config-v2 schema/i);
   });
 
   test('should visually distinguish between main and subagent messages', async ({ page }) => {
