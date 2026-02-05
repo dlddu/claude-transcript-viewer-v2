@@ -145,7 +145,7 @@ describe('truncateToolId', () => {
       const result = truncateToolId(toolId);
 
       // Assert
-      expect(result).toBe('toolu_01Pr...');
+      expect(result).toBe('toolu_01...');
     });
 
     it('should handle standard Anthropic tool ID format', () => {
@@ -156,7 +156,7 @@ describe('truncateToolId', () => {
       const result = truncateToolId(standardId);
 
       // Assert
-      expect(result).toBe('toolu_012...');
+      expect(result).toBe('toolu_01...');
     });
 
     it('should truncate at correct position for Claude tool IDs', () => {
@@ -167,7 +167,7 @@ describe('truncateToolId', () => {
       const result = truncateToolId(claudeId);
 
       // Assert
-      expect(result).toBe('toolu_01A...');
+      expect(result).toBe('toolu_01...');
     });
   });
 

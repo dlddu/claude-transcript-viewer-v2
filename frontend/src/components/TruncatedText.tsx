@@ -93,7 +93,7 @@ export function TruncatedText({ text, truncatedText, className = '' }: Truncated
   const combinedClassName = `truncated-text ${className}`.trim();
 
   return (
-    <>
+    <span style={{ position: 'relative', display: 'inline' }}>
       <button
         ref={buttonRef}
         className={combinedClassName}
@@ -132,6 +132,6 @@ export function TruncatedText({ text, truncatedText, className = '' }: Truncated
           )}
         </div>
       )}
-    </>
+    </span>
   );
 }

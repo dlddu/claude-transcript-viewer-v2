@@ -2,6 +2,13 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { TruncatedText } from './TruncatedText';
 
+// Add type declaration for test clipboard mock
+declare global {
+  interface Window {
+    __clipboardText?: string;
+  }
+}
+
 describe('TruncatedText', () => {
   describe('rendering', () => {
     it('should render truncated text', () => {
@@ -139,14 +146,14 @@ describe('TruncatedText', () => {
         clipboard: {
           writeText: async (text: string) => {
             // Store the text for verification
-            (window as any).__clipboardText = text;
+            window.__clipboardText = text;
           },
         },
       });
     });
 
     afterEach(() => {
-      delete (window as any).__clipboardText;
+      delete window.__clipboardText;
     });
 
     it('should copy full text to clipboard when clicking copy button', async () => {
@@ -166,7 +173,7 @@ describe('TruncatedText', () => {
 
       // Assert
       await waitFor(() => {
-        expect((window as any).__clipboardText).toBe('toolu_01PrABcDEfGHiJ');
+        expect(window.__clipboardText).toBe('toolu_01PrABcDEfGHiJ');
       });
     });
 
