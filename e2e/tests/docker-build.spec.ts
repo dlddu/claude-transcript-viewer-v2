@@ -32,14 +32,6 @@ const execCommand = (command: string, cwd?: string): string => {
   }
 };
 
-const tryExec = (command: string): void => {
-  try {
-    execCommand(command);
-  } catch {
-    // Ignore cleanup errors
-  }
-};
-
 const dockerImageExists = (imageName: string): boolean => {
   const output = execCommand(`docker images -q ${imageName}`);
   return output.trim().length > 0;
@@ -75,15 +67,11 @@ describe('Docker Build - Frontend', () => {
     // Arrange
     const imageName = 'claude-transcript-viewer-frontend:test';
 
-    try {
-      // Act - Build from repo root with explicit Dockerfile path
-      execCommand(`docker build -t ${imageName} -f frontend/Dockerfile .`);
+    // Act - Build from repo root with explicit Dockerfile path
+    execCommand(`docker build -t ${imageName} -f frontend/Dockerfile .`);
 
-      // Assert - Verify image was created
-      assert.strictEqual(dockerImageExists(imageName), true);
-    } finally {
-      tryExec(`docker rmi ${imageName}`);
-    }
+    // Assert - Verify image was created
+    assert.strictEqual(dockerImageExists(imageName), true);
   });
 
   it('should use multi-stage build with node and nginx', () => {
@@ -101,22 +89,18 @@ describe('Docker Build - Frontend', () => {
     // Arrange
     const imageName = 'claude-transcript-viewer-frontend:test';
 
-    try {
-      // Act - Build from repo root with explicit Dockerfile path
-      execCommand(`docker build -t ${imageName} -f frontend/Dockerfile .`);
+    // Act - Build from repo root with explicit Dockerfile path
+    execCommand(`docker build -t ${imageName} -f frontend/Dockerfile .`);
 
-      // Get image size
-      const inspectOutput = execCommand(
-        `docker inspect ${imageName} --format='{{.Size}}'`
-      );
-      const sizeInBytes = parseInt(inspectOutput.trim(), 10);
-      const sizeInMB = sizeInBytes / (1024 * 1024);
+    // Get image size
+    const inspectOutput = execCommand(
+      `docker inspect ${imageName} --format='{{.Size}}'`
+    );
+    const sizeInBytes = parseInt(inspectOutput.trim(), 10);
+    const sizeInMB = sizeInBytes / (1024 * 1024);
 
-      // Assert
-      assert.ok(sizeInMB < 100, `Frontend image size ${sizeInMB.toFixed(1)}MB exceeds 100MB`);
-    } finally {
-      tryExec(`docker rmi ${imageName}`);
-    }
+    // Assert
+    assert.ok(sizeInMB < 100, `Frontend image size ${sizeInMB.toFixed(1)}MB exceeds 100MB`);
   });
 
   it('should run nginx on port 80 when container starts', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
@@ -124,26 +108,20 @@ describe('Docker Build - Frontend', () => {
     const imageName = 'claude-transcript-viewer-frontend:test';
     const containerName = 'claude-frontend-test';
 
-    try {
-      // Act - Build from repo root and run
-      execCommand(`docker build -t ${imageName} -f frontend/Dockerfile .`);
-      execCommand(
-        `docker run -d --name ${containerName} -p 8080:80 ${imageName}`
-      );
+    // Act - Build from repo root and run
+    execCommand(`docker build -t ${imageName} -f frontend/Dockerfile .`);
+    execCommand(
+      `docker run -d --name ${containerName} -p 8080:80 ${imageName}`
+    );
 
-      // Wait for container to be ready
-      execCommand('sleep 3');
+    // Wait for container to be ready
+    execCommand('sleep 3');
 
-      // Check if nginx is responding
-      const curlOutput = execCommand('curl -f http://localhost:8080');
+    // Check if nginx is responding
+    const curlOutput = execCommand('curl -f http://localhost:8080');
 
-      // Assert
-      assert.ok(curlOutput.includes('<!DOCTYPE html>'));
-    } finally {
-      tryExec(`docker stop ${containerName}`);
-      tryExec(`docker rm ${containerName}`);
-      tryExec(`docker rmi ${imageName}`);
-    }
+    // Assert
+    assert.ok(curlOutput.includes('<!DOCTYPE html>'));
   });
 
   it('should exclude node_modules from build context', () => {
@@ -190,15 +168,11 @@ describe('Docker Build - Backend', () => {
     // Arrange
     const imageName = 'claude-transcript-viewer-backend:test';
 
-    try {
-      // Act - Build from repo root with explicit Dockerfile path
-      execCommand(`docker build -t ${imageName} -f backend/Dockerfile .`);
+    // Act - Build from repo root with explicit Dockerfile path
+    execCommand(`docker build -t ${imageName} -f backend/Dockerfile .`);
 
-      // Assert - Verify image was created
-      assert.strictEqual(dockerImageExists(imageName), true);
-    } finally {
-      tryExec(`docker rmi ${imageName}`);
-    }
+    // Assert - Verify image was created
+    assert.strictEqual(dockerImageExists(imageName), true);
   });
 
   it('should use node:20-alpine base image', () => {
@@ -214,22 +188,18 @@ describe('Docker Build - Backend', () => {
     // Arrange
     const imageName = 'claude-transcript-viewer-backend:test';
 
-    try {
-      // Act - Build from repo root with explicit Dockerfile path
-      execCommand(`docker build -t ${imageName} -f backend/Dockerfile .`);
+    // Act - Build from repo root with explicit Dockerfile path
+    execCommand(`docker build -t ${imageName} -f backend/Dockerfile .`);
 
-      // Get image size
-      const inspectOutput = execCommand(
-        `docker inspect ${imageName} --format='{{.Size}}'`
-      );
-      const sizeInBytes = parseInt(inspectOutput.trim(), 10);
-      const sizeInMB = sizeInBytes / (1024 * 1024);
+    // Get image size
+    const inspectOutput = execCommand(
+      `docker inspect ${imageName} --format='{{.Size}}'`
+    );
+    const sizeInBytes = parseInt(inspectOutput.trim(), 10);
+    const sizeInMB = sizeInBytes / (1024 * 1024);
 
-      // Assert
-      assert.ok(sizeInMB < 300, `Backend image size ${sizeInMB.toFixed(1)}MB exceeds 300MB`);
-    } finally {
-      tryExec(`docker rmi ${imageName}`);
-    }
+    // Assert
+    assert.ok(sizeInMB < 300, `Backend image size ${sizeInMB.toFixed(1)}MB exceeds 300MB`);
   });
 
   it('should expose port 3000', () => {
@@ -246,27 +216,21 @@ describe('Docker Build - Backend', () => {
     const imageName = 'claude-transcript-viewer-backend:test';
     const containerName = 'claude-backend-test';
 
-    try {
-      // Act - Build from repo root and run
-      execCommand(`docker build -t ${imageName} -f backend/Dockerfile .`);
-      execCommand(
-        `docker run -d --name ${containerName} -p 3001:3000 -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e S3_BUCKET=test-bucket ${imageName}`
-      );
+    // Act - Build from repo root and run
+    execCommand(`docker build -t ${imageName} -f backend/Dockerfile .`);
+    execCommand(
+      `docker run -d --name ${containerName} -p 3001:3000 -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e S3_BUCKET=test-bucket ${imageName}`
+    );
 
-      // Wait for container to be ready
-      execCommand('sleep 5');
+    // Wait for container to be ready
+    execCommand('sleep 5');
 
-      // Check if Express is responding
-      const curlOutput = execCommand('curl -f http://localhost:3001/api/health');
+    // Check if Express is responding
+    const curlOutput = execCommand('curl -f http://localhost:3001/api/health');
 
-      // Assert
-      assert.ok(curlOutput !== undefined);
-      assert.ok(curlOutput.length > 0);
-    } finally {
-      tryExec(`docker stop ${containerName}`);
-      tryExec(`docker rm ${containerName}`);
-      tryExec(`docker rmi ${imageName}`);
-    }
+    // Assert
+    assert.ok(curlOutput !== undefined);
+    assert.ok(curlOutput.length > 0);
   });
 
   it('should exclude node_modules and dist from build context', () => {
