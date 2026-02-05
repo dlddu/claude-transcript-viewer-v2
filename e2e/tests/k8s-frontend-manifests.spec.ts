@@ -589,13 +589,7 @@ describe('K8s Frontend Manifests - Secret Configuration', () => {
 });
 
 describe('K8s Frontend Manifests - kubectl dry-run validation', () => {
-  it('should pass kubectl dry-run for deployment.yaml', () => {
-    // Skip if kubectl is not available
-    if (!isKubectlAvailable()) {
-      console.warn('kubectl is not available, skipping test');
-      return;
-    }
-
+  it('should pass kubectl dry-run for deployment.yaml', { skip: !isKubectlAvailable() ? 'kubectl is not available' : false }, () => {
     // Arrange
     const deploymentPath = resolve(K8S_DIR, 'deployment.yaml');
 
@@ -605,13 +599,7 @@ describe('K8s Frontend Manifests - kubectl dry-run validation', () => {
     }, 'deployment.yaml should pass kubectl dry-run validation');
   });
 
-  it('should pass kubectl dry-run for service.yaml', () => {
-    // Skip if kubectl is not available
-    if (!isKubectlAvailable()) {
-      console.warn('kubectl is not available, skipping test');
-      return;
-    }
-
+  it('should pass kubectl dry-run for service.yaml', { skip: !isKubectlAvailable() ? 'kubectl is not available' : false }, () => {
     // Arrange
     const servicePath = resolve(K8S_DIR, 'service.yaml');
 
@@ -621,13 +609,7 @@ describe('K8s Frontend Manifests - kubectl dry-run validation', () => {
     }, 'service.yaml should pass kubectl dry-run validation');
   });
 
-  it('should pass kubectl dry-run for configmap.example.yaml', () => {
-    // Skip if kubectl is not available
-    if (!isKubectlAvailable()) {
-      console.warn('kubectl is not available, skipping test');
-      return;
-    }
-
+  it('should pass kubectl dry-run for configmap.example.yaml', { skip: !isKubectlAvailable() ? 'kubectl is not available' : false }, () => {
     // Arrange
     const configmapPath = resolve(K8S_DIR, 'configmap.example.yaml');
 
@@ -637,13 +619,7 @@ describe('K8s Frontend Manifests - kubectl dry-run validation', () => {
     }, 'configmap.example.yaml should pass kubectl dry-run validation');
   });
 
-  it('should pass kubectl dry-run for secret.example.yaml', () => {
-    // Skip if kubectl is not available
-    if (!isKubectlAvailable()) {
-      console.warn('kubectl is not available, skipping test');
-      return;
-    }
-
+  it('should pass kubectl dry-run for secret.example.yaml', { skip: !isKubectlAvailable() ? 'kubectl is not available' : false }, () => {
     // Arrange
     const secretPath = resolve(K8S_DIR, 'secret.example.yaml');
 
@@ -653,13 +629,7 @@ describe('K8s Frontend Manifests - kubectl dry-run validation', () => {
     }, 'secret.example.yaml should pass kubectl dry-run validation');
   });
 
-  it('should validate all frontend manifests can be applied together', () => {
-    // Skip if kubectl is not available
-    if (!isKubectlAvailable()) {
-      console.warn('kubectl is not available, skipping test');
-      return;
-    }
-
+  it('should validate all frontend manifests can be applied together', { skip: !isKubectlAvailable() ? 'kubectl is not available' : false }, () => {
     // Arrange & Act & Assert
     assert.doesNotThrow(() => {
       execCommand(`KUBECONFIG=/dev/null kubectl create --dry-run=client --validate=false -f ${K8S_DIR}/ -o yaml`);
