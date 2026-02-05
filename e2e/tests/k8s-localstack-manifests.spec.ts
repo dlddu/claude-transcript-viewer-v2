@@ -345,13 +345,7 @@ describe('K8s LocalStack Manifests - Service Configuration', () => {
 });
 
 describe('K8s LocalStack Manifests - kubectl dry-run validation', () => {
-  it('should pass kubectl dry-run for deployment.yaml', () => {
-    // Skip if kubectl is not available
-    if (!isKubectlAvailable()) {
-      console.warn('kubectl is not available, skipping test');
-      return;
-    }
-
+  it('should pass kubectl dry-run for deployment.yaml', { skip: !isKubectlAvailable() ? 'kubectl is not available' : false }, () => {
     // Arrange
     const deploymentPath = resolve(K8S_LOCALSTACK_DIR, 'deployment.yaml');
 
@@ -361,13 +355,7 @@ describe('K8s LocalStack Manifests - kubectl dry-run validation', () => {
     }, 'deployment.yaml should pass kubectl dry-run validation');
   });
 
-  it('should pass kubectl dry-run for service.yaml', () => {
-    // Skip if kubectl is not available
-    if (!isKubectlAvailable()) {
-      console.warn('kubectl is not available, skipping test');
-      return;
-    }
-
+  it('should pass kubectl dry-run for service.yaml', { skip: !isKubectlAvailable() ? 'kubectl is not available' : false }, () => {
     // Arrange
     const servicePath = resolve(K8S_LOCALSTACK_DIR, 'service.yaml');
 
@@ -377,13 +365,7 @@ describe('K8s LocalStack Manifests - kubectl dry-run validation', () => {
     }, 'service.yaml should pass kubectl dry-run validation');
   });
 
-  it('should validate all LocalStack manifests can be applied together', () => {
-    // Skip if kubectl is not available
-    if (!isKubectlAvailable()) {
-      console.warn('kubectl is not available, skipping test');
-      return;
-    }
-
+  it('should validate all LocalStack manifests can be applied together', { skip: !isKubectlAvailable() ? 'kubectl is not available' : false }, () => {
     // Arrange & Act & Assert
     assert.doesNotThrow(() => {
       execCommand(`KUBECONFIG=/dev/null kubectl create --dry-run=client --validate=false -f ${K8S_LOCALSTACK_DIR}/ -o yaml`);

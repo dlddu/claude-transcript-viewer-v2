@@ -63,13 +63,7 @@ describe('Local Kind Script - File Structure', () => {
 });
 
 describe('Local Kind Script - Permissions', () => {
-  it('should have execute permissions on kind-setup.sh', () => {
-    // Skip if file doesn't exist
-    if (!existsSync(KIND_SCRIPT)) {
-      console.warn('kind-setup.sh does not exist, skipping test');
-      return;
-    }
-
+  it('should have execute permissions on kind-setup.sh', { skip: !existsSync(KIND_SCRIPT) ? 'kind-setup.sh does not exist' : false }, () => {
     // Assert
     assert.ok(
       isExecutable(KIND_SCRIPT),
