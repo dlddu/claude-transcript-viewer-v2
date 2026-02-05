@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import type { Transcript, TranscriptMessage, EnrichedMessage } from '../types/transcript';
 import { enrichMessages } from '../utils/enrichMessages';
 import { groupMessages } from '../utils/groupMessages';
+import { highlightJson } from '../utils/jsonHighlight';
 import { useTranscriptData } from '../hooks/useTranscriptData';
 import './TranscriptViewer.css';
 
@@ -112,7 +113,8 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
       'message',
       `message-${enriched.raw.message?.role}`,
       enriched.isSubagent ? 'message-subagent' : '',
-      hasTool ? 'message-with-tool' : ''
+      hasTool ? 'message-with-tool' : '',
+      hasTool && isExpanded ? 'expanded' : ''
     ].filter(Boolean).join(' ');
 
     return (
@@ -151,7 +153,7 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
           <div className="tool-details">
             {enriched.toolUses.map((tool) => {
               return (
-                <div key={tool.id} className="tool-detail-view" data-testid="tool-detail-view">
+                <div key={tool.id} className="tool-detail-view" data-testid="tool-detail-view" role="region" aria-label={`Tool details for ${tool.name}`}>
                   <div className="tool-header">
                     <div className="tool-name" data-testid="tool-name">
                       Tool: {tool.name}
@@ -164,7 +166,7 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
                   <div className="tool-section">
                     <div className="tool-section-title">Input:</div>
                     <div className="tool-input" data-testid="tool-input">
-                      <pre><code>{JSON.stringify(tool.input, null, 2)}</code></pre>
+                      <pre><code>{highlightJson(tool.input)}</code></pre>
                     </div>
                   </div>
 
