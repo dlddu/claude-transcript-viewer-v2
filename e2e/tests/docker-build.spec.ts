@@ -11,12 +11,9 @@ const __dirname = dirname(__filename);
 /**
  * Docker Build E2E Tests
  *
- * These tests verify that Docker images can be built and run correctly.
- * Tests are initially skipped as Docker environment may not be available.
- *
- * To run these tests:
- * 1. Ensure Docker is installed and running
- * 2. Run: node --test e2e/tests/docker-build.spec.ts
+ * These tests verify Docker configuration files and build capabilities.
+ * Static tests (Dockerfile/dockerignore content checks) always run.
+ * Runtime tests (build, run, inspect) are skipped when Docker is unavailable.
  */
 
 const REPO_ROOT = resolve(__dirname, '../..');
@@ -44,7 +41,7 @@ const isDockerAvailable = (): boolean => {
   }
 };
 
-describe('Docker Build - Frontend', { skip: true }, () => {
+describe('Docker Build - Frontend', () => {
   it('should have a Dockerfile in frontend directory', () => {
     // Arrange
     const dockerfilePath = resolve(FRONTEND_DIR, 'Dockerfile');
@@ -61,13 +58,7 @@ describe('Docker Build - Frontend', { skip: true }, () => {
     assert.strictEqual(existsSync(dockerignorePath), true);
   });
 
-  it('should build frontend Docker image successfully', () => {
-    // Skip if Docker is not available
-    if (!isDockerAvailable()) {
-      console.warn('Docker is not available, skipping test');
-      return;
-    }
-
+  it('should build frontend Docker image successfully', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
     // Arrange
     const imageName = 'claude-transcript-viewer-frontend:test';
 
@@ -86,12 +77,6 @@ describe('Docker Build - Frontend', { skip: true }, () => {
   });
 
   it('should use multi-stage build with node and nginx', () => {
-    // Skip if Docker is not available
-    if (!isDockerAvailable()) {
-      console.warn('Docker is not available, skipping test');
-      return;
-    }
-
     // Arrange
     const dockerfilePath = resolve(FRONTEND_DIR, 'Dockerfile');
     const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
@@ -102,13 +87,7 @@ describe('Docker Build - Frontend', { skip: true }, () => {
     assert.ok(dockerfileContent.includes('AS build'));
   });
 
-  it('should produce an optimized image size under 100MB', () => {
-    // Skip if Docker is not available
-    if (!isDockerAvailable()) {
-      console.warn('Docker is not available, skipping test');
-      return;
-    }
-
+  it('should produce an optimized image size under 100MB', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
     // Arrange
     const imageName = 'claude-transcript-viewer-frontend:test';
 
@@ -129,13 +108,7 @@ describe('Docker Build - Frontend', { skip: true }, () => {
     execCommand(`docker rmi ${imageName}`);
   });
 
-  it('should run nginx on port 80 when container starts', () => {
-    // Skip if Docker is not available
-    if (!isDockerAvailable()) {
-      console.warn('Docker is not available, skipping test');
-      return;
-    }
-
+  it('should run nginx on port 80 when container starts', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
     // Arrange
     const imageName = 'claude-transcript-viewer-frontend:test';
     const containerName = 'claude-frontend-test';
@@ -173,12 +146,6 @@ describe('Docker Build - Frontend', { skip: true }, () => {
   });
 
   it('should use non-root user for security', () => {
-    // Skip if Docker is not available
-    if (!isDockerAvailable()) {
-      console.warn('Docker is not available, skipping test');
-      return;
-    }
-
     // Arrange
     const dockerfilePath = resolve(FRONTEND_DIR, 'Dockerfile');
     const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
@@ -192,7 +159,7 @@ describe('Docker Build - Frontend', { skip: true }, () => {
   });
 });
 
-describe('Docker Build - Backend', { skip: true }, () => {
+describe('Docker Build - Backend', () => {
   it('should have a Dockerfile in backend directory', () => {
     // Arrange
     const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
@@ -209,13 +176,7 @@ describe('Docker Build - Backend', { skip: true }, () => {
     assert.strictEqual(existsSync(dockerignorePath), true);
   });
 
-  it('should build backend Docker image successfully', () => {
-    // Skip if Docker is not available
-    if (!isDockerAvailable()) {
-      console.warn('Docker is not available, skipping test');
-      return;
-    }
-
+  it('should build backend Docker image successfully', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
     // Arrange
     const imageName = 'claude-transcript-viewer-backend:test';
 
@@ -234,12 +195,6 @@ describe('Docker Build - Backend', { skip: true }, () => {
   });
 
   it('should use node:20-alpine base image', () => {
-    // Skip if Docker is not available
-    if (!isDockerAvailable()) {
-      console.warn('Docker is not available, skipping test');
-      return;
-    }
-
     // Arrange
     const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
     const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
@@ -248,13 +203,7 @@ describe('Docker Build - Backend', { skip: true }, () => {
     assert.ok(dockerfileContent.includes('FROM node:20-alpine'));
   });
 
-  it('should produce an optimized image size under 300MB', () => {
-    // Skip if Docker is not available
-    if (!isDockerAvailable()) {
-      console.warn('Docker is not available, skipping test');
-      return;
-    }
-
+  it('should produce an optimized image size under 300MB', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
     // Arrange
     const imageName = 'claude-transcript-viewer-backend:test';
 
@@ -276,12 +225,6 @@ describe('Docker Build - Backend', { skip: true }, () => {
   });
 
   it('should expose port 3000', () => {
-    // Skip if Docker is not available
-    if (!isDockerAvailable()) {
-      console.warn('Docker is not available, skipping test');
-      return;
-    }
-
     // Arrange
     const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
     const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
@@ -290,13 +233,7 @@ describe('Docker Build - Backend', { skip: true }, () => {
     assert.ok(dockerfileContent.includes('EXPOSE 3000'));
   });
 
-  it('should run Express app and respond to health check', () => {
-    // Skip if Docker is not available
-    if (!isDockerAvailable()) {
-      console.warn('Docker is not available, skipping test');
-      return;
-    }
-
+  it('should run Express app and respond to health check', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
     // Arrange
     const imageName = 'claude-transcript-viewer-backend:test';
     const containerName = 'claude-backend-test';
@@ -336,12 +273,6 @@ describe('Docker Build - Backend', { skip: true }, () => {
   });
 
   it('should use non-root user for security', () => {
-    // Skip if Docker is not available
-    if (!isDockerAvailable()) {
-      console.warn('Docker is not available, skipping test');
-      return;
-    }
-
     // Arrange
     const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
     const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
@@ -351,12 +282,6 @@ describe('Docker Build - Backend', { skip: true }, () => {
   });
 
   it('should run dist/index.js as entrypoint', () => {
-    // Skip if Docker is not available
-    if (!isDockerAvailable()) {
-      console.warn('Docker is not available, skipping test');
-      return;
-    }
-
     // Arrange
     const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
     const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
@@ -368,7 +293,7 @@ describe('Docker Build - Backend', { skip: true }, () => {
   });
 });
 
-describe('Docker Build - .dockerignore Optimization', { skip: true }, () => {
+describe('Docker Build - .dockerignore Optimization', () => {
   it('should exclude .git directory from frontend build', () => {
     // Arrange
     const dockerignorePath = resolve(FRONTEND_DIR, '.dockerignore');
