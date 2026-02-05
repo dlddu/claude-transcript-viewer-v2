@@ -65,3 +65,39 @@ export function truncateToolId(id: string, prefixLength: number = 8): string {
   // Truncate to prefix length and add ellipsis
   return `${id.substring(0, prefixLength)}...`;
 }
+
+/**
+ * Checks if a string looks like a file path.
+ */
+function isFilePath(value: string): boolean {
+  // Check for Unix paths (/path/to/file) or Windows paths (C:\path\to\file)
+  // or relative paths (../path/to/file or ./path/to/file)
+  return /^(\/|[A-Z]:\\|\.\.?\/)/.test(value) || (value.includes('/') || value.includes('\\'));
+}
+
+/**
+ * Deep clones an object and truncates any string values that look like file paths.
+ * Returns an object with truncated values for file paths.
+ *
+ * @param obj - The object to process (can be any value)
+ * @returns A new object with file paths truncated
+ */
+export function truncateFilePathsInObject(obj: unknown): unknown {
+  if (typeof obj === 'string') {
+    if (isFilePath(obj)) {
+      return truncateFilePath(obj);
+    }
+    return obj;
+  }
+  if (Array.isArray(obj)) {
+    return obj.map(item => truncateFilePathsInObject(item));
+  }
+  if (obj !== null && typeof obj === 'object') {
+    const result: Record<string, unknown> = {};
+    for (const [key, value] of Object.entries(obj as Record<string, unknown>)) {
+      result[key] = truncateFilePathsInObject(value);
+    }
+    return result;
+  }
+  return obj;
+}

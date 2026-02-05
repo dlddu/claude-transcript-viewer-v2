@@ -3,7 +3,7 @@ import type { Transcript, TranscriptMessage, EnrichedMessage } from '../types/tr
 import { enrichMessages } from '../utils/enrichMessages';
 import { groupMessages } from '../utils/groupMessages';
 import { highlightJson } from '../utils/jsonHighlight';
-import { truncateToolId } from '../utils/truncate';
+import { truncateToolId, truncateFilePathsInObject } from '../utils/truncate';
 import { TruncatedText } from './TruncatedText';
 import { useTranscriptData } from '../hooks/useTranscriptData';
 import './TranscriptViewer.css';
@@ -168,7 +168,7 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
                   <div className="tool-section">
                     <div className="tool-section-title">Input:</div>
                     <div className="tool-input" data-testid="tool-input">
-                      <pre><code>{highlightJson(tool.input)}</code></pre>
+                      <pre><code>{highlightJson(truncateFilePathsInObject(tool.input))}</code></pre>
                     </div>
                   </div>
 

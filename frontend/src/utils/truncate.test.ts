@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { truncateFilePath, truncateToolId } from './truncate';
+import { truncateFilePath, truncateToolId, truncateFilePathsInObject } from './truncate';
 
 describe('truncateFilePath', () => {
   describe('happy path', () => {
@@ -253,5 +253,43 @@ describe('truncateToolId', () => {
       // Act & Assert
       expect(() => truncateToolId(numberInput)).not.toThrow();
     });
+  });
+});
+
+describe('truncateFilePathsInObject', () => {
+  it('should truncate file path values in a flat object', () => {
+    const input = { file_path: '/very/long/path/to/file.csv' };
+    const result = truncateFilePathsInObject(input);
+    expect(result).toEqual({ file_path: '...file.csv' });
+  });
+
+  it('should not truncate non-path string values', () => {
+    const input = { format: 'csv', name: 'test' };
+    const result = truncateFilePathsInObject(input);
+    expect(result).toEqual({ format: 'csv', name: 'test' });
+  });
+
+  it('should handle nested objects', () => {
+    const input = { options: { output: '/a/b/c/result.json' } };
+    const result = truncateFilePathsInObject(input);
+    expect(result).toEqual({ options: { output: '...result.json' } });
+  });
+
+  it('should handle arrays', () => {
+    const input = { files: ['/a/b/c/one.txt', '/a/b/c/two.txt'] };
+    const result = truncateFilePathsInObject(input);
+    expect(result).toEqual({ files: ['...one.txt', '...two.txt'] });
+  });
+
+  it('should handle null and primitive values', () => {
+    const input = { count: 42, enabled: true, data: null };
+    const result = truncateFilePathsInObject(input);
+    expect(result).toEqual({ count: 42, enabled: true, data: null });
+  });
+
+  it('should not truncate short paths', () => {
+    const input = { file: 'readme.md' };
+    const result = truncateFilePathsInObject(input);
+    expect(result).toEqual({ file: 'readme.md' });
   });
 });

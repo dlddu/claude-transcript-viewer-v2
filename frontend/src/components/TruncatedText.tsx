@@ -1,5 +1,9 @@
 import { useState, useEffect, useRef } from 'react';
 
+const TOOLTIP_OFFSET_Y = 5;
+const TOOLTIP_VIEWPORT_PADDING = 10;
+const COPY_FEEDBACK_DURATION_MS = 2000;
+
 interface TruncatedTextProps {
   text: string;
   truncatedText: string;
@@ -17,7 +21,7 @@ export function TruncatedText({ text, truncatedText, className = '' }: Truncated
     if (!isTooltipVisible && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       setTooltipPosition({
-        top: rect.bottom + window.scrollY + 5,
+        top: rect.bottom + window.scrollY + TOOLTIP_OFFSET_Y,
         left: rect.left + window.scrollX,
       });
     }
@@ -31,7 +35,7 @@ export function TruncatedText({ text, truncatedText, className = '' }: Truncated
         setCopied(true);
         setTimeout(() => {
           setCopied(false);
-        }, 2000);
+        }, COPY_FEEDBACK_DURATION_MS);
       }
     } catch (err) {
       console.error('Failed to copy text:', err);
@@ -84,7 +88,7 @@ export function TruncatedText({ text, truncatedText, className = '' }: Truncated
       if (tooltipRect.right > viewportWidth) {
         setTooltipPosition((prev) => ({
           ...prev,
-          left: Math.max(0, prev.left - (tooltipRect.right - viewportWidth + 10)),
+          left: Math.max(0, prev.left - (tooltipRect.right - viewportWidth + TOOLTIP_VIEWPORT_PADDING)),
         }));
       }
     }
