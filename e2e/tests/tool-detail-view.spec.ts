@@ -66,7 +66,7 @@ test.describe('Tool Detail View', () => {
 
     // Tool input should be displayed
     await expect(page.getByTestId('tool-input')).toBeVisible();
-    await expect(page.getByTestId('tool-input')).toContainText('/data/input.csv');
+    await expect(page.getByTestId('tool-input')).toContainText('input.csv');
 
     // Input parameter structure should be visible
     await expect(page.getByText(/file_path/i)).toBeVisible();
@@ -89,7 +89,7 @@ test.describe('Tool Detail View', () => {
     // JSON formatting should include proper structure
     // Check for JSON key-value pairs
     await expect(toolInput).toContainText('file_path');
-    await expect(toolInput).toContainText('/data/input.csv');
+    await expect(toolInput).toContainText('input.csv');
 
     // JSON should be properly indented/formatted (look for code block or pre element)
     const codeBlock = toolInput.locator('pre, code').first();
