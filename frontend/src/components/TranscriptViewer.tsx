@@ -233,145 +233,143 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
 
   return (
     <div data-testid="transcript-viewer" className="transcript-viewer">
-      <div className="transcript-content">
-        {/* Render messages if available, otherwise fall back to content */}
-        {enrichedMessages.length > 0 ? (
-          <div className="messages" data-testid="timeline-view">
-            <button
-              className={`debug-toggle ${debugMode ? 'debug-toggle-active' : ''}`}
-              onClick={() => setDebugMode(prev => !prev)}
-              data-testid="debug-toggle"
-            >
-              {debugMode ? 'Debug ON' : 'Debug OFF'}
-            </button>
-            {messageGroups.map((group) => {
-              if (group.type === 'main') {
-                return renderMessage(group.messages[0], true);
-              }
+      {/* Render messages if available, otherwise fall back to content */}
+      {enrichedMessages.length > 0 ? (
+        <div className="messages" data-testid="timeline-view">
+          <button
+            className={`debug-toggle ${debugMode ? 'debug-toggle-active' : ''}`}
+            onClick={() => setDebugMode(prev => !prev)}
+            data-testid="debug-toggle"
+          >
+            {debugMode ? 'Debug ON' : 'Debug OFF'}
+          </button>
+          {messageGroups.map((group) => {
+            if (group.type === 'main') {
+              return renderMessage(group.messages[0], true);
+            }
 
-              const isGroupExpanded = expandedSubagentGroups.has(group.groupKey);
-              return (
-                <div
-                  key={group.groupKey}
-                  className="subagent-group"
-                  data-testid="subagent-group"
+            const isGroupExpanded = expandedSubagentGroups.has(group.groupKey);
+            return (
+              <div
+                key={group.groupKey}
+                className="subagent-group"
+                data-testid="subagent-group"
+              >
+                <button
+                  className={`subagent-group-header ${isGroupExpanded ? 'subagent-group-header-expanded' : ''}`}
+                  onClick={() => toggleSubagentGroup(group.groupKey)}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter') {
+                      toggleSubagentGroup(group.groupKey);
+                    }
+                  }}
+                  aria-expanded={isGroupExpanded}
+                  data-testid="subagent-group-header"
                 >
-                  <button
-                    className={`subagent-group-header ${isGroupExpanded ? 'subagent-group-header-expanded' : ''}`}
-                    onClick={() => toggleSubagentGroup(group.groupKey)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        toggleSubagentGroup(group.groupKey);
-                      }
-                    }}
-                    aria-expanded={isGroupExpanded}
-                    data-testid="subagent-group-header"
-                  >
-                    <span className="subagent-group-indicator">
-                      {isGroupExpanded ? '▼' : '▶'}
-                    </span>
-                    <span className="subagent-group-name">
-                      [Subagent: {group.subagentName}]
-                    </span>
-                    <span className="subagent-group-count" data-testid="subagent-group-count">
-                      {group.messages.length} message{group.messages.length !== 1 ? 's' : ''}
-                    </span>
-                  </button>
+                  <span className="subagent-group-indicator">
+                    {isGroupExpanded ? '▼' : '▶'}
+                  </span>
+                  <span className="subagent-group-name">
+                    [Subagent: {group.subagentName}]
+                  </span>
+                  <span className="subagent-group-count" data-testid="subagent-group-count">
+                    {group.messages.length} message{group.messages.length !== 1 ? 's' : ''}
+                  </span>
+                </button>
 
-                  {isGroupExpanded && (
-                    <div className="subagent-group-body" data-testid="subagent-group-body">
-                      {group.messages.map((enriched) => renderMessage(enriched, false))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="main-content">{transcript!.content}</div>
-        )}
-
-        {/* Metadata */}
-        {(transcript!.metadata || transcript!.session_id || displayModel) && (
-          <div className="metadata" data-testid="transcript-metadata">
-            {transcript!.session_id && (
-              <span className="metadata-item" data-testid="session-id-display">
-                Session ID: {transcript!.session_id}
-              </span>
-            )}
-            {displayModel && (
-              <span className="metadata-item" data-testid="model-display">
-                {displayModel}
-              </span>
-            )}
-            {transcript!.metadata?.total_tokens && (
-              <span className="metadata-item">
-                {transcript!.metadata.total_tokens} tokens
-              </span>
-            )}
-            {transcript!.metadata?.duration_ms && (
-              <span className="metadata-item">
-                {transcript!.metadata.duration_ms} ms
-              </span>
-            )}
-          </div>
-        )}
-
-        {/* Tools Used */}
-        {transcript!.tools_used && transcript!.tools_used.length > 0 && (
-          <div className="tools-used">
-            <h3>Tools Used:</h3>
-            {transcript!.tools_used.map((tool, index) => (
-              <div key={index} className="tool-item">
-                {tool.name} ({tool.invocations} invocations)
+                {isGroupExpanded && (
+                  <div className="subagent-group-body" data-testid="subagent-group-body">
+                    {group.messages.map((enriched) => renderMessage(enriched, false))}
+                  </div>
+                )}
               </div>
-            ))}
-          </div>
-        )}
+            );
+          })}
+        </div>
+      ) : (
+        <div className="main-content">{transcript!.content}</div>
+      )}
 
-        {/* Subagents */}
-        {transcript!.subagents && transcript!.subagents.length > 0 && (
-          <div className="subagents">
-            <h3>Subagents:</h3>
-            {transcript!.subagents.map((subagent) => {
-              const isExpanded = expandedSubagents.has(subagent.id);
-              const loadedData = subagentData.get(subagent.id);
-              const contentToShow = loadedData?.content || subagent.content;
-              const metadataToShow = loadedData?.metadata || undefined;
+      {/* Metadata */}
+      {(transcript!.metadata || transcript!.session_id || displayModel) && (
+        <div className="metadata" data-testid="transcript-metadata">
+          {transcript!.session_id && (
+            <span className="metadata-item" data-testid="session-id-display">
+              Session ID: {transcript!.session_id}
+            </span>
+          )}
+          {displayModel && (
+            <span className="metadata-item" data-testid="model-display">
+              {displayModel}
+            </span>
+          )}
+          {transcript!.metadata?.total_tokens && (
+            <span className="metadata-item">
+              {transcript!.metadata.total_tokens} tokens
+            </span>
+          )}
+          {transcript!.metadata?.duration_ms && (
+            <span className="metadata-item">
+              {transcript!.metadata.duration_ms} ms
+            </span>
+          )}
+        </div>
+      )}
 
-              return (
-                <div key={subagent.id} className="subagent">
-                  <button
-                    className="subagent-header"
-                    onClick={() => toggleSubagent(subagent.id, subagent.transcript_file)}
-                  >
-                    {subagent.name}
-                  </button>
-                  {isExpanded && contentToShow && (
-                    <div className="subagent-expanded">
-                      <div className="subagent-content">{contentToShow}</div>
-                      {metadataToShow && (
-                        <div className="metadata">
-                          {metadataToShow.total_tokens && (
-                            <span className="metadata-item">
-                              {metadataToShow.total_tokens} tokens
-                            </span>
-                          )}
-                          {metadataToShow.duration_ms && (
-                            <span className="metadata-item">
-                              {metadataToShow.duration_ms} ms
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
+      {/* Tools Used */}
+      {transcript!.tools_used && transcript!.tools_used.length > 0 && (
+        <div className="tools-used">
+          <h3>Tools Used:</h3>
+          {transcript!.tools_used.map((tool, index) => (
+            <div key={index} className="tool-item">
+              {tool.name} ({tool.invocations} invocations)
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Subagents */}
+      {transcript!.subagents && transcript!.subagents.length > 0 && (
+        <div className="subagents">
+          <h3>Subagents:</h3>
+          {transcript!.subagents.map((subagent) => {
+            const isExpanded = expandedSubagents.has(subagent.id);
+            const loadedData = subagentData.get(subagent.id);
+            const contentToShow = loadedData?.content || subagent.content;
+            const metadataToShow = loadedData?.metadata || undefined;
+
+            return (
+              <div key={subagent.id} className="subagent">
+                <button
+                  className="subagent-header"
+                  onClick={() => toggleSubagent(subagent.id, subagent.transcript_file)}
+                >
+                  {subagent.name}
+                </button>
+                {isExpanded && contentToShow && (
+                  <div className="subagent-expanded">
+                    <div className="subagent-content">{contentToShow}</div>
+                    {metadataToShow && (
+                      <div className="metadata">
+                        {metadataToShow.total_tokens && (
+                          <span className="metadata-item">
+                            {metadataToShow.total_tokens} tokens
+                          </span>
+                        )}
+                        {metadataToShow.duration_ms && (
+                          <span className="metadata-item">
+                            {metadataToShow.duration_ms} ms
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }

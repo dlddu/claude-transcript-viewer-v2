@@ -14,12 +14,6 @@ header {
   margin-bottom: 30px;
 }
 
-.transcript-viewer {
-  background: #f5f5f5;
-  border-radius: 8px;
-  padding: 20px;
-}
-
 .loading,
 .error-message,
 .no-transcript {
