@@ -47,6 +47,28 @@ test.describe('Tool Detail View', () => {
     await expect(messageWithTool.getByTestId('tool-use-indicator')).toBeVisible();
   });
 
+  test('should display tool name inline next to collapse button', async ({ page }) => {
+    // Arrange & Assert - Tool name should be visible without expanding
+    const timeline = page.getByTestId('timeline-view');
+
+    // Single tool message
+    const singleToolMessage = timeline.locator('[data-testid="timeline-item"]').filter({
+      hasText: /I'd be happy to help you analyze the dataset/i
+    });
+    const inlineNames = singleToolMessage.getByTestId('tool-names-inline');
+    await expect(inlineNames).toBeVisible();
+    await expect(inlineNames).toContainText('DataAnalyzer');
+
+    // Multiple tools message
+    const multiToolMessage = timeline.locator('[data-testid="timeline-item"]').filter({
+      hasText: /I'll read the config and validate the schema/i
+    });
+    const multiInlineNames = multiToolMessage.getByTestId('tool-names-inline');
+    await expect(multiInlineNames).toBeVisible();
+    await expect(multiInlineNames).toContainText('FileReader');
+    await expect(multiInlineNames).toContainText('SchemaValidator');
+  });
+
   test('should expand tool details when message with tool_use is clicked', async ({ page }) => {
     // Arrange - Find the message with tool_use
     const timeline = page.getByTestId('timeline-view');
