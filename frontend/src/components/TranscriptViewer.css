@@ -1,10 +1,6 @@
 .transcript-viewer {
-  padding: 1rem;
   max-width: 1200px;
   margin: 0 auto;
-}
-
-.transcript-content {
   background: #ffffff;
   border-radius: 8px;
   padding: 1.5rem;
@@ -551,10 +547,6 @@
   }
 
   .transcript-viewer {
-    padding: 0.5rem;
-  }
-
-  .transcript-content {
     padding: 0.75rem;
   }
 
