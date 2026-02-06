@@ -144,6 +144,11 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
             </span>
           )}
           {hasTool && (
+            <span className="tool-names-inline" data-testid="tool-names-inline">
+              {enriched.toolUses.map(t => t.name).join(', ')}
+            </span>
+          )}
+          {hasTool && (
             <span className="expand-indicator" data-testid="expand-indicator" aria-expanded={isExpanded}>
               {isExpanded ? '▼' : '▶'}
             </span>
