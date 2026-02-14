@@ -7,13 +7,12 @@ import { test, expect } from '@playwright/test';
  * When a Task tool_use has input.subagent_type, it should display as "Task [subagent_type]"
  * both in inline display and in the expanded detail view header.
  *
- * Test Status: SKIPPED (TDD Red Phase)
- * Reason: Tests are written before implementation. These tests will be enabled
- * after the EnrichedToolUse type is updated, enrichMessages.ts extracts subagent_type,
- * and TranscriptViewer.tsx displays the formatted tool name.
+ * Test Status: ACTIVE (TDD Green Phase)
+ * Reason: Implementation complete. EnrichedToolUse type updated, enrichMessages.ts
+ * extracts subagent_type, and TranscriptViewer.tsx displays the formatted tool name.
  *
  * Parent Issue: DLD-356 (Display subagent type in Task tool name)
- * Implementation Issue: DLD-357 (Task 1-1: Write E2E tests in skip state)
+ * Implementation Issue: DLD-358 (Task 1-2: Implementation and E2E test activation)
  *
  * Expected Behavior:
  * - Task tool with subagent_type: Display "Task [code]" or "Task [data]" etc.
@@ -21,12 +20,12 @@ import { test, expect } from '@playwright/test';
  * - Non-Task tools (e.g., FileReader): Display tool name as-is
  * - Both inline and detail view should show the formatted name consistently
  *
- * Implementation Requirements:
- * 1. Update EnrichedToolUse type to include subagentType?: string
- * 2. Update enrichMessages.ts to extract input.subagent_type for Task tools
- * 3. Update TranscriptViewer.tsx inline display (L148) to show "Task [subagent_type]"
- * 4. Update TranscriptViewer.tsx detail header (L166) to show "Tool: Task [subagent_type]"
- * 5. Remove .skip from tests when implementation is complete
+ * Implementation Complete:
+ * 1. EnrichedToolUse type updated to include subagentType?: string
+ * 2. enrichMessages.ts extracts input.subagent_type for Task tools
+ * 3. TranscriptViewer.tsx inline display shows "Task [subagent_type]"
+ * 4. TranscriptViewer.tsx detail header shows "Tool: Task [subagent_type]"
+ * 5. All tests activated (test.skip removed)
  *
  * Fixture Data:
  * - e2e/fixtures/session-task-subagent.jsonl
@@ -45,8 +44,7 @@ test.describe('Task Tool Subagent Type Display', () => {
     await expect(page.getByTestId('transcript-viewer')).toBeVisible();
   });
 
-  test.skip('should display Task tool with subagent_type as "Task [code]" in inline view', async ({ page }) => {
-    // TODO: Enable when DLD-356 is implemented
+  test('should display Task tool with subagent_type as "Task [code]" in inline view', async ({ page }) => {
 
     // Arrange - Find the message with Task tool_use that has subagent_type: "code"
     const timeline = page.getByTestId('timeline-view');
@@ -65,8 +63,7 @@ test.describe('Task Tool Subagent Type Display', () => {
     expect(inlineText).toMatch(/Task \[code\]/);
   });
 
-  test.skip('should display Task tool with subagent_type as "Task [code]" in detail view header', async ({ page }) => {
-    // TODO: Enable when DLD-356 is implemented
+  test('should display Task tool with subagent_type as "Task [code]" in detail view header', async ({ page }) => {
 
     // Arrange - Find and expand the message with Task tool_use
     const timeline = page.getByTestId('timeline-view');
@@ -90,8 +87,7 @@ test.describe('Task Tool Subagent Type Display', () => {
     expect(toolNameText).toMatch(/Tool: Task \[code\]|Task \[code\]/);
   });
 
-  test.skip('should display non-Task tools (FileReader) with name only, no brackets', async ({ page }) => {
-    // TODO: Enable when DLD-356 is implemented
+  test('should display non-Task tools (FileReader) with name only, no brackets', async ({ page }) => {
 
     // Arrange - Find the message with FileReader tool_use
     const timeline = page.getByTestId('timeline-view');
@@ -120,8 +116,7 @@ test.describe('Task Tool Subagent Type Display', () => {
     expect(toolNameText).not.toMatch(/\[.*\]/);
   });
 
-  test.skip('should display Task tool without subagent_type as "Task" only (edge case)', async ({ page }) => {
-    // TODO: Enable when DLD-356 is implemented
+  test('should display Task tool without subagent_type as "Task" only (edge case)', async ({ page }) => {
 
     // Arrange - Find the message with Task tool_use that has NO subagent_type
     const timeline = page.getByTestId('timeline-view');

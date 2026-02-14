@@ -1337,4 +1337,250 @@ describe('TranscriptViewer', () => {
       expect(toolDetailViews.length).toBeGreaterThanOrEqual(2);
     });
   });
+
+  describe('Task tool subagent_type display', () => {
+    it('should display Task tool name with subagentType in brackets', () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'msg-002',
+            parentUuid: 'msg-001',
+            agentId: 'session-abc123',
+            message: {
+              role: 'assistant' as const,
+              content: [
+                { type: 'text', text: 'Creating a task' },
+                {
+                  type: 'tool_use',
+                  id: 'task-001',
+                  name: 'Task',
+                  input: { subagent_type: 'test-writer', instruction: 'Write tests' }
+                }
+              ]
+            }
+          }
+        ]
+      };
+
+      // Act
+      const { getByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
+      const toolNamesInline = getByTestId('tool-names-inline');
+
+      // Assert
+      expect(toolNamesInline).toHaveTextContent('Task [test-writer]');
+    });
+
+    it('should display Task without brackets when no subagentType', () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'msg-002',
+            parentUuid: 'msg-001',
+            agentId: 'session-abc123',
+            message: {
+              role: 'assistant' as const,
+              content: [
+                { type: 'text', text: 'Creating a task' },
+                {
+                  type: 'tool_use',
+                  id: 'task-001',
+                  name: 'Task',
+                  input: { instruction: 'Do something' }
+                }
+              ]
+            }
+          }
+        ]
+      };
+
+      // Act
+      const { getByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
+      const toolNamesInline = getByTestId('tool-names-inline');
+
+      // Assert
+      expect(toolNamesInline).toHaveTextContent('Task');
+      expect(toolNamesInline).not.toHaveTextContent('[');
+    });
+
+    it('should not display brackets for non-Task tools', () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'msg-002',
+            parentUuid: 'msg-001',
+            agentId: 'session-abc123',
+            message: {
+              role: 'assistant' as const,
+              content: [
+                { type: 'text', text: 'Reading file' },
+                {
+                  type: 'tool_use',
+                  id: 'read-001',
+                  name: 'Read',
+                  input: { file_path: '/test.ts' }
+                }
+              ]
+            }
+          }
+        ]
+      };
+
+      // Act
+      const { getByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
+      const toolNamesInline = getByTestId('tool-names-inline');
+
+      // Assert
+      expect(toolNamesInline).toHaveTextContent('Read');
+      expect(toolNamesInline).not.toHaveTextContent('[');
+    });
+
+    it('should display Task tool name with subagentType in expanded detail view', async () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'msg-002',
+            parentUuid: 'msg-001',
+            agentId: 'session-abc123',
+            message: {
+              role: 'assistant' as const,
+              content: [
+                { type: 'text', text: 'Creating task' },
+                {
+                  type: 'tool_use',
+                  id: 'task-001',
+                  name: 'Task',
+                  input: { subagent_type: 'codebase-analyzer', instruction: 'Analyze code' }
+                }
+              ]
+            }
+          }
+        ]
+      };
+
+      // Act
+      const { getByTestId, findByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
+      const messageWithTool = getByTestId('timeline-item');
+      messageWithTool.click();
+
+      // Assert
+      const toolName = await findByTestId('tool-name');
+      expect(toolName).toHaveTextContent('Task [codebase-analyzer]');
+    });
+
+    it('should handle multiple Task tools with different subagentTypes', () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'msg-002',
+            parentUuid: 'msg-001',
+            agentId: 'session-abc123',
+            message: {
+              role: 'assistant' as const,
+              content: [
+                { type: 'text', text: 'Running tasks' },
+                {
+                  type: 'tool_use',
+                  id: 'task-001',
+                  name: 'Task',
+                  input: { subagent_type: 'analyzer', instruction: 'Analyze' }
+                },
+                {
+                  type: 'tool_use',
+                  id: 'task-002',
+                  name: 'Task',
+                  input: { subagent_type: 'formatter', instruction: 'Format' }
+                }
+              ]
+            }
+          }
+        ]
+      };
+
+      // Act
+      const { getByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
+      const toolNamesInline = getByTestId('tool-names-inline');
+
+      // Assert
+      expect(toolNamesInline).toHaveTextContent('Task [analyzer], Task [formatter]');
+    });
+
+    it('should handle mixed Task and non-Task tools in same message', () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'assistant' as const,
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'msg-002',
+            parentUuid: 'msg-001',
+            agentId: 'session-abc123',
+            message: {
+              role: 'assistant' as const,
+              content: [
+                { type: 'text', text: 'Using tools' },
+                {
+                  type: 'tool_use',
+                  id: 'read-001',
+                  name: 'Read',
+                  input: { file_path: '/test.ts' }
+                },
+                {
+                  type: 'tool_use',
+                  id: 'task-001',
+                  name: 'Task',
+                  input: { subagent_type: 'writer', instruction: 'Write code' }
+                }
+              ]
+            }
+          }
+        ]
+      };
+
+      // Act
+      const { getByTestId } = render(<TranscriptViewer transcript={mockTranscript} />);
+      const toolNamesInline = getByTestId('tool-names-inline');
+
+      // Assert
+      expect(toolNamesInline).toHaveTextContent('Read, Task [writer]');
+    });
+  });
 });
