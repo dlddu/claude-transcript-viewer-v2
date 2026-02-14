@@ -83,12 +83,28 @@ export function enrichMessages(
         : null;
 
       const toolBlocks = getToolUseBlocks(msg.message!.content);
-      const toolUses: EnrichedToolUse[] = toolBlocks.map(block => ({
-        id: block.id!,
-        name: block.name!,
-        input: block.input,
-        result: findToolResultWithSource(messages, block.id!),
-      }));
+      const toolUses: EnrichedToolUse[] = toolBlocks.map(block => {
+        let subagentType: string | undefined = undefined;
+
+        // Extract subagent_type for Task tools
+        if (block.name === 'Task' &&
+            typeof block.input === 'object' &&
+            block.input !== null &&
+            'subagent_type' in block.input) {
+          const rawSubagentType = (block.input as { subagent_type?: unknown }).subagent_type;
+          if (typeof rawSubagentType === 'string' && rawSubagentType.length > 0) {
+            subagentType = rawSubagentType;
+          }
+        }
+
+        return {
+          id: block.id!,
+          name: block.name!,
+          input: block.input,
+          result: findToolResultWithSource(messages, block.id!),
+          subagentType,
+        };
+      });
 
       return {
         raw: msg,

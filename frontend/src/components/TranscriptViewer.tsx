@@ -145,7 +145,7 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
           )}
           {hasTool && (
             <span className="tool-names-inline" data-testid="tool-names-inline">
-              {enriched.toolUses.map(t => t.name).join(', ')}
+              {enriched.toolUses.map(t => t.subagentType ? `${t.name} [${t.subagentType}]` : t.name).join(', ')}
             </span>
           )}
           {hasTool && (
@@ -163,7 +163,7 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
                 <div key={tool.id} className="tool-detail-view" data-testid="tool-detail-view" role="region" aria-label={`Tool details for ${tool.name}`}>
                   <div className="tool-header">
                     <div className="tool-name" data-testid="tool-name">
-                      Tool: {tool.name}
+                      Tool: {tool.name}{tool.subagentType && <span className="tool-subagent-type"> [{tool.subagentType}]</span>}
                     </div>
                     <div className="tool-id" data-testid="tool-id">
                       ID: <TruncatedText text={tool.id} truncatedText={truncateToolId(tool.id)} />

@@ -588,4 +588,172 @@ describe('enrichMessages', () => {
       expect(result[0].text).toBe('plain string');
     });
   });
+
+  describe('Task tool subagent_type extraction', () => {
+    it('should extract subagentType from Task tool input', () => {
+      // Arrange
+      const messages: TranscriptMessage[] = [
+        makeMessage({
+          uuid: 'msg-1',
+          message: {
+            role: 'assistant',
+            content: [
+              { type: 'text', text: 'Creating task' },
+              {
+                type: 'tool_use',
+                id: 'task-001',
+                name: 'Task',
+                input: { subagent_type: 'test-writer', instruction: 'Write tests' },
+              },
+            ],
+          },
+        }),
+      ];
+
+      // Act
+      const result = enrichMessages(messages);
+
+      // Assert
+      expect(result[0].toolUses).toHaveLength(1);
+      expect(result[0].toolUses[0].subagentType).toBe('test-writer');
+    });
+
+    it('should set subagentType to undefined when Task tool has no subagent_type', () => {
+      // Arrange
+      const messages: TranscriptMessage[] = [
+        makeMessage({
+          uuid: 'msg-1',
+          message: {
+            role: 'assistant',
+            content: [
+              {
+                type: 'tool_use',
+                id: 'task-001',
+                name: 'Task',
+                input: { instruction: 'Do something' },
+              },
+            ],
+          },
+        }),
+      ];
+
+      // Act
+      const result = enrichMessages(messages);
+
+      // Assert
+      expect(result[0].toolUses[0].subagentType).toBeUndefined();
+    });
+
+    it('should not extract subagentType from non-Task tools', () => {
+      // Arrange
+      const messages: TranscriptMessage[] = [
+        makeMessage({
+          uuid: 'msg-1',
+          message: {
+            role: 'assistant',
+            content: [
+              {
+                type: 'tool_use',
+                id: 'read-001',
+                name: 'Read',
+                input: { file_path: '/test.ts', subagent_type: 'should-not-extract' },
+              },
+            ],
+          },
+        }),
+      ];
+
+      // Act
+      const result = enrichMessages(messages);
+
+      // Assert
+      expect(result[0].toolUses[0].subagentType).toBeUndefined();
+    });
+
+    it('should handle Task tool with null subagent_type', () => {
+      // Arrange
+      const messages: TranscriptMessage[] = [
+        makeMessage({
+          uuid: 'msg-1',
+          message: {
+            role: 'assistant',
+            content: [
+              {
+                type: 'tool_use',
+                id: 'task-001',
+                name: 'Task',
+                input: { subagent_type: null, instruction: 'Do task' },
+              },
+            ],
+          },
+        }),
+      ];
+
+      // Act
+      const result = enrichMessages(messages);
+
+      // Assert
+      expect(result[0].toolUses[0].subagentType).toBeUndefined();
+    });
+
+    it('should handle Task tool with empty string subagent_type', () => {
+      // Arrange
+      const messages: TranscriptMessage[] = [
+        makeMessage({
+          uuid: 'msg-1',
+          message: {
+            role: 'assistant',
+            content: [
+              {
+                type: 'tool_use',
+                id: 'task-001',
+                name: 'Task',
+                input: { subagent_type: '', instruction: 'Do task' },
+              },
+            ],
+          },
+        }),
+      ];
+
+      // Act
+      const result = enrichMessages(messages);
+
+      // Assert
+      expect(result[0].toolUses[0].subagentType).toBeUndefined();
+    });
+
+    it('should preserve subagentType for multiple Task tools in same message', () => {
+      // Arrange
+      const messages: TranscriptMessage[] = [
+        makeMessage({
+          uuid: 'msg-1',
+          message: {
+            role: 'assistant',
+            content: [
+              {
+                type: 'tool_use',
+                id: 'task-001',
+                name: 'Task',
+                input: { subagent_type: 'analyzer', instruction: 'Analyze' },
+              },
+              {
+                type: 'tool_use',
+                id: 'task-002',
+                name: 'Task',
+                input: { subagent_type: 'formatter', instruction: 'Format' },
+              },
+            ],
+          },
+        }),
+      ];
+
+      // Act
+      const result = enrichMessages(messages);
+
+      // Assert
+      expect(result[0].toolUses).toHaveLength(2);
+      expect(result[0].toolUses[0].subagentType).toBe('analyzer');
+      expect(result[0].toolUses[1].subagentType).toBe('formatter');
+    });
+  });
 });

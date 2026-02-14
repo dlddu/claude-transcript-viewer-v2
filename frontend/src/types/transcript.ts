@@ -72,6 +72,7 @@ export interface EnrichedToolUse {
     is_error?: boolean;
     sourceMessageUuid: string;
   } | null;
+  subagentType?: string;
 }
 
 export interface EnrichedMessage {
