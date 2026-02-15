@@ -138,13 +138,13 @@ describe('Kind Cluster Workflow - Kind E2E Job', () => {
     // Arrange
     const content = readFileSync(WORKFLOW_FILE, 'utf-8');
 
-    // Look for kind job and check for ubuntu runner
-    const kindJobMatch = content.match(/kind[-_]e2e[-_]tests:[\s\S]*?runs-on:\s*ubuntu-latest/);
+    // Look for kind job and check for ubuntu ARM runner
+    const kindJobMatch = content.match(/kind[-_]e2e[-_]tests:[\s\S]*?runs-on:\s*ubuntu-24\.04-arm/);
 
     // Assert
     assert.ok(
-      kindJobMatch || content.includes('ubuntu-latest'),
-      'Kind E2E job should run on ubuntu-latest'
+      kindJobMatch || content.includes('ubuntu-24.04-arm'),
+      'Kind E2E job should run on ubuntu-24.04-arm'
     );
   });
 

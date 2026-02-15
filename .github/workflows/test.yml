@@ -10,7 +10,7 @@ on:
 jobs:
   unit-tests:
     name: Unit Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@v4
@@ -38,7 +38,7 @@ jobs:
 
   integration-tests:
     name: Integration Tests with LocalStack
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     services:
       localstack:
@@ -111,7 +111,7 @@ jobs:
 
   e2e-tests:
     name: E2E Tests with Playwright
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     services:
       localstack:
@@ -147,7 +147,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('e2e/package.json') }}
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('e2e/package.json') }}
 
       - name: Install Playwright browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
@@ -216,7 +216,7 @@ jobs:
 
   workflow-validation-tests:
     name: Workflow File Validation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@v4
@@ -230,7 +230,7 @@ jobs:
 
   docker-e2e-tests:
     name: Docker Build E2E Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@v4
@@ -311,7 +311,7 @@ jobs:
 
   k8s-manifest-validation:
     name: Kubernetes Manifest Validation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@v4
@@ -342,7 +342,7 @@ jobs:
 
   kind-cluster-validation:
     name: Kind Cluster Infrastructure Validation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@v4
@@ -367,7 +367,7 @@ jobs:
 
   kind-e2e-tests:
     name: Kind E2E Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@v4
@@ -418,7 +418,7 @@ jobs:
         run: |
           kind load docker-image claude-transcript-viewer-frontend:test --name test-cluster
           kind load docker-image claude-transcript-viewer-backend:test --name test-cluster
-          docker pull localstack/localstack:3.0
+          docker pull --platform linux/arm64 localstack/localstack:3.0
           kind load docker-image localstack/localstack:3.0 --name test-cluster
 
       - name: Create test ConfigMaps and Secrets
@@ -490,7 +490,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('e2e/package.json') }}
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('e2e/package.json') }}
 
       - name: Install Playwright browsers
         if: steps.playwright-cache-kind.outputs.cache-hit != 'true'
@@ -525,7 +525,7 @@ jobs:
 
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@v4
