@@ -418,7 +418,7 @@ jobs:
         run: |
           kind load docker-image claude-transcript-viewer-frontend:test --name test-cluster
           kind load docker-image claude-transcript-viewer-backend:test --name test-cluster
-          docker pull localstack/localstack:3.0
+          docker pull --platform linux/amd64 localstack/localstack:3.0
           kind load docker-image localstack/localstack:3.0 --name test-cluster
 
       - name: Create test ConfigMaps and Secrets
