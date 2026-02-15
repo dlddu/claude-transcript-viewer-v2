@@ -147,7 +147,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('e2e/package.json') }}
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('e2e/package.json') }}
 
       - name: Install Playwright browsers
         if: steps.playwright-cache.outputs.cache-hit != 'true'
@@ -490,7 +490,7 @@ jobs:
         uses: actions/cache@v4
         with:
           path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('e2e/package.json') }}
+          key: playwright-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('e2e/package.json') }}
 
       - name: Install Playwright browsers
         if: steps.playwright-cache-kind.outputs.cache-hit != 'true'
