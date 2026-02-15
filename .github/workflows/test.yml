@@ -10,7 +10,7 @@ on:
 jobs:
   unit-tests:
     name: Unit Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@v4
@@ -38,7 +38,7 @@ jobs:
 
   integration-tests:
     name: Integration Tests with LocalStack
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     services:
       localstack:
@@ -111,7 +111,7 @@ jobs:
 
   e2e-tests:
     name: E2E Tests with Playwright
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     services:
       localstack:
@@ -216,7 +216,7 @@ jobs:
 
   workflow-validation-tests:
     name: Workflow File Validation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@v4
@@ -230,7 +230,7 @@ jobs:
 
   docker-e2e-tests:
     name: Docker Build E2E Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@v4
@@ -311,7 +311,7 @@ jobs:
 
   k8s-manifest-validation:
     name: Kubernetes Manifest Validation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@v4
@@ -342,7 +342,7 @@ jobs:
 
   kind-cluster-validation:
     name: Kind Cluster Infrastructure Validation
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@v4
@@ -525,7 +525,7 @@ jobs:
 
   lint:
     name: Lint
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@v4
