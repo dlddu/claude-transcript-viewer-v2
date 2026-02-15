@@ -367,7 +367,7 @@ jobs:
 
   kind-e2e-tests:
     name: Kind E2E Tests
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@v4
@@ -418,7 +418,7 @@ jobs:
         run: |
           kind load docker-image claude-transcript-viewer-frontend:test --name test-cluster
           kind load docker-image claude-transcript-viewer-backend:test --name test-cluster
-          docker pull --platform linux/amd64 localstack/localstack:3.0
+          docker pull --platform linux/arm64 localstack/localstack:3.0
           kind load docker-image localstack/localstack:3.0 --name test-cluster
 
       - name: Create test ConfigMaps and Secrets
