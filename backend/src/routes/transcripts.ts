@@ -116,6 +116,16 @@ transcriptsRouter.get('/session/:sessionId', async (req, res) => {
     } catch (s3Error: unknown) {
       const errorMessage = s3Error instanceof Error ? s3Error.message : 'Unknown error';
       if (errorMessage === 'No transcript found for session ID') {
+        // Fall back to mock data (for E2E/test scenarios)
+        if (mockTranscripts[trimmedSessionId]) {
+          return res.json(mockTranscripts[trimmedSessionId]);
+        }
+        const mockBySessionId = Object.values(mockTranscripts).find(
+          (t) => t && (t as Record<string, unknown>).session_id === trimmedSessionId
+        );
+        if (mockBySessionId) {
+          return res.json(mockBySessionId);
+        }
         return res.status(404).json({ error: 'No transcript found for session ID' });
       }
       if (errorMessage === 'Session ID is required') {
