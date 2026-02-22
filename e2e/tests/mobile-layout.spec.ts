@@ -29,6 +29,13 @@ test.describe('Mobile Layout', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to the app and load a transcript
     await page.goto('/');
+
+    // Click the "Session ID" tab if present (tab UI introduced in DLD-472)
+    const sessionIdTab = page.getByRole('tab', { name: 'Session ID' });
+    if ((await sessionIdTab.count()) > 0) {
+      await sessionIdTab.click();
+    }
+
     await page.getByTestId('session-id-input').fill('session-abc123');
     await page.getByTestId('session-id-lookup-button').click();
 
