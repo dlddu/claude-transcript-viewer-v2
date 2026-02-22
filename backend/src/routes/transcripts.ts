@@ -126,7 +126,7 @@ transcriptsRouter.get('/session/:sessionId', async (req, res) => {
         if (mockBySessionId) {
           return res.json(mockBySessionId);
         }
-        return res.status(404).json({ error: 'No transcript found for session ID' });
+        return res.status(404).json({ error: 'Transcript not found' });
       }
       if (errorMessage === 'Session ID is required') {
         return res.status(400).json({ error: 'Session ID is required' });
