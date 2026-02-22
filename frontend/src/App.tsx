@@ -51,6 +51,30 @@ function App() {
     }
   };
 
+  const handleUuidLookup = async (uuid: string) => {
+    try {
+      setIsLoading(true);
+      setError(undefined);
+      setTranscript(null);
+
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const response = await fetch(`${apiUrl}/api/transcript/session/${uuid}`);
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to fetch transcript');
+      }
+
+      const data = await response.json();
+      setTranscript(data);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch transcript';
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   return (
     <div className="app">
       <header>
@@ -63,6 +87,7 @@ function App() {
           <>
             <LookupTabs
               onSessionLookup={handleSessionLookup}
+              onUuidLookup={handleUuidLookup}
               isLoading={isLoading}
               error={error}
             />

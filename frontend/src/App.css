@@ -122,3 +122,134 @@ header {
 .lookup-tabs__panel {
   padding-top: 4px;
 }
+
+/* session-id-lookup styles (reference pattern) */
+.session-id-lookup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.session-id-prompt p {
+  margin: 0;
+  color: #555;
+}
+
+.session-id-input-group {
+  display: flex;
+  gap: 8px;
+}
+
+.session-id-input-group input {
+  flex: 1;
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1em;
+}
+
+.session-id-input-group button {
+  padding: 8px 16px;
+  background: #2196f3;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1em;
+  white-space: nowrap;
+}
+
+.session-id-input-group button:hover:not(:disabled) {
+  background: #1976d2;
+}
+
+.session-id-input-group button:disabled {
+  background: #bdbdbd;
+  cursor: not-allowed;
+}
+
+.session-id-loading {
+  color: #555;
+  font-style: italic;
+}
+
+.session-id-error {
+  color: #d32f2f;
+  font-size: 0.9em;
+}
+
+/* message-uuid-lookup styles */
+.message-uuid-lookup {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.message-uuid-prompt p {
+  margin: 0;
+  color: #555;
+}
+
+.message-uuid-input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.message-uuid-input-group textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  font-size: 1em;
+  font-family: inherit;
+  resize: vertical;
+  box-sizing: border-box;
+}
+
+.message-uuid-input-group button {
+  align-self: flex-start;
+  padding: 8px 16px;
+  background: #2196f3;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1em;
+  white-space: nowrap;
+}
+
+.message-uuid-input-group button:hover:not(:disabled) {
+  background: #1976d2;
+}
+
+.message-uuid-input-group button:disabled {
+  background: #bdbdbd;
+  cursor: not-allowed;
+}
+
+.message-uuid-loading {
+  color: #555;
+  font-style: italic;
+}
+
+.message-uuid-badge {
+  display: inline-block;
+  padding: 4px 10px;
+  background: #e8f5e9;
+  color: #2e7d32;
+  border: 1px solid #a5d6a7;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 0.9em;
+}
+
+.message-uuid-no-result {
+  color: #f57c00;
+  font-size: 0.9em;
+}
+
+.message-uuid-error {
+  color: #d32f2f;
+  font-size: 0.9em;
+}
