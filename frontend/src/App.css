@@ -87,3 +87,39 @@ header {
   white-space: pre-wrap;
   margin-bottom: 10px;
 }
+
+/* LookupTabs */
+.lookup-tabs {
+  margin-bottom: 20px;
+}
+
+.lookup-tabs-list {
+  display: flex;
+  border-bottom: 2px solid #e0e0e0;
+  margin-bottom: 16px;
+}
+
+.lookup-tab {
+  padding: 10px 20px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  font-size: 1em;
+  color: #555;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+}
+
+.lookup-tab:hover {
+  color: #1976d2;
+}
+
+.lookup-tab--active {
+  color: #1976d2;
+  border-bottom-color: #1976d2;
+  font-weight: 600;
+}
+
+.lookup-tabs-panel {
+  /* no left/right padding to preserve existing margins */
+}
