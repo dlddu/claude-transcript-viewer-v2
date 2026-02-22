@@ -75,10 +75,15 @@ const mockTranscripts: Record<string, unknown> = {
       duration_ms: 1800,
     },
   },
+  'f47ac10b-58cc-4372-a567-0e02b2c3d479': {
+    id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+    content: 'User: Can you analyze my project?\n\nAssistant: I\'d be happy to analyze your project. Here\'s what I found:\n\n1. Strong architecture\n2. Good test coverage\n3. Excellent documentation\n\nOverall, great work!',
+    timestamp: new Date().toISOString(),
+  },
 };
 
 // Known test IDs that should return 404 (for testing)
-const notFoundIds = ['non-existent-id', 'non-existent'];
+const notFoundIds = ['non-existent-id', 'non-existent', '00000000-0000-4000-8000-000000000000'];
 
 // Known test IDs that should return error (for testing)
 const errorIds = ['invalid-id'];

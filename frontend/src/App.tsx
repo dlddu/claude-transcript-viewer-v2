@@ -66,7 +66,7 @@ function App() {
       setTranscript(null);
 
       const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      const response = await fetch(`${apiUrl}/api/transcript/session/${uuid}`);
+      const response = await fetch(`${apiUrl}/api/transcripts/${uuid}`);
 
       if (!response.ok) {
         let errorMessage = `Transcript not found for UUID: ${uuid}`;
