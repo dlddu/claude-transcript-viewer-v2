@@ -691,6 +691,43 @@ export class S3Service {
         ],
         subagents: [],
       },
+      'f47ac10b-58cc-4372-a567-0e02b2c3d479': {
+        id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        session_id: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+        content: '{"type":"user","sessionId":"f47ac10b-58cc-4372-a567-0e02b2c3d479","timestamp":"2026-02-01T05:00:00Z","uuid":"msg-001","parentUuid":null,"message":{"role":"user","content":"Can you help me analyze this dataset?"}}\n{"type":"assistant","sessionId":"f47ac10b-58cc-4372-a567-0e02b2c3d479","timestamp":"2026-02-01T05:00:05Z","uuid":"msg-002","parentUuid":"msg-001","message":{"role":"assistant","content":"I\'d be happy to help you analyze the dataset.","model":"claude-sonnet-4-5"}}',
+        messages: [
+          {
+            type: 'user',
+            sessionId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+            timestamp: '2026-02-01T05:00:00Z',
+            uuid: 'msg-001',
+            parentUuid: null,
+            agentId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+            message: {
+              role: 'user',
+              content: 'Can you help me analyze this dataset?',
+            },
+            cwd: '/app',
+            version: '2.1.0',
+          },
+          {
+            type: 'assistant',
+            sessionId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+            timestamp: '2026-02-01T05:00:05Z',
+            uuid: 'msg-002',
+            parentUuid: 'msg-001',
+            agentId: 'f47ac10b-58cc-4372-a567-0e02b2c3d479',
+            message: {
+              role: 'assistant',
+              content: 'I\'d be happy to help you analyze the dataset.',
+              model: 'claude-sonnet-4-5',
+            },
+            cwd: '/app',
+            version: '2.1.0',
+          },
+        ],
+        subagents: [],
+      },
     };
   }
 

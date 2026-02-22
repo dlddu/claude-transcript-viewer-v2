@@ -35,8 +35,16 @@ function App() {
       const response = await fetch(`${apiUrl}/api/transcript/session/${sessionId}`);
 
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to fetch transcript');
+        let errorMessage = `Transcript not found for session: ${sessionId}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.error) {
+            errorMessage = errorData.error;
+          }
+        } catch {
+          // JSON parsing failed, use default error message
+        }
+        throw new Error(errorMessage);
       }
 
       const data = await response.json();
@@ -44,7 +52,39 @@ function App() {
 
       // Do not navigate to avoid re-fetching - display transcript on current page
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Failed to fetch transcript';
+      const errorMessage = err instanceof Error ? err.message : 'Transcript not found';
+      setError(errorMessage);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleUuidLookup = async (uuid: string) => {
+    try {
+      setIsLoading(true);
+      setError(undefined);
+      setTranscript(null);
+
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+      const response = await fetch(`${apiUrl}/api/transcripts/${uuid}`);
+
+      if (!response.ok) {
+        let errorMessage = `Transcript not found for UUID: ${uuid}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.error) {
+            errorMessage = errorData.error;
+          }
+        } catch {
+          // JSON parsing failed, use default error message
+        }
+        throw new Error(errorMessage);
+      }
+
+      const data = await response.json();
+      setTranscript(data);
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'Transcript not found';
       setError(errorMessage);
     } finally {
       setIsLoading(false);
@@ -63,6 +103,7 @@ function App() {
           <>
             <LookupTabs
               onSessionLookup={handleSessionLookup}
+              onUuidLookup={handleUuidLookup}
               isLoading={isLoading}
               error={error}
             />

@@ -67,8 +67,7 @@ test.describe('Message UUID Lookup', () => {
     await page.goto('/');
   });
 
-  // TODO: Activate when DLD-474 is implemented
-  test.skip('should show textarea and "Extract & Search" button when "Message UUID" tab is active', async ({ page }) => {
+  test('should show textarea and "Extract & Search" button when "Message UUID" tab is active', async ({ page }) => {
     // Assert - "Message UUID" tab is the default and its panel content is visible
     const messageUuidTab = page.getByRole('tab', { name: 'Message UUID' });
     await expect(messageUuidTab).toHaveAttribute('aria-selected', 'true');
@@ -80,8 +79,7 @@ test.describe('Message UUID Lookup', () => {
     await expect(page.getByRole('button', { name: 'Extract & Search' })).toBeVisible();
   });
 
-  // TODO: Activate when DLD-474 is implemented
-  test.skip('should display a placeholder hint in the textarea', async ({ page }) => {
+  test('should display a placeholder hint in the textarea', async ({ page }) => {
     // Assert - textarea has a descriptive placeholder guiding the user
     const textarea = page.getByRole('textbox');
     await expect(textarea).toBeVisible();
@@ -92,8 +90,7 @@ test.describe('Message UUID Lookup', () => {
     expect(placeholder!.length).toBeGreaterThan(0);
   });
 
-  // TODO: Activate when DLD-474 is implemented
-  test.skip('should disable "Extract & Search" button when textarea is empty', async ({ page }) => {
+  test('should disable "Extract & Search" button when textarea is empty', async ({ page }) => {
     // Arrange - ensure textarea is empty (default state)
     const textarea = page.getByRole('textbox');
     await expect(textarea).toBeVisible();
@@ -103,8 +100,7 @@ test.describe('Message UUID Lookup', () => {
     await expect(page.getByRole('button', { name: 'Extract & Search' })).toBeDisabled();
   });
 
-  // TODO: Activate when DLD-474 is implemented
-  test.skip('should extract UUID from pasted message, show green badge, and load transcript', async ({ page }) => {
+  test('should extract UUID from pasted message, show green badge, and load transcript', async ({ page }) => {
     // Arrange - paste a message that contains a known UUID v4
     const textarea = page.getByRole('textbox');
     await textarea.fill(MESSAGE_WITH_UUID);
@@ -121,8 +117,7 @@ test.describe('Message UUID Lookup', () => {
     await expect(page.getByTestId('transcript-viewer')).toBeVisible();
   });
 
-  // TODO: Activate when DLD-474 is implemented
-  test.skip('should show "No UUID found" error when input contains no UUID v4', async ({ page }) => {
+  test('should show "No UUID found" error when input contains no UUID v4', async ({ page }) => {
     // Arrange - paste text that has no UUID v4
     const textarea = page.getByRole('textbox');
     await textarea.fill(MESSAGE_WITHOUT_UUID);
@@ -137,8 +132,7 @@ test.describe('Message UUID Lookup', () => {
     await expect(page.getByTestId('transcript-viewer')).not.toBeVisible();
   });
 
-  // TODO: Activate when DLD-474 is implemented
-  test.skip('should trigger extraction and search with Ctrl+Enter keyboard shortcut', async ({ page }) => {
+  test('should trigger extraction and search with Ctrl+Enter keyboard shortcut', async ({ page }) => {
     // Arrange - paste a message containing a UUID v4
     const textarea = page.getByRole('textbox');
     await textarea.fill(MESSAGE_WITH_UUID);
@@ -155,8 +149,7 @@ test.describe('Message UUID Lookup', () => {
     await expect(page.getByTestId('transcript-viewer')).toBeVisible();
   });
 
-  // TODO: Activate when DLD-474 is implemented
-  test.skip('should show API error when UUID does not match any transcript', async ({ page }) => {
+  test('should show API error when UUID does not match any transcript', async ({ page }) => {
     // Arrange - paste a message with a UUID v4 that the server does not recognise
     const textarea = page.getByRole('textbox');
     await textarea.fill(MESSAGE_WITH_UNKNOWN_UUID);

@@ -1,13 +1,15 @@
 import { useState } from 'react';
 import { SessionIdLookup } from './SessionIdLookup.js';
+import { MessageUuidLookup } from './MessageUuidLookup.js';
 
 export interface LookupTabsProps {
   onSessionLookup?: (sessionId: string) => void;
+  onUuidLookup?: (uuid: string) => void;
   isLoading?: boolean;
   error?: string;
 }
 
-export function LookupTabs({ onSessionLookup, isLoading, error }: LookupTabsProps = {}) {
+export function LookupTabs({ onSessionLookup, onUuidLookup, isLoading, error }: LookupTabsProps = {}) {
   const [activeTab, setActiveTab] = useState<'message-uuid' | 'session-id'>('message-uuid');
 
   return (
@@ -31,6 +33,13 @@ export function LookupTabs({ onSessionLookup, isLoading, error }: LookupTabsProp
         </button>
       </div>
       <div role="tabpanel" className="lookup-tabs__panel">
+        {activeTab === 'message-uuid' && (
+          <MessageUuidLookup
+            onLookup={onUuidLookup}
+            isLoading={isLoading}
+            error={error}
+          />
+        )}
         {activeTab === 'session-id' && (
           <SessionIdLookup
             onLookup={onSessionLookup}
