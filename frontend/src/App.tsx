@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { TranscriptViewer, TranscriptViewerWithData } from './components/TranscriptViewer';
-import { SessionIdLookup } from './components/SessionIdLookup.js';
+import { LookupTabs } from './components/LookupTabs.js';
 import type { Transcript } from './types/transcript';
 import './App.css';
 
@@ -61,8 +61,8 @@ function App() {
           <TranscriptViewerWithData transcriptId={transcriptId} />
         ) : (
           <>
-            <SessionIdLookup
-              onLookup={handleSessionLookup}
+            <LookupTabs
+              onSessionLookup={handleSessionLookup}
               isLoading={isLoading}
               error={error}
             />
