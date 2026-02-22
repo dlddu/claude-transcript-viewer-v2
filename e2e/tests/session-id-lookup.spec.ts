@@ -21,6 +21,15 @@ test.describe('Session ID Lookup E2E', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to the app home page
     await page.goto('/');
+
+    // Click the "Session ID" tab to ensure session ID input is visible.
+    // Required after DLD-471 tab UI introduction: "Message UUID" tab is the default,
+    // so the "Session ID" tab must be selected before interacting with session-id-input.
+    // If the tab does not exist (pre-tab UI), this click is a no-op and tests continue.
+    const sessionIdTab = page.getByRole('tab', { name: 'Session ID' });
+    if (await sessionIdTab.isVisible()) {
+      await sessionIdTab.click();
+    }
   });
 
   test('should display session ID input field and lookup button', async ({ page }) => {
