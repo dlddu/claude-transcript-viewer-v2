@@ -25,6 +25,10 @@ test.describe('Tool Detail View', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to the app and load a transcript with tool_use
     await page.goto('/');
+    const sessionIdTab = page.getByRole('tab', { name: 'Session ID' });
+    if ((await sessionIdTab.count()) > 0) {
+      await sessionIdTab.click();
+    }
     await page.getByTestId('session-id-input').fill('session-abc123');
     await page.getByTestId('session-id-lookup-button').click();
 

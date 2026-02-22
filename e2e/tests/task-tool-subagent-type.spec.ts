@@ -37,6 +37,10 @@ test.describe('Task Tool Subagent Type Display', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to the app and load a transcript with Task tool_use
     await page.goto('/');
+    const sessionIdTab = page.getByRole('tab', { name: 'Session ID' });
+    if ((await sessionIdTab.count()) > 0) {
+      await sessionIdTab.click();
+    }
     await page.getByTestId('session-id-input').fill('session-task-subagent');
     await page.getByTestId('session-id-lookup-button').click();
 
