@@ -25,9 +25,11 @@ test.describe('Session ID Lookup E2E', () => {
     // Click the "Session ID" tab to ensure session ID input is visible.
     // Required after DLD-471 tab UI introduction: "Message UUID" tab is the default,
     // so the "Session ID" tab must be selected before interacting with session-id-input.
-    // If the tab does not exist (pre-tab UI), this click is a no-op and tests continue.
+    // Use count() instead of isVisible() to avoid auto-waiting: count() performs a
+    // synchronous DOM query with no auto-waiting, minimizing timing side effects on
+    // subsequent tests (e.g. "should show loading state while fetching transcript").
     const sessionIdTab = page.getByRole('tab', { name: 'Session ID' });
-    if (await sessionIdTab.isVisible()) {
+    if ((await sessionIdTab.count()) > 0) {
       await sessionIdTab.click();
     }
   });
