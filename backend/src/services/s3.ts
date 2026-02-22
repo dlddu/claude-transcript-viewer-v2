@@ -783,13 +783,21 @@ export class S3Service {
       throw new Error('Session ID is required');
     }
 
-    // For test bucket, return mock data indexed by session_id
-    if (this.bucket === 'test-bucket' || this.bucket === 'test-transcripts') {
+    // For test bucket, check mock data first, then fall through to S3 lookup
+    if (this.bucket === 'test-bucket') {
       const transcript = this.mockTranscriptBySession[trimmedSessionId];
       if (transcript) {
         return transcript;
       }
       throw new Error('No transcript found for session ID');
+    }
+
+    if (this.bucket === 'test-transcripts') {
+      const transcript = this.mockTranscriptBySession[trimmedSessionId];
+      if (transcript) {
+        return transcript;
+      }
+      // Fall through to S3 lookup for fixtures not in mock
     }
 
     // For production, use session ID as S3 key prefix for efficient lookup
