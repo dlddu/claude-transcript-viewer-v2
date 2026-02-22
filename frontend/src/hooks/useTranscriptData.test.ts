@@ -33,7 +33,7 @@ describe('useTranscriptData', () => {
         expect(result.current.data).toBeDefined();
       });
       expect(mockFetch).toHaveBeenCalledWith(
-        expect.stringContaining('/api/transcripts/test-1')
+        expect.stringContaining('/api/transcript/session/test-1')
       );
     });
 

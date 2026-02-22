@@ -41,7 +41,7 @@ export function useTranscriptData(transcriptId: string): UseTranscriptDataResult
         setError(null);
 
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-        const response = await fetch(`${apiUrl}/api/transcripts/${transcriptId}`);
+        const response = await fetch(`${apiUrl}/api/transcript/session/${transcriptId}`);
 
         if (!response.ok) {
           let errorMessage = `Failed to fetch transcript: ${response.statusText}`;
