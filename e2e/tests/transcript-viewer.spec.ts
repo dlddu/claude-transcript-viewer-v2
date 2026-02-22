@@ -9,6 +9,10 @@ test.describe('Transcript Viewer E2E', () => {
   test('should display the session ID lookup interface', async ({ page }) => {
     // Assert - basic smoke test for new UI flow
     // After session lookup feature, home page shows session-id-input instead of transcript-viewer
+    const sessionIdTab = page.getByRole('tab', { name: 'Session ID' });
+    if ((await sessionIdTab.count()) > 0) {
+      await sessionIdTab.click();
+    }
     await expect(page.getByTestId('session-id-input')).toBeVisible();
     await expect(page.getByTestId('session-id-lookup-button')).toBeVisible();
   });
