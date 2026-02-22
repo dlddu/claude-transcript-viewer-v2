@@ -317,7 +317,7 @@ describe('MessageUuidLookup', () => {
       render(<MessageUuidLookup isLoading={true} />);
 
       // Assert
-      expect(screen.getByRole('button', { name: /extract.*search|loading/i })).toBeDisabled();
+      expect(screen.getByRole('button', { name: /extract.*search|searching/i })).toBeDisabled();
     });
 
     it('should not show loading indicator when isLoading is false', () => {

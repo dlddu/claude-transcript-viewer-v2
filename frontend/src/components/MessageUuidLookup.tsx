@@ -72,7 +72,7 @@ export function MessageUuidLookup({
           onClick={handleExtract}
           disabled={isButtonDisabled}
         >
-          {isLoading ? 'Loading...' : 'Extract & Search'}
+          {isLoading ? 'Searching...' : 'Extract & Search'}
         </button>
       </div>
 
