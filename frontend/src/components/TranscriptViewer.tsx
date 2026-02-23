@@ -62,7 +62,7 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
       try {
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
         const fileId = transcriptFile.replace('.json', '');
-        const response = await fetch(`${apiUrl}/api/transcripts/${fileId}`);
+        const response = await fetch(`${apiUrl}/api/transcript/session/${fileId}`);
 
         if (response.ok) {
           const data = await response.json();

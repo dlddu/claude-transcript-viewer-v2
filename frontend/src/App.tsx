@@ -59,38 +59,6 @@ function App() {
     }
   };
 
-  const handleUuidLookup = async (uuid: string) => {
-    try {
-      setIsLoading(true);
-      setError(undefined);
-      setTranscript(null);
-
-      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-      const response = await fetch(`${apiUrl}/api/transcripts/${uuid}`);
-
-      if (!response.ok) {
-        let errorMessage = `Transcript not found for UUID: ${uuid}`;
-        try {
-          const errorData = await response.json();
-          if (errorData.error) {
-            errorMessage = errorData.error;
-          }
-        } catch {
-          // JSON parsing failed, use default error message
-        }
-        throw new Error(errorMessage);
-      }
-
-      const data = await response.json();
-      setTranscript(data);
-    } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'Transcript not found';
-      setError(errorMessage);
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   return (
     <div className="app">
       <header>
@@ -103,7 +71,6 @@ function App() {
           <>
             <LookupTabs
               onSessionLookup={handleSessionLookup}
-              onUuidLookup={handleUuidLookup}
               isLoading={isLoading}
               error={error}
             />
