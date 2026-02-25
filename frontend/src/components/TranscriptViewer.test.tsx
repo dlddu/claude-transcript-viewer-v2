@@ -125,6 +125,51 @@ describe('TranscriptViewer', () => {
       expect(screen.getByTestId('subagent-group-header')).toBeInTheDocument();
     });
 
+    it('should display message timestamps', () => {
+      // Arrange
+      const mockTranscript = {
+        id: 'test-transcript',
+        session_id: 'session-abc123',
+        content: '',
+        messages: [
+          {
+            type: 'user' as const,
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:00:00Z',
+            uuid: 'msg-001',
+            parentUuid: null,
+            agentId: 'session-abc123',
+            message: {
+              role: 'user' as const,
+              content: 'Hello',
+            },
+          },
+          {
+            type: 'assistant' as const,
+            sessionId: 'session-abc123',
+            timestamp: '2026-02-01T05:01:30Z',
+            uuid: 'msg-002',
+            parentUuid: null,
+            agentId: 'session-abc123',
+            message: {
+              role: 'assistant' as const,
+              content: 'Hi there',
+            },
+          },
+        ],
+      };
+
+      // Act
+      render(<TranscriptViewer transcript={mockTranscript} />);
+
+      // Assert
+      const timestamps = screen.getAllByTestId('message-timestamp');
+      expect(timestamps).toHaveLength(2);
+      // Timestamps should contain formatted date text
+      expect(timestamps[0].textContent).toBeTruthy();
+      expect(timestamps[1].textContent).toBeTruthy();
+    });
+
     it('should render messages in chronological order', () => {
       // Arrange
       const mockTranscript = {
