@@ -130,6 +130,13 @@
   color: #333;
 }
 
+.message-timestamp {
+  margin-left: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 400;
+  color: #999;
+}
+
 .message-content {
   color: #555;
   line-height: 1.6;

@@ -8,6 +8,20 @@ import { TruncatedText } from './TruncatedText';
 import { useTranscriptData } from '../hooks/useTranscriptData';
 import './TranscriptViewer.css';
 
+// Helper function to format timestamp for display
+function formatTimestamp(timestamp: string): string {
+  const date = new Date(timestamp);
+  if (isNaN(date.getTime())) return '';
+  return date.toLocaleString('en-US', {
+    month: 'short',
+    day: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false,
+  });
+}
+
 // Helper function to extract model from messages
 function getModelFromMessages(messages?: TranscriptMessage[]): string | undefined {
   if (!messages) return undefined;
@@ -138,6 +152,11 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
         )}
         <div className="message-role">
           {enriched.raw.message?.role === 'user' ? 'User' : 'Assistant'}:
+          {enriched.raw.timestamp && (
+            <span className="message-timestamp" data-testid="message-timestamp">
+              {formatTimestamp(enriched.raw.timestamp)}
+            </span>
+          )}
           {hasTool && (
             <span className="tool-use-indicator" data-testid="tool-use-indicator">
               🔧
