@@ -141,7 +141,11 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
         role={hasTool ? 'button' : undefined}
         aria-expanded={hasTool ? isExpanded : undefined}
         tabIndex={hasTool ? 0 : undefined}
-        onClick={hasTool ? () => handleToolClick(enriched.raw.uuid) : undefined}
+        onClick={hasTool ? (e: React.MouseEvent) => {
+          if (!(e.target as HTMLElement).closest('.debug-data')) {
+            handleToolClick(enriched.raw.uuid);
+          }
+        } : undefined}
         onKeyDown={hasTool ? (e) => handleToolKeyDown(e, enriched.raw.uuid) : undefined}
         style={hasTool ? { cursor: 'pointer' } : undefined}
       >
@@ -214,7 +218,7 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
         )}
 
         {debugMode && (
-          <details className="debug-data" data-testid="debug-data" onClick={(e) => e.stopPropagation()}>
+          <details className="debug-data" data-testid="debug-data">
             <summary>Raw Data</summary>
             <pre><code>{JSON.stringify(enriched, null, 2)}</code></pre>
           </details>
