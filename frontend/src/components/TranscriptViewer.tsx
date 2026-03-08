@@ -43,7 +43,7 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
   const [subagentData, setSubagentData] = useState<Map<string, Transcript>>(new Map());
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
   const [expandedSubagentGroups, setExpandedSubagentGroups] = useState<Set<string>>(new Set());
-  const [debugMode, setDebugMode] = useState(false);
+  const [debugMode, setDebugMode] = useState(true);
 
   // If transcript is provided as prop, use it; otherwise show loading
   const isProvidedTranscript = propTranscript !== undefined;
