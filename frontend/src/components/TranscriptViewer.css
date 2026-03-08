@@ -432,10 +432,6 @@
   font-size: 0.8125rem;
 }
 
-.message-with-tool .debug-data {
-  pointer-events: none;
-}
-
 .debug-data summary {
   padding: 0.5rem 0.75rem;
   cursor: pointer;

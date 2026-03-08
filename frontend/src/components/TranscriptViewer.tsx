@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import type { Transcript, TranscriptMessage, EnrichedMessage } from '../types/transcript';
 import { enrichMessages } from '../utils/enrichMessages';
 import { groupMessages } from '../utils/groupMessages';
@@ -134,92 +134,92 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
     ].filter(Boolean).join(' ');
 
     return (
-      <div
-        key={enriched.raw.uuid}
-        className={messageClasses}
-        data-testid="timeline-item"
-        role={hasTool ? 'button' : undefined}
-        aria-expanded={hasTool ? isExpanded : undefined}
-        tabIndex={hasTool ? 0 : undefined}
-        onClick={hasTool ? () => handleToolClick(enriched.raw.uuid) : undefined}
-        onKeyDown={hasTool ? (e) => handleToolKeyDown(e, enriched.raw.uuid) : undefined}
-        style={hasTool ? { cursor: 'pointer' } : undefined}
-      >
-        {showSubagentLabel && enriched.isSubagent && enriched.subagentName && (
-          <div className="subagent-label" data-testid="subagent-label">
-            [Subagent: {enriched.subagentName}]
+      <React.Fragment key={enriched.raw.uuid}>
+        <div
+          className={messageClasses}
+          data-testid="timeline-item"
+          role={hasTool ? 'button' : undefined}
+          aria-expanded={hasTool ? isExpanded : undefined}
+          tabIndex={hasTool ? 0 : undefined}
+          onClick={hasTool ? () => handleToolClick(enriched.raw.uuid) : undefined}
+          onKeyDown={hasTool ? (e) => handleToolKeyDown(e, enriched.raw.uuid) : undefined}
+          style={hasTool ? { cursor: 'pointer' } : undefined}
+        >
+          {showSubagentLabel && enriched.isSubagent && enriched.subagentName && (
+            <div className="subagent-label" data-testid="subagent-label">
+              [Subagent: {enriched.subagentName}]
+            </div>
+          )}
+          <div className="message-role">
+            {enriched.raw.message?.role === 'user' ? 'User' : 'Assistant'}:
+            {enriched.raw.timestamp && (
+              <span className="message-timestamp" data-testid="message-timestamp">
+                {formatTimestamp(enriched.raw.timestamp)}
+              </span>
+            )}
+            {hasTool && (
+              <span className="tool-use-indicator" data-testid="tool-use-indicator">
+                🔧
+              </span>
+            )}
+            {hasTool && (
+              <span className="tool-names-inline" data-testid="tool-names-inline">
+                {enriched.toolUses.map(t => t.subagentType ? `${t.name} [${t.subagentType}]` : t.name).join(', ')}
+              </span>
+            )}
+            {hasTool && (
+              <span className="expand-indicator" data-testid="expand-indicator" aria-expanded={isExpanded}>
+                {isExpanded ? '▼' : '▶'}
+              </span>
+            )}
           </div>
-        )}
-        <div className="message-role">
-          {enriched.raw.message?.role === 'user' ? 'User' : 'Assistant'}:
-          {enriched.raw.timestamp && (
-            <span className="message-timestamp" data-testid="message-timestamp">
-              {formatTimestamp(enriched.raw.timestamp)}
-            </span>
-          )}
-          {hasTool && (
-            <span className="tool-use-indicator" data-testid="tool-use-indicator">
-              🔧
-            </span>
-          )}
-          {hasTool && (
-            <span className="tool-names-inline" data-testid="tool-names-inline">
-              {enriched.toolUses.map(t => t.subagentType ? `${t.name} [${t.subagentType}]` : t.name).join(', ')}
-            </span>
-          )}
-          {hasTool && (
-            <span className="expand-indicator" data-testid="expand-indicator" aria-expanded={isExpanded}>
-              {isExpanded ? '▼' : '▶'}
-            </span>
-          )}
-        </div>
-        <div className="message-content">{enriched.text}</div>
+          <div className="message-content">{enriched.text}</div>
 
-        {hasTool && isExpanded && (
-          <div className="tool-details">
-            {enriched.toolUses.map((tool) => {
-              return (
-                <div key={tool.id} className="tool-detail-view" data-testid="tool-detail-view" role="region" aria-label={`Tool details for ${tool.name}`}>
-                  <div className="tool-header">
-                    <div className="tool-name" data-testid="tool-name">
-                      Tool: {tool.name}{tool.subagentType && <span className="tool-subagent-type"> [{tool.subagentType}]</span>}
-                    </div>
-                    <div className="tool-id" data-testid="tool-id">
-                      ID: <TruncatedText text={tool.id} truncatedText={truncateToolId(tool.id)} />
-                    </div>
-                  </div>
-
-                  <div className="tool-section">
-                    <div className="tool-section-title">Input:</div>
-                    <div className="tool-input" data-testid="tool-input">
-                      <pre><code>{highlightJson(truncateFilePathsInObject(tool.input))}</code></pre>
-                    </div>
-                  </div>
-
-                  {tool.result && (
-                    <div className="tool-section">
-                      <div className="tool-section-title">Output:</div>
-                      <div
-                        className={`tool-output ${tool.result.is_error ? 'tool-output-error' : ''}`}
-                        data-testid="tool-output"
-                      >
-                        <pre><code>{tool.result.content}</code></pre>
+          {hasTool && isExpanded && (
+            <div className="tool-details">
+              {enriched.toolUses.map((tool) => {
+                return (
+                  <div key={tool.id} className="tool-detail-view" data-testid="tool-detail-view" role="region" aria-label={`Tool details for ${tool.name}`}>
+                    <div className="tool-header">
+                      <div className="tool-name" data-testid="tool-name">
+                        Tool: {tool.name}{tool.subagentType && <span className="tool-subagent-type"> [{tool.subagentType}]</span>}
+                      </div>
+                      <div className="tool-id" data-testid="tool-id">
+                        ID: <TruncatedText text={tool.id} truncatedText={truncateToolId(tool.id)} />
                       </div>
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
 
+                    <div className="tool-section">
+                      <div className="tool-section-title">Input:</div>
+                      <div className="tool-input" data-testid="tool-input">
+                        <pre><code>{highlightJson(truncateFilePathsInObject(tool.input))}</code></pre>
+                      </div>
+                    </div>
+
+                    {tool.result && (
+                      <div className="tool-section">
+                        <div className="tool-section-title">Output:</div>
+                        <div
+                          className={`tool-output ${tool.result.is_error ? 'tool-output-error' : ''}`}
+                          data-testid="tool-output"
+                        >
+                          <pre><code>{tool.result.content}</code></pre>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
         {debugMode && (
-          <details className="debug-data" data-testid="debug-data" onClick={(e) => e.stopPropagation()}>
+          <details className="debug-data" data-testid="debug-data">
             <summary>Raw Data</summary>
             <pre><code>{JSON.stringify(enriched, null, 2)}</code></pre>
           </details>
         )}
-      </div>
+      </React.Fragment>
     );
   };
 
