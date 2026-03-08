@@ -44,6 +44,7 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
   const [expandedSubagentGroups, setExpandedSubagentGroups] = useState<Set<string>>(new Set());
   const [debugMode, setDebugMode] = useState(true);
+  const [openDebugPanels, setOpenDebugPanels] = useState<Set<string>>(new Set());
 
   // If transcript is provided as prop, use it; otherwise show loading
   const isProvidedTranscript = propTranscript !== undefined;
@@ -214,9 +215,26 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
           )}
         </div>
         {debugMode && (
-          <details className="debug-data" data-testid="debug-data">
+          <details
+            className="debug-data"
+            data-testid="debug-data"
+            onToggle={(e) => {
+              const isOpen = (e.target as HTMLDetailsElement).open;
+              setOpenDebugPanels(prev => {
+                const next = new Set(prev);
+                if (isOpen) {
+                  next.add(enriched.raw.uuid);
+                } else {
+                  next.delete(enriched.raw.uuid);
+                }
+                return next;
+              });
+            }}
+          >
             <summary>Raw Data</summary>
-            <pre><code>{JSON.stringify(enriched, null, 2)}</code></pre>
+            {openDebugPanels.has(enriched.raw.uuid) && (
+              <pre><code>{JSON.stringify(enriched, null, 2)}</code></pre>
+            )}
           </details>
         )}
       </React.Fragment>
