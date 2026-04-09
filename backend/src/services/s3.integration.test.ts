@@ -9,13 +9,13 @@ describe('S3Service Integration Tests', () => {
   const testTranscriptId = 'integration-test-transcript';
 
   beforeAll(async () => {
-    // Configure for LocalStack
+    // Configure for MinIO (or any S3-compatible emulator exposed via AWS_ENDPOINT_URL)
     s3Client = new S3Client({
       region: 'us-east-1',
-      endpoint: process.env.AWS_ENDPOINT_URL || 'http://localhost:4566',
+      endpoint: process.env.AWS_ENDPOINT_URL || 'http://localhost:9000',
       credentials: {
-        accessKeyId: 'test',
-        secretAccessKey: 'test',
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'minioadmin',
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'minioadmin',
       },
       forcePathStyle: true,
     });
@@ -23,7 +23,7 @@ describe('S3Service Integration Tests', () => {
     s3Service = new S3Service({
       bucket: testBucket,
       region: 'us-east-1',
-      endpoint: process.env.AWS_ENDPOINT_URL || 'http://localhost:4566',
+      endpoint: process.env.AWS_ENDPOINT_URL || 'http://localhost:9000',
     });
 
     // Upload test transcript
@@ -64,8 +64,8 @@ describe('S3Service Integration Tests', () => {
     }
   });
 
-  describe('LocalStack S3 Operations', () => {
-    it('should fetch transcript from LocalStack S3', async () => {
+  describe('S3 Operations', () => {
+    it('should fetch transcript from S3 endpoint', async () => {
       // Act
       const result = await s3Service.getTranscript(testTranscriptId);
 
@@ -85,7 +85,7 @@ describe('S3Service Integration Tests', () => {
       expect(result.subagents[0].name).toBe('Test Subagent');
     });
 
-    it('should list transcripts from LocalStack S3', async () => {
+    it('should list transcripts from S3 endpoint', async () => {
       // Act
       const results = await s3Service.listTranscripts();
 
@@ -103,7 +103,7 @@ describe('S3Service Integration Tests', () => {
       prefixedService = new S3Service({
         bucket: testBucket,
         region: 'us-east-1',
-        endpoint: process.env.AWS_ENDPOINT_URL || 'http://localhost:4566',
+        endpoint: process.env.AWS_ENDPOINT_URL || 'http://localhost:9000',
         prefix,
       });
 

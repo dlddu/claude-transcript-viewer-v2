@@ -527,14 +527,14 @@ describe('S3Service', () => {
       expect(typeof s3Client.config.credentials).toBe('function');
     });
 
-    it('endpoint takes precedence over assumeRoleArn (LocalStack path)', () => {
-      // When both endpoint (LocalStack) and assumeRoleArn are set, the
-      // LocalStack test credentials should be used - assume role is
-      // incompatible with LocalStack's STS emulation in most setups.
+    it('endpoint takes precedence over assumeRoleArn (S3-compatible emulator path)', () => {
+      // When both endpoint (MinIO/LocalStack) and assumeRoleArn are set, the
+      // dummy emulator credentials should be used - assume role is
+      // incompatible with most S3 emulators' STS support.
       expect(() => new S3Service({
         bucket: 'test-bucket',
         region: 'us-east-1',
-        endpoint: 'http://localhost:4566',
+        endpoint: 'http://localhost:9000',
         assumeRoleArn: 'arn:aws:iam::123456789012:role/test-role',
       })).not.toThrow();
     });

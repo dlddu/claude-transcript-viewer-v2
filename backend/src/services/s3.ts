@@ -104,9 +104,12 @@ export class S3Service {
 
     if (config.endpoint) {
       clientConfig.endpoint = config.endpoint;
+      // Default dummy credentials for S3-compatible emulators (MinIO, LocalStack).
+      // MinIO's default root user is minioadmin/minioadmin and requires the
+      // secret to be at least 8 characters; LocalStack accepts any value.
       clientConfig.credentials = {
-        accessKeyId: 'test',
-        secretAccessKey: 'test',
+        accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'minioadmin',
+        secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'minioadmin',
       };
       clientConfig.forcePathStyle = true;
     } else if (config.assumeRoleArn) {
