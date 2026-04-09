@@ -37,23 +37,8 @@ jobs:
         run: pnpm typecheck
 
   integration-tests:
-    name: Integration Tests with LocalStack
+    name: Integration Tests with MinIO
     runs-on: ubuntu-24.04-arm
-
-    services:
-      localstack:
-        image: localstack/localstack:latest
-        env:
-          SERVICES: s3
-          DEBUG: 1
-          DATA_DIR: /tmp/localstack/data
-        ports:
-          - 4566:4566
-        options: >-
-          --health-cmd "awslocal s3 ls || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
@@ -70,62 +55,47 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Wait for LocalStack to be ready
+      - name: Start MinIO
         run: |
-          timeout 60 bash -c 'until curl -f http://localhost:4566/_localstack/health; do sleep 2; done'
+          docker run -d --name minio \
+            -p 9000:9000 \
+            -e MINIO_ROOT_USER=minioadmin \
+            -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio:latest server /data
 
-      - name: Cache pip packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: pip-${{ runner.os }}-awscli-local
+      - name: Wait for MinIO to be ready
+        run: |
+          timeout 60 bash -c 'until curl -fs http://localhost:9000/minio/health/live; do sleep 2; done'
 
       - name: Create S3 bucket and upload test fixtures
         env:
-          AWS_ACCESS_KEY_ID: test
-          AWS_SECRET_ACCESS_KEY: test
+          AWS_ACCESS_KEY_ID: minioadmin
+          AWS_SECRET_ACCESS_KEY: minioadmin
           AWS_DEFAULT_REGION: us-east-1
-          AWS_ENDPOINT_URL: http://localhost:4566
+          AWS_ENDPOINT_URL: http://localhost:9000
         run: |
-          # Install AWS CLI
-          pip install awscli-local
-
           # Create bucket
-          awslocal s3 mb s3://test-transcripts
+          aws --endpoint-url "$AWS_ENDPOINT_URL" s3 mb s3://test-transcripts
 
           # Upload test fixtures
-          awslocal s3 cp e2e/fixtures/sample-main-transcript.json s3://test-transcripts/transcript-20260201-001.json
-          awslocal s3 cp e2e/fixtures/subagent-data-analyzer-20260201-001.json s3://test-transcripts/subagent-data-analyzer-20260201-001.json
-          awslocal s3 cp e2e/fixtures/subagent-visualizer-20260201-001.json s3://test-transcripts/subagent-visualizer-20260201-001.json
+          aws --endpoint-url "$AWS_ENDPOINT_URL" s3 cp e2e/fixtures/sample-main-transcript.json s3://test-transcripts/transcript-20260201-001.json
+          aws --endpoint-url "$AWS_ENDPOINT_URL" s3 cp e2e/fixtures/subagent-data-analyzer-20260201-001.json s3://test-transcripts/subagent-data-analyzer-20260201-001.json
+          aws --endpoint-url "$AWS_ENDPOINT_URL" s3 cp e2e/fixtures/subagent-visualizer-20260201-001.json s3://test-transcripts/subagent-visualizer-20260201-001.json
 
           # Verify upload
-          awslocal s3 ls s3://test-transcripts/
+          aws --endpoint-url "$AWS_ENDPOINT_URL" s3 ls s3://test-transcripts/
 
       - name: Run integration tests
         env:
-          AWS_ENDPOINT_URL: http://localhost:4566
-          AWS_ACCESS_KEY_ID: test
-          AWS_SECRET_ACCESS_KEY: test
+          AWS_ENDPOINT_URL: http://localhost:9000
+          AWS_ACCESS_KEY_ID: minioadmin
+          AWS_SECRET_ACCESS_KEY: minioadmin
           AWS_DEFAULT_REGION: us-east-1
         run: pnpm --filter @claude-transcript-viewer/backend test:integration
 
   e2e-tests:
     name: E2E Tests with Playwright
     runs-on: ubuntu-24.04-arm
-
-    services:
-      localstack:
-        image: localstack/localstack:latest
-        env:
-          SERVICES: s3
-          DEBUG: 1
-        ports:
-          - 4566:4566
-        options: >-
-          --health-cmd "awslocal s3 ls || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 5
 
     steps:
       - uses: actions/checkout@v4
@@ -157,26 +127,27 @@ jobs:
         if: steps.playwright-cache.outputs.cache-hit == 'true'
         run: pnpm --filter @claude-transcript-viewer/e2e exec playwright install-deps chromium
 
-      - name: Wait for LocalStack
+      - name: Start MinIO
         run: |
-          timeout 60 bash -c 'until curl -f http://localhost:4566/_localstack/health; do sleep 2; done'
+          docker run -d --name minio \
+            -p 9000:9000 \
+            -e MINIO_ROOT_USER=minioadmin \
+            -e MINIO_ROOT_PASSWORD=minioadmin \
+            minio/minio:latest server /data
 
-      - name: Cache pip packages
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/pip
-          key: pip-${{ runner.os }}-awscli-local
+      - name: Wait for MinIO
+        run: |
+          timeout 60 bash -c 'until curl -fs http://localhost:9000/minio/health/live; do sleep 2; done'
 
       - name: Setup S3 test data
         env:
-          AWS_ACCESS_KEY_ID: test
-          AWS_SECRET_ACCESS_KEY: test
+          AWS_ACCESS_KEY_ID: minioadmin
+          AWS_SECRET_ACCESS_KEY: minioadmin
           AWS_DEFAULT_REGION: us-east-1
-          AWS_ENDPOINT_URL: http://localhost:4566
+          AWS_ENDPOINT_URL: http://localhost:9000
         run: |
-          pip install awscli-local
-          awslocal s3 mb s3://test-transcripts
-          awslocal s3 cp e2e/fixtures/ s3://test-transcripts/ --recursive
+          aws --endpoint-url "$AWS_ENDPOINT_URL" s3 mb s3://test-transcripts
+          aws --endpoint-url "$AWS_ENDPOINT_URL" s3 cp e2e/fixtures/ s3://test-transcripts/ --recursive
 
       - name: Build frontend
         env:
@@ -188,9 +159,9 @@ jobs:
 
       - name: Start backend server
         env:
-          AWS_ENDPOINT_URL: http://localhost:4566
-          AWS_ACCESS_KEY_ID: test
-          AWS_SECRET_ACCESS_KEY: test
+          AWS_ENDPOINT_URL: http://localhost:9000
+          AWS_ACCESS_KEY_ID: minioadmin
+          AWS_SECRET_ACCESS_KEY: minioadmin
           S3_BUCKET: test-transcripts
         run: |
           pnpm --filter @claude-transcript-viewer/backend start &

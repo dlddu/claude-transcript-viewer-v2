@@ -457,4 +457,86 @@ describe('S3Service', () => {
       });
     });
   });
+
+  describe('prefix config normalization', () => {
+    it('defaults to empty string when prefix is not provided', () => {
+      const service = new S3Service({ bucket: 'test-bucket', region: 'us-east-1' });
+      expect((service as unknown as { prefix: string }).prefix).toBe('');
+    });
+
+    it('defaults to empty string when prefix is an empty string', () => {
+      const service = new S3Service({ bucket: 'test-bucket', region: 'us-east-1', prefix: '' });
+      expect((service as unknown as { prefix: string }).prefix).toBe('');
+    });
+
+    it('appends a trailing slash when missing', () => {
+      const service = new S3Service({ bucket: 'test-bucket', region: 'us-east-1', prefix: 'foo/bar' });
+      expect((service as unknown as { prefix: string }).prefix).toBe('foo/bar/');
+    });
+
+    it('leaves existing trailing slash as-is', () => {
+      const service = new S3Service({ bucket: 'test-bucket', region: 'us-east-1', prefix: 'foo/bar/' });
+      expect((service as unknown as { prefix: string }).prefix).toBe('foo/bar/');
+    });
+
+    it('strips leading slashes', () => {
+      const service = new S3Service({ bucket: 'test-bucket', region: 'us-east-1', prefix: '/foo/bar/' });
+      expect((service as unknown as { prefix: string }).prefix).toBe('foo/bar/');
+    });
+
+    it('normalizes a slashes-only string to empty', () => {
+      const service = new S3Service({ bucket: 'test-bucket', region: 'us-east-1', prefix: '///' });
+      expect((service as unknown as { prefix: string }).prefix).toBe('');
+    });
+  });
+
+  describe('assume role config', () => {
+    it('constructs without error when assumeRoleArn is not set', () => {
+      expect(() => new S3Service({
+        bucket: 'test-bucket',
+        region: 'us-east-1',
+      })).not.toThrow();
+    });
+
+    it('constructs without error when assumeRoleArn is set', () => {
+      expect(() => new S3Service({
+        bucket: 'test-bucket',
+        region: 'us-east-1',
+        assumeRoleArn: 'arn:aws:iam::123456789012:role/test-role',
+      })).not.toThrow();
+    });
+
+    it('constructs without error with full assume role config', () => {
+      expect(() => new S3Service({
+        bucket: 'test-bucket',
+        region: 'us-east-1',
+        assumeRoleArn: 'arn:aws:iam::123456789012:role/test-role',
+        assumeRoleSessionName: 'custom-session',
+        assumeRoleExternalId: 'ext-123',
+        assumeRoleDurationSeconds: 1800,
+      })).not.toThrow();
+    });
+
+    it('uses a credentials provider function when assumeRoleArn is set', () => {
+      const service = new S3Service({
+        bucket: 'test-bucket',
+        region: 'us-east-1',
+        assumeRoleArn: 'arn:aws:iam::123456789012:role/test-role',
+      });
+      const s3Client = (service as unknown as { s3Client: { config: { credentials: unknown } } }).s3Client;
+      expect(typeof s3Client.config.credentials).toBe('function');
+    });
+
+    it('endpoint takes precedence over assumeRoleArn (S3-compatible emulator path)', () => {
+      // When both endpoint (MinIO/LocalStack) and assumeRoleArn are set, the
+      // dummy emulator credentials should be used - assume role is
+      // incompatible with most S3 emulators' STS support.
+      expect(() => new S3Service({
+        bucket: 'test-bucket',
+        region: 'us-east-1',
+        endpoint: 'http://localhost:9000',
+        assumeRoleArn: 'arn:aws:iam::123456789012:role/test-role',
+      })).not.toThrow();
+    });
+  });
 });

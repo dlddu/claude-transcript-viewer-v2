@@ -4,10 +4,23 @@ import { S3Service } from '../services/s3.js';
 export const transcriptsRouter = express.Router();
 
 // Initialize S3 service
+const assumeRoleDurationRaw = process.env.AWS_ASSUME_ROLE_DURATION_SECONDS;
+const assumeRoleDurationSeconds = assumeRoleDurationRaw
+  ? Number.parseInt(assumeRoleDurationRaw, 10)
+  : undefined;
+
 const s3Service = new S3Service({
   bucket: process.env.S3_BUCKET || 'test-transcripts',
   region: process.env.AWS_REGION || 'us-east-1',
   endpoint: process.env.AWS_ENDPOINT_URL,
+  prefix: process.env.S3_PREFIX,
+  assumeRoleArn: process.env.AWS_ASSUME_ROLE_ARN,
+  assumeRoleSessionName: process.env.AWS_ASSUME_ROLE_SESSION_NAME,
+  assumeRoleExternalId: process.env.AWS_ASSUME_ROLE_EXTERNAL_ID,
+  assumeRoleDurationSeconds:
+    assumeRoleDurationSeconds && Number.isFinite(assumeRoleDurationSeconds)
+      ? assumeRoleDurationSeconds
+      : undefined,
 });
 
 // Mock data for tests (when S3 is not available)
