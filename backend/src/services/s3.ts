@@ -5,6 +5,14 @@ export interface S3ServiceConfig {
   bucket: string;
   region: string;
   endpoint?: string;
+  prefix?: string;
+}
+
+function normalizePrefix(prefix?: string): string {
+  if (!prefix) return '';
+  const trimmed = prefix.replace(/^\/+/, '');
+  if (!trimmed) return '';
+  return trimmed.endsWith('/') ? trimmed : `${trimmed}/`;
 }
 
 // Message content can be a string or an array of content blocks
@@ -78,10 +86,12 @@ const mockTranscripts: Record<string, Transcript> = {
 export class S3Service {
   private s3Client: S3Client;
   private bucket: string;
+  private prefix: string;
   private mockTranscriptBySession: Record<string, Transcript>;
 
   constructor(config: S3ServiceConfig) {
     this.bucket = config.bucket;
+    this.prefix = normalizePrefix(config.prefix);
 
     const clientConfig: S3ClientConfig = {
       region: config.region,
@@ -743,7 +753,8 @@ export class S3Service {
     }
 
     try {
-      const key = transcriptId.endsWith('.json') ? transcriptId : `${transcriptId}.json`;
+      const baseKey = transcriptId.endsWith('.json') ? transcriptId : `${transcriptId}.json`;
+      const key = `${this.prefix}${baseKey}`;
 
       const command = new GetObjectCommand({
         Bucket: this.bucket,
@@ -792,6 +803,7 @@ export class S3Service {
     try {
       const command = new ListObjectsV2Command({
         Bucket: this.bucket,
+        Prefix: this.prefix || undefined,
       });
 
       const response = await this.s3Client.send(command);
@@ -803,7 +815,8 @@ export class S3Service {
       return response.Contents
         .map(item => item.Key)
         .filter((key): key is string => !!key)
-        .map(key => key.replace('.json', ''));
+        .map(key => this.prefix && key.startsWith(this.prefix) ? key.slice(this.prefix.length) : key)
+        .map(key => key.replace(/\.json$/, ''));
     } catch (error: unknown) {
       if (error instanceof Error && error.name === 'NoSuchBucket') {
         return [];
@@ -831,10 +844,11 @@ export class S3Service {
 
     // For production, use session ID as S3 key prefix for efficient lookup
     try {
-      // List objects with session ID prefix
+      // List objects with session ID prefix (applying configured S3 prefix)
+      const sessionKeyPrefix = `${this.prefix}${trimmedSessionId}`;
       const listCommand = new ListObjectsV2Command({
         Bucket: this.bucket,
-        Prefix: trimmedSessionId,
+        Prefix: sessionKeyPrefix,
       });
 
       const listResponse = await this.s3Client.send(listCommand);
@@ -845,7 +859,7 @@ export class S3Service {
 
       // Find main transcript file (sessionId.jsonl or sessionId.json)
       const mainTranscriptKey = listResponse.Contents.find(
-        item => item.Key === `${trimmedSessionId}.jsonl` || item.Key === `${trimmedSessionId}.json`
+        item => item.Key === `${sessionKeyPrefix}.jsonl` || item.Key === `${sessionKeyPrefix}.json`
       )?.Key;
 
       if (!mainTranscriptKey) {
@@ -892,7 +906,7 @@ export class S3Service {
 
       // Find and attach subagent files
       const subagentFiles = listResponse.Contents.filter(
-        item => item.Key?.startsWith(`${trimmedSessionId}/`) && item.Key?.includes('agent-')
+        item => item.Key?.startsWith(`${sessionKeyPrefix}/`) && item.Key?.includes('agent-')
       );
 
       const allMessages: TranscriptMessage[] = [...mainMessages];

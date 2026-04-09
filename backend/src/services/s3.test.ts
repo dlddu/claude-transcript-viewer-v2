@@ -457,4 +457,36 @@ describe('S3Service', () => {
       });
     });
   });
+
+  describe('prefix config normalization', () => {
+    it('defaults to empty string when prefix is not provided', () => {
+      const service = new S3Service({ bucket: 'test-bucket', region: 'us-east-1' });
+      expect((service as unknown as { prefix: string }).prefix).toBe('');
+    });
+
+    it('defaults to empty string when prefix is an empty string', () => {
+      const service = new S3Service({ bucket: 'test-bucket', region: 'us-east-1', prefix: '' });
+      expect((service as unknown as { prefix: string }).prefix).toBe('');
+    });
+
+    it('appends a trailing slash when missing', () => {
+      const service = new S3Service({ bucket: 'test-bucket', region: 'us-east-1', prefix: 'foo/bar' });
+      expect((service as unknown as { prefix: string }).prefix).toBe('foo/bar/');
+    });
+
+    it('leaves existing trailing slash as-is', () => {
+      const service = new S3Service({ bucket: 'test-bucket', region: 'us-east-1', prefix: 'foo/bar/' });
+      expect((service as unknown as { prefix: string }).prefix).toBe('foo/bar/');
+    });
+
+    it('strips leading slashes', () => {
+      const service = new S3Service({ bucket: 'test-bucket', region: 'us-east-1', prefix: '/foo/bar/' });
+      expect((service as unknown as { prefix: string }).prefix).toBe('foo/bar/');
+    });
+
+    it('normalizes a slashes-only string to empty', () => {
+      const service = new S3Service({ bucket: 'test-bucket', region: 'us-east-1', prefix: '///' });
+      expect((service as unknown as { prefix: string }).prefix).toBe('');
+    });
+  });
 });

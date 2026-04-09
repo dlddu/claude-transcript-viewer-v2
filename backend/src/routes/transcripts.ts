@@ -8,6 +8,7 @@ const s3Service = new S3Service({
   bucket: process.env.S3_BUCKET || 'test-transcripts',
   region: process.env.AWS_REGION || 'us-east-1',
   endpoint: process.env.AWS_ENDPOINT_URL,
+  prefix: process.env.S3_PREFIX,
 });
 
 // Mock data for tests (when S3 is not available)
