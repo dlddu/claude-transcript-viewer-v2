@@ -489,4 +489,54 @@ describe('S3Service', () => {
       expect((service as unknown as { prefix: string }).prefix).toBe('');
     });
   });
+
+  describe('assume role config', () => {
+    it('constructs without error when assumeRoleArn is not set', () => {
+      expect(() => new S3Service({
+        bucket: 'test-bucket',
+        region: 'us-east-1',
+      })).not.toThrow();
+    });
+
+    it('constructs without error when assumeRoleArn is set', () => {
+      expect(() => new S3Service({
+        bucket: 'test-bucket',
+        region: 'us-east-1',
+        assumeRoleArn: 'arn:aws:iam::123456789012:role/test-role',
+      })).not.toThrow();
+    });
+
+    it('constructs without error with full assume role config', () => {
+      expect(() => new S3Service({
+        bucket: 'test-bucket',
+        region: 'us-east-1',
+        assumeRoleArn: 'arn:aws:iam::123456789012:role/test-role',
+        assumeRoleSessionName: 'custom-session',
+        assumeRoleExternalId: 'ext-123',
+        assumeRoleDurationSeconds: 1800,
+      })).not.toThrow();
+    });
+
+    it('uses a credentials provider function when assumeRoleArn is set', () => {
+      const service = new S3Service({
+        bucket: 'test-bucket',
+        region: 'us-east-1',
+        assumeRoleArn: 'arn:aws:iam::123456789012:role/test-role',
+      });
+      const s3Client = (service as unknown as { s3Client: { config: { credentials: unknown } } }).s3Client;
+      expect(typeof s3Client.config.credentials).toBe('function');
+    });
+
+    it('endpoint takes precedence over assumeRoleArn (LocalStack path)', () => {
+      // When both endpoint (LocalStack) and assumeRoleArn are set, the
+      // LocalStack test credentials should be used - assume role is
+      // incompatible with LocalStack's STS emulation in most setups.
+      expect(() => new S3Service({
+        bucket: 'test-bucket',
+        region: 'us-east-1',
+        endpoint: 'http://localhost:4566',
+        assumeRoleArn: 'arn:aws:iam::123456789012:role/test-role',
+      })).not.toThrow();
+    });
+  });
 });

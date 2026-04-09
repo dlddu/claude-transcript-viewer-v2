@@ -1,11 +1,16 @@
 import { S3Client, GetObjectCommand, ListObjectsV2Command } from '@aws-sdk/client-s3';
 import type { S3ClientConfig } from '@aws-sdk/client-s3';
+import { fromTemporaryCredentials } from '@aws-sdk/credential-providers';
 
 export interface S3ServiceConfig {
   bucket: string;
   region: string;
   endpoint?: string;
   prefix?: string;
+  assumeRoleArn?: string;
+  assumeRoleSessionName?: string;
+  assumeRoleExternalId?: string;
+  assumeRoleDurationSeconds?: number;
 }
 
 function normalizePrefix(prefix?: string): string {
@@ -104,6 +109,16 @@ export class S3Service {
         secretAccessKey: 'test',
       };
       clientConfig.forcePathStyle = true;
+    } else if (config.assumeRoleArn) {
+      clientConfig.credentials = fromTemporaryCredentials({
+        params: {
+          RoleArn: config.assumeRoleArn,
+          RoleSessionName: config.assumeRoleSessionName || 'claude-transcript-viewer',
+          ExternalId: config.assumeRoleExternalId,
+          DurationSeconds: config.assumeRoleDurationSeconds,
+        },
+        clientConfig: { region: config.region },
+      });
     }
 
     this.s3Client = new S3Client(clientConfig);
