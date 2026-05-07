@@ -1,0 +1,34 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: claude-transcript-viewer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: claude-transcript-viewer
+  template:
+    metadata:
+      labels:
+        app: claude-transcript-viewer
+    spec:
+      containers:
+        - name: backend
+          image: ghcr.io/dlddu/claude-transcript-viewer-v2/backend:latest
+          imagePullPolicy: Always
+          env:
+            - name: PORT
+              value: "3000"
+          envFrom:
+            - secretRef:
+                name: claude-transcript-viewer
+          ports:
+            - containerPort: 3000
+        - name: frontend
+          image: ghcr.io/dlddu/claude-transcript-viewer-v2/frontend:latest
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: claude-transcript-viewer-frontend
+          ports:
+            - containerPort: 80
