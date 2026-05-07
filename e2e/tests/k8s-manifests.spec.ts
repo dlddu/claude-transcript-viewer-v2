@@ -282,17 +282,6 @@ describe('K8s Manifests - Deployment Configuration', () => {
     assert.ok(content.includes('3000'), 'Container should expose port 3000');
   });
 
-  it('should define environment variables from ConfigMap', () => {
-    // Arrange
-    const deploymentPath = resolve(K8S_DIR, 'deployment.yaml');
-    const content = readFileSync(deploymentPath, 'utf-8');
-
-    // Assert
-    assert.ok(containsKey(content, 'env') || containsKey(content, 'envFrom'),
-      'Container should configure environment variables');
-    assert.ok(content.includes('configMap'), 'Should reference ConfigMap for env vars');
-  });
-
   it('should define environment variables from Secret', () => {
     // Arrange
     const deploymentPath = resolve(K8S_DIR, 'deployment.yaml');

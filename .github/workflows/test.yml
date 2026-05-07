@@ -401,10 +401,13 @@ jobs:
             --from-literal=S3_BUCKET=test-transcripts \
             --from-literal=AWS_ENDPOINT_URL=http://localstack:4566
 
-          # Backend Secret
+          # Backend Secret (consumed via envFrom in the Deployment)
           kubectl create secret generic claude-transcript-viewer-secrets \
             --from-literal=AWS_ACCESS_KEY_ID=test \
-            --from-literal=AWS_SECRET_ACCESS_KEY=test
+            --from-literal=AWS_SECRET_ACCESS_KEY=test \
+            --from-literal=AWS_REGION=us-east-1 \
+            --from-literal=S3_BUCKET=test-transcripts \
+            --from-literal=AWS_ENDPOINT_URL=http://localstack:4566
 
           # Frontend ConfigMap
           kubectl create configmap claude-transcript-viewer-frontend-config \

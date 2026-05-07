@@ -31,30 +31,10 @@ spec:
               protocol: TCP
           env:
             - name: PORT
-              valueFrom:
-                configMapKeyRef:
-                  name: claude-transcript-viewer-config
-                  key: PORT
-            - name: AWS_REGION
-              valueFrom:
-                configMapKeyRef:
-                  name: claude-transcript-viewer-config
-                  key: AWS_REGION
-            - name: S3_BUCKET
-              valueFrom:
-                configMapKeyRef:
-                  name: claude-transcript-viewer-config
-                  key: S3_BUCKET
-            - name: AWS_ACCESS_KEY_ID
-              valueFrom:
-                secretKeyRef:
-                  name: claude-transcript-viewer-secrets
-                  key: AWS_ACCESS_KEY_ID
-            - name: AWS_SECRET_ACCESS_KEY
-              valueFrom:
-                secretKeyRef:
-                  name: claude-transcript-viewer-secrets
-                  key: AWS_SECRET_ACCESS_KEY
+              value: "3000"
+          envFrom:
+            - secretRef:
+                name: claude-transcript-viewer-secrets
           livenessProbe:
             httpGet:
               path: /api/health
