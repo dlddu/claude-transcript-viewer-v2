@@ -6,7 +6,7 @@ metadata:
     app: claude-transcript-viewer-backend
     tier: backend
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: claude-transcript-viewer-backend
@@ -23,8 +23,8 @@ spec:
         fsGroup: 1000
       containers:
         - name: backend
-          image: ghcr.io/example-org/claude-transcript-viewer-backend:v1.0.0
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/dlddu/claude-transcript-viewer-v2/backend:latest
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 3000
