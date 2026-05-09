@@ -1,5 +1,6 @@
 # Build stage - compile the Rust backend
-FROM rust:1.83-slim-bookworm AS build
+# Need Rust 1.85+ for edition2024 (used by transitive deps such as time-macros)
+FROM rust:1.94-slim-bookworm AS build
 
 # Install build dependencies for the AWS SDK (uses aws-lc-rs which needs cmake)
 RUN apt-get update \
