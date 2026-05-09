@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from 'vitest';
-import { S3Service } from './s3';
+import { S3Service, isAwsCredentialError, getAwsErrorCode } from './s3';
 
 describe('S3Service', () => {
   let s3Service: S3Service;
@@ -487,6 +487,72 @@ describe('S3Service', () => {
     it('normalizes a slashes-only string to empty', () => {
       const service = new S3Service({ bucket: 'test-bucket', region: 'us-east-1', prefix: '///' });
       expect((service as unknown as { prefix: string }).prefix).toBe('');
+    });
+  });
+
+  describe('AWS credential error detection', () => {
+    it('identifies InvalidClientTokenId via Code property', () => {
+      expect(isAwsCredentialError({ Code: 'InvalidClientTokenId' })).toBe(true);
+    });
+
+    it('identifies ExpiredToken via Code property', () => {
+      expect(isAwsCredentialError({ Code: 'ExpiredToken' })).toBe(true);
+    });
+
+    it('identifies SignatureDoesNotMatch via Code property', () => {
+      expect(isAwsCredentialError({ Code: 'SignatureDoesNotMatch' })).toBe(true);
+    });
+
+    it('identifies CredentialsProviderError via name property', () => {
+      expect(isAwsCredentialError({ name: 'CredentialsProviderError' })).toBe(true);
+    });
+
+    it('identifies ExpiredTokenException via name property', () => {
+      expect(isAwsCredentialError({ name: 'ExpiredTokenException' })).toBe(true);
+    });
+
+    it('returns false for non-credential AWS errors like NoSuchKey', () => {
+      expect(isAwsCredentialError({ Code: 'NoSuchKey', name: 'NoSuchKey' })).toBe(false);
+    });
+
+    it('returns false for AccessDenied (auth error, not credential error)', () => {
+      expect(isAwsCredentialError({ Code: 'AccessDenied' })).toBe(false);
+    });
+
+    it('returns false for null, undefined, and primitives', () => {
+      expect(isAwsCredentialError(null)).toBe(false);
+      expect(isAwsCredentialError(undefined)).toBe(false);
+      expect(isAwsCredentialError('string error')).toBe(false);
+      expect(isAwsCredentialError(42)).toBe(false);
+    });
+
+    it('returns false for plain Error instances without AWS metadata', () => {
+      expect(isAwsCredentialError(new Error('generic'))).toBe(false);
+    });
+
+    it('matches the shape of a real STS InvalidClientTokenId error', () => {
+      const stsLikeError = {
+        $fault: 'client',
+        $metadata: { httpStatusCode: 403 },
+        Type: 'Sender',
+        Code: 'InvalidClientTokenId',
+        message: 'The security token included in the request is invalid.',
+      };
+      expect(isAwsCredentialError(stsLikeError)).toBe(true);
+      expect(getAwsErrorCode(stsLikeError)).toBe('InvalidClientTokenId');
+    });
+
+    it('getAwsErrorCode prefers Code over name', () => {
+      expect(getAwsErrorCode({ Code: 'CodeValue', name: 'NameValue' })).toBe('CodeValue');
+    });
+
+    it('getAwsErrorCode falls back to name when Code is missing', () => {
+      expect(getAwsErrorCode({ name: 'NameOnly' })).toBe('NameOnly');
+    });
+
+    it('getAwsErrorCode returns undefined for inputs without code or name', () => {
+      expect(getAwsErrorCode({})).toBeUndefined();
+      expect(getAwsErrorCode(null)).toBeUndefined();
     });
   });
 

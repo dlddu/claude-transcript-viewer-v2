@@ -13,6 +13,32 @@ export interface S3ServiceConfig {
   assumeRoleDurationSeconds?: number;
 }
 
+// AWS error codes that indicate the request was rejected because the
+// credentials used to sign it were invalid, expired, or unresolvable.
+// These are distinct from authorization failures (AccessDenied), which
+// happen when valid credentials lack the requested permission.
+const AWS_CREDENTIAL_ERROR_CODES = new Set([
+  'InvalidClientTokenId',
+  'InvalidClientTokenIdException',
+  'ExpiredToken',
+  'ExpiredTokenException',
+  'SignatureDoesNotMatch',
+  'CredentialsProviderError',
+  'TokenRefreshRequired',
+  'UnrecognizedClientException',
+]);
+
+export function getAwsErrorCode(error: unknown): string | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  const err = error as { Code?: string; name?: string };
+  return err.Code ?? err.name ?? undefined;
+}
+
+export function isAwsCredentialError(error: unknown): boolean {
+  const code = getAwsErrorCode(error);
+  return code !== undefined && AWS_CREDENTIAL_ERROR_CODES.has(code);
+}
+
 function normalizePrefix(prefix?: string): string {
   if (!prefix) return '';
   const trimmed = prefix.replace(/^\/+/, '');
@@ -122,6 +148,13 @@ export class S3Service {
         },
         clientConfig: { region: config.region },
       });
+      console.log(
+        `[S3Service] AssumeRole credentials configured: roleArn=${config.assumeRoleArn}, ` +
+        `sessionName=${config.assumeRoleSessionName || 'claude-transcript-viewer'}, ` +
+        `region=${config.region}, bucket=${this.bucket}. ` +
+        `Master credentials are resolved from the default AWS credential chain ` +
+        `(env vars, web identity, instance metadata).`
+      );
     }
 
     this.s3Client = new S3Client(clientConfig);

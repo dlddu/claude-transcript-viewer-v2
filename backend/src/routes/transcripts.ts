@@ -1,5 +1,13 @@
 import express from 'express';
-import { S3Service } from '../services/s3.js';
+import { S3Service, isAwsCredentialError, getAwsErrorCode } from '../services/s3.js';
+
+function credentialErrorResponse(error: unknown) {
+  return {
+    error: 'AWS credentials are invalid or unavailable. Check the backend AWS configuration.',
+    code: 'AWS_CREDENTIALS_ERROR',
+    awsCode: getAwsErrorCode(error),
+  };
+}
 
 export const transcriptsRouter = express.Router();
 
@@ -148,6 +156,9 @@ transcriptsRouter.get('/session/:sessionId', async (req, res) => {
     }
   } catch (error: unknown) {
     console.error('Error fetching transcript by session ID:', error);
+    if (isAwsCredentialError(error)) {
+      return res.status(503).json(credentialErrorResponse(error));
+    }
     res.status(500).json({ error: 'Failed to fetch transcript' });
   }
 });
@@ -189,6 +200,9 @@ transcriptsRouter.get('/:id', async (req, res) => {
     }
   } catch (error: unknown) {
     console.error('Error fetching transcript:', error);
+    if (isAwsCredentialError(error)) {
+      return res.status(503).json(credentialErrorResponse(error));
+    }
     res.status(500).json({ error: 'Failed to fetch transcript' });
   }
 });
@@ -200,6 +214,9 @@ transcriptsRouter.get('/', async (req, res) => {
     res.json(transcripts);
   } catch (error: unknown) {
     console.error('Error listing transcripts:', error);
+    if (isAwsCredentialError(error)) {
+      return res.status(503).json(credentialErrorResponse(error));
+    }
     res.status(500).json({ error: 'Failed to list transcripts' });
   }
 });
