@@ -14,19 +14,17 @@ RUN apt-get update \
 
 WORKDIR /app
 
-# Cache dependency builds by copying Cargo manifests first
-COPY backend/Cargo.toml backend/Cargo.lock* ./
-RUN mkdir -p src tests \
-    && echo "fn main() {}" > src/main.rs \
-    && echo "" > src/lib.rs \
-    && cargo build --release --locked 2>/dev/null || cargo build --release \
-    && rm -rf src tests target/release/deps/claude_transcript_viewer_backend* target/release/deps/backend-*
-
-# Copy the actual sources and build
+COPY backend/Cargo.toml backend/Cargo.lock ./
 COPY backend/src ./src
 COPY backend/tests ./tests
 
-RUN cargo build --release --locked 2>/dev/null || cargo build --release
+# Build the release binary. Docker layer caching keyed on the COPY layers above
+# already gives us reasonable rebuild caching when sources don't change. Using a
+# BuildKit cache mount keeps the cargo registry warm across builds.
+RUN --mount=type=cache,target=/usr/local/cargo/registry \
+    --mount=type=cache,target=/app/target \
+    cargo build --release --locked \
+    && cp /app/target/release/claude-transcript-viewer-backend /usr/local/bin/claude-transcript-viewer-backend
 
 # Runtime stage - minimal Debian image with just the binary
 FROM debian:bookworm-slim
@@ -41,7 +39,7 @@ RUN apt-get update \
 
 WORKDIR /app
 
-COPY --from=build /app/target/release/claude-transcript-viewer-backend /usr/local/bin/claude-transcript-viewer-backend
+COPY --from=build /usr/local/bin/claude-transcript-viewer-backend /usr/local/bin/claude-transcript-viewer-backend
 
 USER appuser
 
