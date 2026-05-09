@@ -2,14 +2,17 @@
   "name": "claude-transcript-viewer-v2",
   "version": "0.1.0",
   "private": true,
-  "description": "Claude transcript viewer with monorepo structure",
+  "description": "Claude transcript viewer with monorepo structure (Rust backend + React frontend)",
   "scripts": {
-    "test": "pnpm -r test",
-    "test:unit": "pnpm -r test:unit",
+    "test": "pnpm -r test && pnpm run test:backend",
+    "test:unit": "pnpm -r test:unit && pnpm run test:backend",
+    "test:backend": "cargo test --manifest-path backend/Cargo.toml --all-targets",
     "test:e2e": "pnpm --filter e2e test",
-    "lint": "pnpm -r lint",
+    "lint": "pnpm -r lint && pnpm run lint:backend",
+    "lint:backend": "cargo fmt --manifest-path backend/Cargo.toml --all -- --check && cargo clippy --manifest-path backend/Cargo.toml --all-targets -- -D warnings",
     "typecheck": "pnpm -r typecheck",
-    "build": "pnpm -r build"
+    "build": "pnpm -r build && pnpm run build:backend",
+    "build:backend": "cargo build --release --manifest-path backend/Cargo.toml"
   },
   "engines": {
     "node": ">=20.0.0",

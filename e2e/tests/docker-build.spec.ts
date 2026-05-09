@@ -175,13 +175,15 @@ describe('Docker Build - Backend', () => {
     assert.strictEqual(dockerImageExists(imageName), true);
   });
 
-  it('should use node:20-alpine base image', () => {
+  it('should use a Rust build image and a slim runtime image', () => {
     // Arrange
     const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
     const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
 
-    // Assert
-    assert.ok(dockerfileContent.includes('FROM node:20-alpine'));
+    // Assert - the backend is now a Rust binary built with multi-stage Docker
+    assert.ok(/FROM\s+rust:[\w.-]+/.test(dockerfileContent), 'should use a rust:* build image');
+    assert.ok(/FROM\s+(debian|distroless|gcr\.io\/distroless)/.test(dockerfileContent),
+      'should use a slim Debian or distroless runtime image');
   });
 
   it('should produce an optimized image size under 300MB', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
@@ -211,7 +213,7 @@ describe('Docker Build - Backend', () => {
     assert.ok(dockerfileContent.includes('EXPOSE 3000'));
   });
 
-  it('should run Express app and respond to health check', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
+  it('should run the backend and respond to health check', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
     // Arrange
     const imageName = 'claude-transcript-viewer-backend:test';
     const containerName = 'claude-backend-test';
@@ -225,7 +227,7 @@ describe('Docker Build - Backend', () => {
     // Wait for container to be ready
     execCommand('sleep 5');
 
-    // Check if Express is responding
+    // Check if the server is responding
     const curlOutput = execCommand('curl -f http://localhost:3001/api/health');
 
     // Assert
@@ -248,19 +250,22 @@ describe('Docker Build - Backend', () => {
     const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
     const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
 
-    // Assert
-    assert.ok(dockerfileContent.includes('USER node'));
+    // Assert - any USER directive other than root counts
+    const userMatch = dockerfileContent.match(/^USER\s+(\S+)/m);
+    assert.ok(userMatch, 'Dockerfile should set a USER directive');
+    assert.notStrictEqual(userMatch![1], 'root', 'Container should not run as root');
   });
 
-  it('should run dist/index.js as entrypoint', () => {
+  it('should run the compiled Rust binary as entrypoint', () => {
     // Arrange
     const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
     const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
 
     // Assert
-    assert.ok(dockerfileContent.includes('CMD'));
-    assert.ok(dockerfileContent.includes('node'));
-    assert.ok(dockerfileContent.includes('dist/index.js'));
+    assert.ok(dockerfileContent.includes('CMD'),
+      'Dockerfile should declare a CMD');
+    assert.ok(dockerfileContent.includes('claude-transcript-viewer-backend'),
+      'CMD should run the claude-transcript-viewer-backend binary');
   });
 });
 

@@ -12,35 +12,37 @@ claude-transcript-viewer-v2/
 │   │   ├── hooks/         # Custom React hooks
 │   │   └── test/          # Test utilities
 │   └── package.json
-├── backend/               # Node.js + Express S3 proxy
+├── backend/               # Rust + Axum S3 proxy
 │   ├── src/
 │   │   ├── routes/        # API routes
 │   │   └── services/      # Business logic (S3 service)
-│   └── package.json
+│   ├── tests/             # Integration tests
+│   └── Cargo.toml
 ├── e2e/                   # Playwright E2E tests
 │   ├── fixtures/          # Sample transcript fixtures
 │   ├── tests/             # E2E test specs
 │   └── package.json
 ├── .github/
 │   └── workflows/
-│       └── test.yml       # CI/CD pipeline with LocalStack
+│       └── test.yml       # CI/CD pipeline with MinIO
 └── package.json           # Root workspace configuration
 ```
 
 ## Technology Stack
 
 - **Frontend**: React 18, Vite, TypeScript, Vitest
-- **Backend**: Node.js, Express, AWS SDK v3
+- **Backend**: Rust, Axum, AWS SDK for Rust (aws-sdk-s3)
 - **E2E Testing**: Playwright
-- **Local Development**: LocalStack (AWS S3 emulation)
+- **Local Development**: MinIO / LocalStack (AWS S3 emulation)
 - **CI/CD**: GitHub Actions
-- **Package Manager**: pnpm workspaces
+- **Package Manager**: pnpm workspaces (frontend / e2e), cargo (backend)
 
 ## Prerequisites
 
 - Node.js >= 20.0.0
 - pnpm >= 8.0.0
-- Docker (for LocalStack)
+- Rust >= 1.83 (with `cargo`)
+- Docker (for MinIO / LocalStack)
 
 ## Installation
 
@@ -80,10 +82,10 @@ awslocal s3 cp e2e/fixtures/ s3://test-transcripts/ --recursive
 ### Run development servers
 
 ```bash
-# Terminal 1: Start backend
+# Terminal 1: Start backend (Rust)
 cd backend
-cp ../.env.example .env
-pnpm dev
+cp .env.example .env
+cargo run
 
 # Terminal 2: Start frontend
 cd frontend
@@ -97,33 +99,40 @@ Visit http://localhost:5173
 ### Unit Tests
 
 ```bash
-# Run all unit tests
+# Run all unit tests (frontend + backend)
 pnpm test:unit
 
 # Run frontend tests only
 pnpm --filter frontend test
 
 # Run backend tests only
-pnpm --filter backend test
+cargo test --manifest-path backend/Cargo.toml
 
-# Watch mode
+# Watch mode (frontend)
 pnpm --filter frontend test:watch
 ```
 
-### Integration Tests
+### Backend Integration / Smoke Tests
 
-Integration tests require LocalStack to be running.
+Backend integration runs against any S3-compatible endpoint.
 
 ```bash
-# Start LocalStack first
-docker run -d -p 4566:4566 -e SERVICES=s3 localstack/localstack:latest
+# Start MinIO
+docker run -d --name minio -p 9000:9000 \
+  -e MINIO_ROOT_USER=minioadmin \
+  -e MINIO_ROOT_PASSWORD=minioadmin \
+  minio/minio:latest server /data
 
 # Setup test data
-awslocal s3 mb s3://test-transcripts
-awslocal s3 cp e2e/fixtures/ s3://test-transcripts/ --recursive
+aws --endpoint-url http://localhost:9000 s3 mb s3://test-transcripts
+aws --endpoint-url http://localhost:9000 s3 cp e2e/fixtures/ s3://test-transcripts/ --recursive
 
-# Run integration tests
-pnpm --filter backend test:integration
+# Run the backend pointed at MinIO
+AWS_ENDPOINT_URL=http://localhost:9000 \
+AWS_ACCESS_KEY_ID=minioadmin \
+AWS_SECRET_ACCESS_KEY=minioadmin \
+S3_BUCKET=test-transcripts \
+cargo run --manifest-path backend/Cargo.toml --release
 ```
 
 ### E2E Tests
@@ -160,13 +169,13 @@ These fixtures demonstrate:
 
 GitHub Actions workflow includes:
 
-1. **Unit Tests**: Tests for frontend and backend
-2. **Integration Tests**: Backend tests with LocalStack S3
+1. **Unit Tests**: Frontend Vitest, backend `cargo test`
+2. **Integration Tests**: Backend smoke test running the Rust binary against MinIO
 3. **E2E Tests**: Full application tests with Playwright
-4. **Linting**: Code quality checks
+4. **Linting**: ESLint (frontend) plus `cargo fmt` and `cargo clippy` (backend)
 
 The workflow automatically:
-- Starts LocalStack service
+- Starts MinIO service
 - Creates S3 bucket and uploads fixtures
 - Runs all test suites
 - Uploads Playwright reports as artifacts

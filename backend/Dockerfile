@@ -1,55 +1,49 @@
-# Build stage
-FROM node:20-alpine AS build
+# Build stage - compile the Rust backend
+FROM rust:1.83-slim-bookworm AS build
 
-# Enable corepack and install correct pnpm version
-RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
-
-WORKDIR /app
-
-# Copy workspace configuration and all package.json files for proper lockfile resolution
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY frontend/package.json ./frontend/
-COPY backend/package.json ./backend/
-COPY e2e/package.json ./e2e/
-
-# Install all dependencies (including dev dependencies for build)
-RUN pnpm install --frozen-lockfile --filter @claude-transcript-viewer/backend...
-
-# Copy backend source code
-COPY backend/ ./backend/
-
-# Build TypeScript code
-WORKDIR /app/backend
-RUN pnpm build
-
-# Production stage
-FROM node:20-alpine
-
-# Enable corepack and install correct pnpm version
-RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
+# Install build dependencies for the AWS SDK (uses aws-lc-rs which needs cmake)
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       pkg-config \
+       cmake \
+       libssl-dev \
+       ca-certificates \
+       build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
-# Set production environment
-ENV NODE_ENV=production
+# Cache dependency builds by copying Cargo manifests first
+COPY backend/Cargo.toml backend/Cargo.lock* ./
+RUN mkdir -p src tests \
+    && echo "fn main() {}" > src/main.rs \
+    && echo "" > src/lib.rs \
+    && cargo build --release --locked 2>/dev/null || cargo build --release \
+    && rm -rf src tests target/release/deps/claude_transcript_viewer_backend* target/release/deps/backend-*
 
-# Copy workspace configuration and all package.json files
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY frontend/package.json ./frontend/
-COPY backend/package.json ./backend/
-COPY e2e/package.json ./e2e/
+# Copy the actual sources and build
+COPY backend/src ./src
+COPY backend/tests ./tests
 
-# Install production dependencies only
-RUN pnpm install --prod --frozen-lockfile --filter @claude-transcript-viewer/backend...
+RUN cargo build --release --locked 2>/dev/null || cargo build --release
 
-# Copy built files from build stage
-COPY --from=build /app/backend/dist ./backend/dist
+# Runtime stage - minimal Debian image with just the binary
+FROM debian:bookworm-slim
 
-# Use non-root user
-USER node
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends \
+       ca-certificates \
+       curl \
+    && rm -rf /var/lib/apt/lists/* \
+    && groupadd --system --gid 1000 appuser \
+    && useradd --system --uid 1000 --gid appuser --shell /sbin/nologin appuser
 
-# Expose port 3000
+WORKDIR /app
+
+COPY --from=build /app/target/release/claude-transcript-viewer-backend /usr/local/bin/claude-transcript-viewer-backend
+
+USER appuser
+
 EXPOSE 3000
 
-# Start the application
-CMD ["node", "backend/dist/index.js"]
+CMD ["/usr/local/bin/claude-transcript-viewer-backend"]

@@ -1,18 +1,18 @@
-# Dependencies
-node_modules
+# Rust build artifacts
+target
+Cargo.lock.bak
 
-# Build output
+# Node artifacts (legacy, in case they are copied at the workspace root)
+node_modules
 dist
 
 # Git
 .git
 .gitignore
 
-# Test files
+# Test files (Rust integration tests still get pulled in via tests/)
 **/*.test.*
 **/*.spec.*
-**/*.integration.test.*
-coverage
 
 # Documentation
 README.md
@@ -35,7 +35,3 @@ Thumbs.db
 
 # Logs
 *.log
-npm-debug.log*
-pnpm-debug.log*
-yarn-debug.log*
-yarn-error.log*

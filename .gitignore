@@ -7,6 +7,10 @@ dist/
 build/
 .vite/
 
+# Rust build artifacts
+backend/target/
+target/
+
 # Test coverage
 coverage/
 .nyc_output/

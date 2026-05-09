@@ -30,30 +30,64 @@ jobs:
       - name: Run frontend unit tests
         run: pnpm --filter @claude-transcript-viewer/frontend test:unit
 
-      - name: Run backend unit tests
-        run: pnpm --filter @claude-transcript-viewer/backend test:unit
-
       - name: Type check
         run: pnpm typecheck
 
-  integration-tests:
-    name: Integration Tests with MinIO
+  backend-unit-tests:
+    name: Backend Unit Tests (Rust)
     runs-on: ubuntu-24.04-arm
 
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v3
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
         with:
-          version: 8
+          components: clippy, rustfmt
 
-      - uses: actions/setup-node@v4
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: cargo-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('backend/Cargo.toml', 'backend/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-${{ runner.arch }}-
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Format check
+        working-directory: backend
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        working-directory: backend
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: Run backend tests
+        working-directory: backend
+        run: cargo test --all-targets
+
+  integration-tests:
+    name: Backend Integration Smoke Test with MinIO
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: cargo-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('backend/Cargo.toml', 'backend/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-${{ runner.arch }}-
 
       - name: Start MinIO
         run: |
@@ -75,23 +109,36 @@ jobs:
           AWS_ENDPOINT_URL: http://localhost:9000
         run: |
           # Create bucket
-          aws --endpoint-url "$AWS_ENDPOINT_URL" s3 mb s3://test-transcripts
+          aws --endpoint-url "$AWS_ENDPOINT_URL" s3 mb s3://integration-bucket
 
-          # Upload test fixtures
-          aws --endpoint-url "$AWS_ENDPOINT_URL" s3 cp e2e/fixtures/sample-main-transcript.json s3://test-transcripts/transcript-20260201-001.json
-          aws --endpoint-url "$AWS_ENDPOINT_URL" s3 cp e2e/fixtures/subagent-data-analyzer-20260201-001.json s3://test-transcripts/subagent-data-analyzer-20260201-001.json
-          aws --endpoint-url "$AWS_ENDPOINT_URL" s3 cp e2e/fixtures/subagent-visualizer-20260201-001.json s3://test-transcripts/subagent-visualizer-20260201-001.json
+          # Upload test fixtures (the bucket name avoids the in-process mock fixtures)
+          aws --endpoint-url "$AWS_ENDPOINT_URL" s3 cp e2e/fixtures/sample-main-transcript.json s3://integration-bucket/transcript-20260201-001.json
+          aws --endpoint-url "$AWS_ENDPOINT_URL" s3 cp e2e/fixtures/subagent-data-analyzer-20260201-001.json s3://integration-bucket/subagent-data-analyzer-20260201-001.json
+          aws --endpoint-url "$AWS_ENDPOINT_URL" s3 cp e2e/fixtures/subagent-visualizer-20260201-001.json s3://integration-bucket/subagent-visualizer-20260201-001.json
 
           # Verify upload
-          aws --endpoint-url "$AWS_ENDPOINT_URL" s3 ls s3://test-transcripts/
+          aws --endpoint-url "$AWS_ENDPOINT_URL" s3 ls s3://integration-bucket/
 
-      - name: Run integration tests
+      - name: Build backend
+        working-directory: backend
+        run: cargo build --release
+
+      - name: Smoke test backend against MinIO
         env:
+          PORT: 3000
           AWS_ENDPOINT_URL: http://localhost:9000
           AWS_ACCESS_KEY_ID: minioadmin
           AWS_SECRET_ACCESS_KEY: minioadmin
-          AWS_DEFAULT_REGION: us-east-1
-        run: pnpm --filter @claude-transcript-viewer/backend test:integration
+          AWS_REGION: us-east-1
+          S3_BUCKET: integration-bucket
+        run: |
+          ./backend/target/release/claude-transcript-viewer-backend &
+          BACKEND_PID=$!
+          trap "kill $BACKEND_PID || true" EXIT
+          timeout 30 bash -c 'until curl -fs http://localhost:3000/api/health; do sleep 1; done'
+          # Verify the binary can fetch a real transcript from MinIO
+          curl -fs http://localhost:3000/api/transcripts/transcript-20260201-001 | head -c 200
+          echo ""
 
   e2e-tests:
     name: E2E Tests with Playwright
@@ -149,22 +196,38 @@ jobs:
           aws --endpoint-url "$AWS_ENDPOINT_URL" s3 mb s3://test-transcripts
           aws --endpoint-url "$AWS_ENDPOINT_URL" s3 cp e2e/fixtures/ s3://test-transcripts/ --recursive
 
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo registry and target
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            backend/target
+          key: cargo-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('backend/Cargo.toml', 'backend/Cargo.lock') }}
+          restore-keys: |
+            cargo-${{ runner.os }}-${{ runner.arch }}-
+
       - name: Build frontend
         env:
           VITE_API_URL: http://localhost:3000
         run: pnpm --filter @claude-transcript-viewer/frontend build
 
       - name: Build backend
-        run: pnpm --filter @claude-transcript-viewer/backend build
+        working-directory: backend
+        run: cargo build --release
 
       - name: Start backend server
         env:
           AWS_ENDPOINT_URL: http://localhost:9000
           AWS_ACCESS_KEY_ID: minioadmin
           AWS_SECRET_ACCESS_KEY: minioadmin
+          AWS_REGION: us-east-1
           S3_BUCKET: test-transcripts
         run: |
-          pnpm --filter @claude-transcript-viewer/backend start &
+          ./backend/target/release/claude-transcript-viewer-backend &
           timeout 30 bash -c 'until curl -f http://localhost:3000/api/health; do sleep 2; done'
 
       - name: Start frontend server
@@ -521,7 +584,6 @@ jobs:
         with:
           path: |
             frontend/.eslintcache
-            backend/.eslintcache
           key: eslint-${{ runner.os }}-${{ hashFiles('**/eslint*') }}-${{ github.sha }}
           restore-keys: |
             eslint-${{ runner.os }}-${{ hashFiles('**/eslint*') }}-
