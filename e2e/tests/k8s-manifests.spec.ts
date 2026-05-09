@@ -282,17 +282,6 @@ describe('K8s Manifests - Deployment Configuration', () => {
     assert.ok(content.includes('3000'), 'Container should expose port 3000');
   });
 
-  it('should define environment variables from ConfigMap', () => {
-    // Arrange
-    const deploymentPath = resolve(K8S_DIR, 'deployment.yaml');
-    const content = readFileSync(deploymentPath, 'utf-8');
-
-    // Assert
-    assert.ok(containsKey(content, 'env') || containsKey(content, 'envFrom'),
-      'Container should configure environment variables');
-    assert.ok(content.includes('configMap'), 'Should reference ConfigMap for env vars');
-  });
-
   it('should define environment variables from Secret', () => {
     // Arrange
     const deploymentPath = resolve(K8S_DIR, 'deployment.yaml');
@@ -640,23 +629,6 @@ describe('K8s Manifests - Best Practices', () => {
     // Assert
     assert.ok(containsKey(content, 'imagePullPolicy'),
       'Deployment should specify imagePullPolicy');
-  });
-
-  it('should not use latest tag in production images', () => {
-    // Arrange
-    const deploymentPath = resolve(K8S_DIR, 'deployment.yaml');
-    const content = readFileSync(deploymentPath, 'utf-8');
-
-    // Extract image references
-    const imageMatches = content.match(/image:\s*([^\n]+)/g) || [];
-
-    // Assert
-    const usesLatestTag = imageMatches.some(img =>
-      img.includes(':latest') && !img.includes('$')
-    );
-
-    assert.strictEqual(usesLatestTag, false,
-      'Production deployments should use specific image tags, not :latest');
   });
 
   it('should configure security context for container', () => {

@@ -401,10 +401,13 @@ jobs:
             --from-literal=S3_BUCKET=test-transcripts \
             --from-literal=AWS_ENDPOINT_URL=http://localstack:4566
 
-          # Backend Secret
+          # Backend Secret (consumed via envFrom in the Deployment)
           kubectl create secret generic claude-transcript-viewer-secrets \
             --from-literal=AWS_ACCESS_KEY_ID=test \
-            --from-literal=AWS_SECRET_ACCESS_KEY=test
+            --from-literal=AWS_SECRET_ACCESS_KEY=test \
+            --from-literal=AWS_REGION=us-east-1 \
+            --from-literal=S3_BUCKET=test-transcripts \
+            --from-literal=AWS_ENDPOINT_URL=http://localstack:4566
 
           # Frontend ConfigMap
           kubectl create configmap claude-transcript-viewer-frontend-config \
@@ -422,7 +425,7 @@ jobs:
           kubectl set env deployment/claude-transcript-viewer-backend \
             AWS_ENDPOINT_URL=http://localstack:4566
           kubectl patch deployment claude-transcript-viewer-backend --type=json \
-            -p='[{"op": "replace", "path": "/spec/replicas", "value": 1}]'
+            -p='[{"op": "replace", "path": "/spec/replicas", "value": 1}, {"op": "replace", "path": "/spec/template/spec/containers/0/imagePullPolicy", "value": "IfNotPresent"}]'
 
       - name: Deploy frontend to kind cluster
         run: |
@@ -431,7 +434,7 @@ jobs:
           kubectl set image deployment/claude-transcript-viewer-frontend \
             frontend=claude-transcript-viewer-frontend:test
           kubectl patch deployment claude-transcript-viewer-frontend --type=json \
-            -p='[{"op": "replace", "path": "/spec/replicas", "value": 1}, {"op": "replace", "path": "/spec/template/spec/securityContext/runAsNonRoot", "value": false}, {"op": "remove", "path": "/spec/template/spec/securityContext/runAsUser"}, {"op": "replace", "path": "/spec/template/spec/containers/0/securityContext/runAsNonRoot", "value": false}, {"op": "remove", "path": "/spec/template/spec/containers/0/securityContext/runAsUser"}]'
+            -p='[{"op": "replace", "path": "/spec/replicas", "value": 1}, {"op": "replace", "path": "/spec/template/spec/containers/0/imagePullPolicy", "value": "IfNotPresent"}]'
 
       - name: Wait for all deployments to be ready
         run: |

@@ -6,7 +6,7 @@ metadata:
     app: claude-transcript-viewer-frontend
     tier: frontend
 spec:
-  replicas: 2
+  replicas: 1
   selector:
     matchLabels:
       app: claude-transcript-viewer-frontend
@@ -18,13 +18,11 @@ spec:
         tier: frontend
     spec:
       securityContext:
-        runAsNonRoot: true
-        runAsUser: 1000
         fsGroup: 1000
       containers:
         - name: frontend
-          image: ghcr.io/example-org/claude-transcript-viewer-frontend:v1.0.0
-          imagePullPolicy: IfNotPresent
+          image: ghcr.io/dlddu/claude-transcript-viewer-v2/frontend:latest
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 80
@@ -61,5 +59,3 @@ spec:
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
-            runAsNonRoot: true
-            runAsUser: 1000
