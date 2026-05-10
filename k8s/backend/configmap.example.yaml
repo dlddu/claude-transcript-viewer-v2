@@ -9,3 +9,8 @@ data:
   PORT: "3000"
   AWS_REGION: "us-east-1"
   S3_BUCKET: "your-s3-bucket-name"
+  # Default to info. To debug "which AWS credential provider is actually
+  # supplying credentials" (env / profile / IRSA / ECS / EC2 instance profile),
+  # temporarily set:
+  #   RUST_LOG: "info,aws_config::meta::credentials::chain=debug"
+  RUST_LOG: "info"
