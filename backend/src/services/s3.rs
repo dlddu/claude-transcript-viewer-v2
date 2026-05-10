@@ -50,6 +50,20 @@ fn normalize_prefix(prefix: Option<&str>) -> String {
     }
 }
 
+/// Walk an error's source chain so AWS SDK failures surface the full context
+/// (operation, dispatch error, transport error, request id, etc.) instead of
+/// the unhelpful top-level "unhandled error" string.
+fn format_error_chain<E: std::error::Error + ?Sized>(err: &E) -> String {
+    use std::fmt::Write;
+    let mut buf = err.to_string();
+    let mut source: Option<&dyn std::error::Error> = err.source();
+    while let Some(e) = source {
+        let _ = write!(buf, ": {e}");
+        source = e.source();
+    }
+    buf
+}
+
 impl S3Service {
     pub async fn new(config: S3ServiceConfig) -> Self {
         let bucket = config.bucket.clone();
@@ -111,23 +125,34 @@ impl S3Service {
         };
         let key = format!("{}{}", self.inner.prefix, base_key);
 
+        tracing::debug!(bucket = %self.inner.bucket, key = %key, "GetObject");
+
         let response = client
             .get_object()
             .bucket(&self.inner.bucket)
             .key(&key)
             .send()
             .await
-            .map_err(|err| match err.into_service_error() {
-                aws_sdk_s3::operation::get_object::GetObjectError::NoSuchKey(_) => {
-                    ServiceError::TranscriptNotFound
-                }
-                other => {
-                    if let Some(code) = other.meta().code() {
-                        if code.eq_ignore_ascii_case("NoSuchKey") || code == "404" {
-                            return ServiceError::TranscriptNotFound;
-                        }
+            .map_err(|err| {
+                let detailed = format_error_chain(&err);
+                match err.into_service_error() {
+                    aws_sdk_s3::operation::get_object::GetObjectError::NoSuchKey(_) => {
+                        ServiceError::TranscriptNotFound
                     }
-                    ServiceError::S3(other.to_string())
+                    other => {
+                        if let Some(code) = other.meta().code() {
+                            if code.eq_ignore_ascii_case("NoSuchKey") || code == "404" {
+                                return ServiceError::TranscriptNotFound;
+                            }
+                        }
+                        tracing::warn!(
+                            bucket = %self.inner.bucket,
+                            key = %key,
+                            error = %detailed,
+                            "GetObject failed",
+                        );
+                        ServiceError::S3(detailed)
+                    }
                 }
             })?;
 
@@ -135,7 +160,7 @@ impl S3Service {
             .body
             .collect()
             .await
-            .map_err(|e| ServiceError::S3(e.to_string()))?;
+            .map_err(|e| ServiceError::S3(format_error_chain(&e)))?;
         let bytes = body.into_bytes();
         let parsed: Value = serde_json::from_slice(&bytes)
             .map_err(|e| ServiceError::Parse(format!("Failed to parse JSON: {e}")))?;
@@ -163,13 +188,14 @@ impl S3Service {
             request = request.prefix(&self.inner.prefix);
         }
         let response = request.send().await.map_err(|err| {
+            let detailed = format_error_chain(&err);
             let svc = err.into_service_error();
             if let Some(code) = svc.meta().code() {
                 if code.eq_ignore_ascii_case("NoSuchBucket") {
                     return ServiceError::S3("NoSuchBucket".to_string());
                 }
             }
-            ServiceError::S3(svc.to_string())
+            ServiceError::S3(detailed)
         });
         let response = match response {
             Ok(r) => r,
@@ -227,6 +253,13 @@ impl S3Service {
             .ok_or_else(|| ServiceError::S3("S3 client not configured".to_string()))?;
 
         let session_key_prefix = format!("{}{}", self.inner.prefix, trimmed);
+
+        tracing::debug!(
+            bucket = %self.inner.bucket,
+            prefix = %session_key_prefix,
+            "ListObjectsV2 for session",
+        );
+
         let list_response = client
             .list_objects_v2()
             .bucket(&self.inner.bucket)
@@ -234,13 +267,20 @@ impl S3Service {
             .send()
             .await
             .map_err(|err| {
+                let detailed = format_error_chain(&err);
                 let svc = err.into_service_error();
                 if let Some(code) = svc.meta().code() {
                     if code.eq_ignore_ascii_case("NoSuchBucket") {
                         return ServiceError::SessionNotFound;
                     }
                 }
-                ServiceError::S3(svc.to_string())
+                tracing::warn!(
+                    bucket = %self.inner.bucket,
+                    prefix = %session_key_prefix,
+                    error = %detailed,
+                    "ListObjectsV2 failed",
+                );
+                ServiceError::S3(detailed)
             })?;
 
         let contents = list_response.contents();
@@ -263,13 +303,13 @@ impl S3Service {
             .key(&main_transcript_key)
             .send()
             .await
-            .map_err(|err| ServiceError::S3(err.into_service_error().to_string()))?;
+            .map_err(|err| ServiceError::S3(format_error_chain(&err)))?;
 
         let body = get_response
             .body
             .collect()
             .await
-            .map_err(|e| ServiceError::S3(e.to_string()))?;
+            .map_err(|e| ServiceError::S3(format_error_chain(&e)))?;
         let body_string = String::from_utf8(body.into_bytes().to_vec())
             .map_err(|e| ServiceError::Parse(format!("Body is not UTF-8: {e}")))?;
 

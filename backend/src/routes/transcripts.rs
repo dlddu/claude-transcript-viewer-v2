@@ -67,7 +67,12 @@ async fn get_by_id(
         Ok(value) => Ok(Json(value)),
         Err(ServiceError::TranscriptNotFound) => Err(ApiError::TranscriptNotFound),
         Err(e) => {
-            tracing::error!(error = %e, "failed to fetch transcript");
+            tracing::error!(
+                transcript_id = %id,
+                bucket = %state.s3.bucket(),
+                error = %e,
+                "failed to fetch transcript",
+            );
             Err(ApiError::FetchFailed(e.to_string()))
         }
     }
@@ -112,7 +117,12 @@ async fn get_by_session_id(
         }
         Err(ServiceError::SessionIdRequired) => Err(ApiError::SessionIdRequired),
         Err(e) => {
-            tracing::error!(error = %e, "failed to fetch transcript by session id");
+            tracing::error!(
+                session_id = %trimmed,
+                bucket = %state.s3.bucket(),
+                error = %e,
+                "failed to fetch transcript by session id",
+            );
             Err(ApiError::FetchFailed(e.to_string()))
         }
     }
