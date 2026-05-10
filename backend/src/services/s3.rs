@@ -439,6 +439,8 @@ fn parse_jsonl(body: &str) -> Result<Vec<Value>, ServiceError> {
 }
 
 async fn build_s3_client(config: &S3ServiceConfig) -> Option<S3Client> {
+    log_startup_config(config);
+
     let region = Region::new(config.region.clone());
 
     if let Some(endpoint) = &config.endpoint {
@@ -446,6 +448,12 @@ async fn build_s3_client(config: &S3ServiceConfig) -> Option<S3Client> {
         let secret_key =
             env::var("AWS_SECRET_ACCESS_KEY").unwrap_or_else(|_| "minioadmin".to_string());
         let creds = Credentials::new(access_key, secret_key, None, None, "static");
+
+        tracing::info!(
+            endpoint = %endpoint,
+            credential_source = "static (endpoint override)",
+            "S3 client using S3-compatible endpoint",
+        );
 
         let s3_config = S3ConfigBuilder::new()
             .behavior_version(BehaviorVersion::latest())
@@ -460,6 +468,13 @@ async fn build_s3_client(config: &S3ServiceConfig) -> Option<S3Client> {
     let mut loader = aws_config::defaults(BehaviorVersion::latest()).region(region.clone());
 
     if let Some(role_arn) = &config.assume_role_arn {
+        tracing::info!(
+            role_arn = %role_arn,
+            session_name = ?config.assume_role_session_name,
+            has_external_id = config.assume_role_external_id.is_some(),
+            duration_seconds = ?config.assume_role_duration_seconds,
+            "Configuring STS AssumeRole credentials provider",
+        );
         let mut builder = aws_config::sts::AssumeRoleProvider::builder(role_arn)
             .session_name(
                 config
@@ -476,10 +491,68 @@ async fn build_s3_client(config: &S3ServiceConfig) -> Option<S3Client> {
         }
         let provider = builder.build().await;
         loader = loader.credentials_provider(provider);
+    } else {
+        tracing::info!("Using default AWS credential provider chain (env, IRSA, profile, IMDS)",);
     }
 
     let shared_config = loader.load().await;
+    probe_credentials(&shared_config).await;
     Some(S3Client::new(&shared_config))
+}
+
+/// Mask all but the last 4 characters of an access key for log output.
+fn mask_access_key(key: &str) -> String {
+    let len = key.len();
+    if len <= 4 {
+        "****".to_string()
+    } else {
+        let tail = &key[len - 4..];
+        format!("{}****{}", &key[..1], tail)
+    }
+}
+
+fn log_startup_config(config: &S3ServiceConfig) {
+    let aws_envs: Vec<String> = env::vars()
+        .map(|(k, _)| k)
+        .filter(|k| k.starts_with("AWS_") || k == "S3_BUCKET" || k == "S3_PREFIX")
+        .collect();
+
+    tracing::info!(
+        bucket = %config.bucket,
+        region = %config.region,
+        prefix = ?config.prefix,
+        endpoint = ?config.endpoint,
+        assume_role_arn = ?config.assume_role_arn,
+        env_vars_present = ?aws_envs,
+        "S3 service configuration",
+    );
+}
+
+async fn probe_credentials(shared_config: &aws_config::SdkConfig) {
+    use aws_credential_types::provider::ProvideCredentials;
+
+    let Some(provider) = shared_config.credentials_provider() else {
+        tracing::warn!("No credentials provider configured on SdkConfig");
+        return;
+    };
+
+    match provider.provide_credentials().await {
+        Ok(creds) => {
+            tracing::info!(
+                access_key_id = %mask_access_key(creds.access_key_id()),
+                has_session_token = creds.session_token().is_some(),
+                expiry = ?creds.expiry(),
+                "AWS credentials resolved at startup",
+            );
+        }
+        Err(err) => {
+            tracing::error!(
+                error = %format_error_chain(&err),
+                "Failed to resolve AWS credentials at startup. Check AWS_ACCESS_KEY_ID / \
+                 AWS_WEB_IDENTITY_TOKEN_FILE / IMDS / ~/.aws/credentials.",
+            );
+        }
+    }
 }
 
 #[cfg(test)]
