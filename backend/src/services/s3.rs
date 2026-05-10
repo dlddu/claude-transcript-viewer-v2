@@ -213,7 +213,7 @@ impl S3Service {
             return Err(ServiceError::SessionIdRequired);
         }
 
-        if self.inner.bucket == "test-bucket" || self.inner.bucket == "test-transcripts" {
+        if self.inner.bucket == "test-bucket" {
             return MOCK_TRANSCRIPTS_BY_SESSION
                 .get(trimmed)
                 .cloned()
