@@ -32,6 +32,12 @@ spec:
           env:
             - name: PORT
               value: "3000"
+            # TEMP: raise the aws_config chain module to debug so we can see which
+            # provider in the default chain is supplying base credentials to the
+            # STS AssumeRoleProvider. Revert to "info" once the chain question is
+            # answered.
+            - name: RUST_LOG
+              value: "info,aws_config::meta::credentials::chain=debug"
           envFrom:
             - secretRef:
                 name: claude-transcript-viewer-secrets
