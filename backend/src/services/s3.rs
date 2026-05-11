@@ -1,6 +1,9 @@
 use std::env;
 use std::sync::Arc;
+use std::time::Duration;
 
+use aws_config::default_provider::credentials::DefaultCredentialsChain;
+use aws_config::imds;
 use aws_config::{BehaviorVersion, Region};
 use aws_credential_types::provider::SharedCredentialsProvider;
 use aws_credential_types::Credentials;
@@ -465,9 +468,48 @@ async fn build_s3_client(config: &S3ServiceConfig) -> Option<S3Client> {
         return Some(S3Client::from_conf(s3_config));
     }
 
-    let mut loader = aws_config::defaults(BehaviorVersion::latest()).region(region.clone());
+    // AWS SDK for Rust ships with a 1s IMDS connect/read timeout. On k3s/EKS
+    // pods, the first IMDS call commonly exceeds 1s because of CNI/iptables
+    // hops, which falls through to "no credentials" even when the node itself
+    // has an instance profile (and other-language SDKs on the same node
+    // succeed because their defaults are looser). Build a custom IMDS client
+    // with longer timeouts, and slot it into the default chain so the
+    // Ec2InstanceMetadata provider — and the AssumeRoleProvider that uses it
+    // as a base — both benefit.
+    let imds_connect_timeout =
+        env_duration_ms("AWS_IMDS_CONNECT_TIMEOUT_MS").unwrap_or_else(|| Duration::from_secs(2));
+    let imds_read_timeout =
+        env_duration_ms("AWS_IMDS_READ_TIMEOUT_MS").unwrap_or_else(|| Duration::from_secs(5));
 
-    if let Some(role_arn) = &config.assume_role_arn {
+    tracing::info!(
+        connect_timeout = ?imds_connect_timeout,
+        read_timeout = ?imds_read_timeout,
+        "Building IMDS client (overrides 1s/1s default)",
+    );
+
+    let imds_client = imds::Client::builder()
+        .connect_timeout(imds_connect_timeout)
+        .read_timeout(imds_read_timeout)
+        .build();
+
+    let base_chain = DefaultCredentialsChain::builder()
+        .imds_client(imds_client)
+        .region(region.clone())
+        .build()
+        .await;
+    let base_provider = SharedCredentialsProvider::new(base_chain);
+
+    // Build a base SdkConfig that uses our custom chain. Going through
+    // `aws_config::defaults(...).load()` is important: it fills in fields like
+    // the time_source/sleep_impl that the AssumeRoleProvider's `.configure(...)`
+    // path requires (a hand-rolled SdkConfig::builder() omits them and panics).
+    let base_sdk_config = aws_config::defaults(BehaviorVersion::latest())
+        .region(region.clone())
+        .credentials_provider(base_provider.clone())
+        .load()
+        .await;
+
+    let credentials_provider = if let Some(role_arn) = &config.assume_role_arn {
         tracing::info!(
             role_arn = %role_arn,
             session_name = ?config.assume_role_session_name,
@@ -475,6 +517,10 @@ async fn build_s3_client(config: &S3ServiceConfig) -> Option<S3Client> {
             duration_seconds = ?config.assume_role_duration_seconds,
             "Configuring STS AssumeRole credentials provider",
         );
+        // Feed our SdkConfig (carrying the long-timeout IMDS chain) to the
+        // AssumeRoleProvider via .configure(...). Without this, the provider
+        // would internally call load_defaults() and re-resolve base
+        // credentials with the stock 1s IMDS timeout, defeating the point.
         let mut builder = aws_config::sts::AssumeRoleProvider::builder(role_arn)
             .session_name(
                 config
@@ -482,22 +528,33 @@ async fn build_s3_client(config: &S3ServiceConfig) -> Option<S3Client> {
                     .clone()
                     .unwrap_or_else(|| "claude-transcript-viewer".to_string()),
             )
-            .region(region);
+            .region(region.clone())
+            .configure(&base_sdk_config);
         if let Some(external_id) = &config.assume_role_external_id {
             builder = builder.external_id(external_id);
         }
         if let Some(duration) = config.assume_role_duration_seconds {
-            builder = builder.session_length(std::time::Duration::from_secs(duration as u64));
+            builder = builder.session_length(Duration::from_secs(duration as u64));
         }
-        let provider = builder.build().await;
-        loader = loader.credentials_provider(provider);
+        SharedCredentialsProvider::new(builder.build().await)
     } else {
-        tracing::info!("Using default AWS credential provider chain (env, IRSA, profile, IMDS)",);
-    }
+        tracing::info!("Using default AWS credential provider chain (env, IRSA, profile, IMDS)");
+        base_provider
+    };
 
-    let shared_config = loader.load().await;
+    let shared_config = base_sdk_config
+        .into_builder()
+        .credentials_provider(credentials_provider)
+        .build();
     probe_credentials(&shared_config).await;
     Some(S3Client::new(&shared_config))
+}
+
+fn env_duration_ms(name: &str) -> Option<Duration> {
+    env::var(name)
+        .ok()
+        .and_then(|v| v.parse::<u64>().ok())
+        .map(Duration::from_millis)
 }
 
 /// Mask all but the last 4 characters of an access key for log output.
