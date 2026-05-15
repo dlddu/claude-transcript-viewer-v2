@@ -1,53 +1,67 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import request from 'supertest';
+
+const mockS3Service = vi.hoisted(() => ({
+  getTranscript: vi.fn(),
+  getTranscriptBySessionId: vi.fn(),
+  listTranscripts: vi.fn(),
+}));
+
+vi.mock('../services/s3.js', () => ({
+  S3Service: vi.fn().mockImplementation(() => mockS3Service),
+}));
+
 import { app } from '../app';
+
+beforeEach(() => {
+  mockS3Service.getTranscript.mockReset();
+  mockS3Service.getTranscriptBySessionId.mockReset();
+  mockS3Service.listTranscripts.mockReset();
+});
 
 describe('Transcripts API', () => {
   describe('GET /api/transcripts/:id', () => {
     it('should return transcript data from S3', async () => {
-      // Arrange
       const transcriptId = 'test-transcript-1';
+      mockS3Service.getTranscript.mockResolvedValueOnce({
+        id: transcriptId,
+        content: 'Some transcript content',
+      });
 
-      // Act
       const response = await request(app).get(`/api/transcripts/${transcriptId}`);
 
-      // Assert
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('id', transcriptId);
       expect(response.body).toHaveProperty('content');
     });
 
     it('should return 404 when transcript not found', async () => {
-      // Arrange
-      const nonExistentId = 'non-existent-id';
+      mockS3Service.getTranscript.mockRejectedValueOnce(new Error('Transcript not found'));
 
-      // Act
-      const response = await request(app).get(`/api/transcripts/${nonExistentId}`);
+      const response = await request(app).get('/api/transcripts/non-existent-id');
 
-      // Assert
       expect(response.status).toBe(404);
       expect(response.body).toHaveProperty('error');
     });
 
     it('should handle S3 errors gracefully', async () => {
-      // Arrange
-      const invalidId = 'invalid-id';
+      mockS3Service.getTranscript.mockRejectedValueOnce(new Error('Unexpected S3 failure'));
 
-      // Act
-      const response = await request(app).get(`/api/transcripts/${invalidId}`);
+      const response = await request(app).get('/api/transcripts/invalid-id');
 
-      // Assert
       expect(response.status).toBeGreaterThanOrEqual(400);
     });
 
     it('should include subagent transcripts in response', async () => {
-      // Arrange
       const transcriptId = 'test-with-subagents';
+      mockS3Service.getTranscript.mockResolvedValueOnce({
+        id: transcriptId,
+        content: 'Transcript with subagents',
+        subagents: [],
+      });
 
-      // Act
       const response = await request(app).get(`/api/transcripts/${transcriptId}`);
 
-      // Assert
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('subagents');
       expect(Array.isArray(response.body.subagents)).toBe(true);
@@ -56,13 +70,17 @@ describe('Transcripts API', () => {
 
   describe('GET /api/transcript/session/:sessionId', () => {
     it('should return transcript data for valid session ID', async () => {
-      // Arrange
       const sessionId = 'session-abc123';
+      mockS3Service.getTranscriptBySessionId.mockResolvedValueOnce({
+        id: sessionId,
+        session_id: sessionId,
+        content: '{}',
+        messages: [{ type: 'user', sessionId, uuid: 'msg-001', timestamp: '2026-02-01T05:00:00Z', parentUuid: null }],
+        subagents: [],
+      });
 
-      // Act
       const response = await request(app).get(`/api/transcript/session/${sessionId}`);
 
-      // Assert
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('session_id', sessionId);
       expect(response.body).toHaveProperty('id');
@@ -72,43 +90,51 @@ describe('Transcripts API', () => {
     });
 
     it('should return 404 when session ID not found', async () => {
-      // Arrange
-      const nonExistentSessionId = 'session-nonexistent-999';
+      mockS3Service.getTranscriptBySessionId.mockRejectedValueOnce(
+        new Error('No transcript found for session ID')
+      );
 
-      // Act
-      const response = await request(app).get(`/api/transcript/session/${nonExistentSessionId}`);
+      const response = await request(app).get('/api/transcript/session/session-nonexistent-999');
 
-      // Assert
       expect(response.status).toBe(404);
       expect(response.body).toHaveProperty('error');
       expect(response.body.error).toMatch(/not found|no transcript found/i);
     });
 
     it('should include subagents array in response for valid session', async () => {
-      // Arrange
       const sessionId = 'session-abc123';
+      mockS3Service.getTranscriptBySessionId.mockResolvedValueOnce({
+        id: sessionId,
+        session_id: sessionId,
+        content: '{}',
+        messages: [],
+        subagents: [],
+      });
 
-      // Act
       const response = await request(app).get(`/api/transcript/session/${sessionId}`);
 
-      // Assert
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('subagents');
       expect(Array.isArray(response.body.subagents)).toBe(true);
     });
 
     it('should include messages with proper structure', async () => {
-      // Arrange
       const sessionId = 'session-abc123';
+      mockS3Service.getTranscriptBySessionId.mockResolvedValueOnce({
+        id: sessionId,
+        session_id: sessionId,
+        content: '{}',
+        messages: [
+          { type: 'user', sessionId, uuid: 'msg-001', timestamp: '2026-02-01T05:00:00Z', parentUuid: null },
+        ],
+        subagents: [],
+      });
 
-      // Act
       const response = await request(app).get(`/api/transcript/session/${sessionId}`);
 
-      // Assert
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('messages');
       expect(Array.isArray(response.body.messages)).toBe(true);
-      // Each message should have required fields
       if (response.body.messages.length > 0) {
         const firstMessage = response.body.messages[0];
         expect(firstMessage).toHaveProperty('type');
@@ -118,38 +144,48 @@ describe('Transcripts API', () => {
     });
 
     it('should handle S3 errors gracefully', async () => {
-      // Arrange
-      const sessionId = 'session-trigger-s3-error';
+      mockS3Service.getTranscriptBySessionId.mockRejectedValueOnce(new Error('S3 connection failed'));
 
-      // Act
-      const response = await request(app).get(`/api/transcript/session/${sessionId}`);
+      const response = await request(app).get('/api/transcript/session/session-trigger-s3-error');
 
-      // Assert
       expect(response.status).toBeGreaterThanOrEqual(400);
       expect(response.body).toHaveProperty('error');
     });
 
     it('should trim whitespace from session ID parameter', async () => {
-      // Arrange
-      const sessionIdWithSpaces = '  session-abc123  ';
+      const sessionId = 'session-abc123';
+      mockS3Service.getTranscriptBySessionId.mockImplementation(async (sid: string) => {
+        // Route trims before calling; service should receive trimmed value
+        expect(sid).toBe(sessionId);
+        return {
+          id: sessionId,
+          session_id: sessionId,
+          content: '{}',
+          messages: [],
+          subagents: [],
+        };
+      });
 
-      // Act
-      const response = await request(app).get(`/api/transcript/session/${sessionIdWithSpaces}`);
+      const response = await request(app).get(`/api/transcript/session/${encodeURIComponent('  session-abc123  ')}`);
 
-      // Assert
-      // Should succeed after trimming whitespace
       expect(response.status).toBe(200);
-      expect(response.body).toHaveProperty('session_id', 'session-abc123');
+      expect(response.body).toHaveProperty('session_id', sessionId);
     });
 
     it('should return consistent response structure matching JSONL format', async () => {
-      // Arrange
       const sessionId = 'session-abc123';
+      mockS3Service.getTranscriptBySessionId.mockResolvedValueOnce({
+        id: sessionId,
+        session_id: sessionId,
+        content: '{}',
+        messages: [
+          { type: 'user', sessionId, uuid: 'msg-001', timestamp: '2026-02-01T05:00:00Z', parentUuid: null },
+        ],
+        subagents: [],
+      });
 
-      // Act
       const response = await request(app).get(`/api/transcript/session/${sessionId}`);
 
-      // Assert
       expect(response.status).toBe(200);
       expect(response.body).toMatchObject({
         id: expect.any(String),
@@ -159,7 +195,6 @@ describe('Transcripts API', () => {
         subagents: expect.any(Array),
       });
 
-      // Verify message structure matches JSONL format
       if (response.body.messages.length > 0) {
         const message = response.body.messages[0];
         expect(message).toMatchObject({
@@ -173,10 +208,8 @@ describe('Transcripts API', () => {
 
   describe('GET /api/health', () => {
     it('should return healthy status', async () => {
-      // Act
       const response = await request(app).get('/api/health');
 
-      // Assert
       expect(response.status).toBe(200);
       expect(response.body).toHaveProperty('status', 'healthy');
     });

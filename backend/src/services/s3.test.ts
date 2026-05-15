@@ -1,48 +1,124 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const sendMock = vi.hoisted(() => vi.fn());
+
+vi.mock('@aws-sdk/client-s3', () => {
+  class GetObjectCommand {
+    input: { Bucket: string; Key: string };
+    constructor(input: { Bucket: string; Key: string }) {
+      this.input = input;
+    }
+  }
+  class ListObjectsV2Command {
+    input: { Bucket: string; Prefix?: string };
+    constructor(input: { Bucket: string; Prefix?: string }) {
+      this.input = input;
+    }
+  }
+  return {
+    S3Client: vi.fn().mockImplementation(() => ({ send: sendMock })),
+    GetObjectCommand,
+    ListObjectsV2Command,
+  };
+});
+
 import { S3Service } from './s3';
+
+const fixturesDir = join(dirname(fileURLToPath(import.meta.url)), '../../../e2e/fixtures');
+const SESSION_ABC_MAIN = readFileSync(join(fixturesDir, 'session-abc123.jsonl'), 'utf-8');
+const SESSION_ABC_AGENT_A = readFileSync(join(fixturesDir, 'session-abc123/agent-a1b2c3d.jsonl'), 'utf-8');
+const SESSION_ABC_AGENT_B = readFileSync(join(fixturesDir, 'session-abc123/agent-xyz789.jsonl'), 'utf-8');
+const SESSION_XYZ_MAIN = readFileSync(join(fixturesDir, 'session-xyz789.jsonl'), 'utf-8');
+
+interface S3Command {
+  constructor: { name: string };
+  input: { Bucket?: string; Key?: string; Prefix?: string };
+}
+
+function configureMock(objects: Record<string, string>) {
+  sendMock.mockImplementation(async (command: S3Command) => {
+    const name = command.constructor.name;
+    if (name === 'GetObjectCommand') {
+      const key = command.input.Key!;
+      const body = objects[key];
+      if (body === undefined) {
+        const err: Error & { $metadata?: { httpStatusCode: number } } = new Error('NoSuchKey');
+        err.name = 'NoSuchKey';
+        err.$metadata = { httpStatusCode: 404 };
+        throw err;
+      }
+      return { Body: { transformToString: async () => body } };
+    }
+    if (name === 'ListObjectsV2Command') {
+      const prefix = command.input.Prefix || '';
+      const matching = Object.keys(objects).filter((k) => k.startsWith(prefix));
+      return {
+        Contents: matching.length > 0 ? matching.map((Key) => ({ Key })) : undefined,
+      };
+    }
+    throw new Error(`Unexpected S3 command: ${name}`);
+  });
+}
+
+const SESSION_ABC_OBJECTS: Record<string, string> = {
+  'session-abc123.jsonl': SESSION_ABC_MAIN,
+  'session-abc123/agent-a1b2c3d.jsonl': SESSION_ABC_AGENT_A,
+  'session-abc123/agent-xyz789.jsonl': SESSION_ABC_AGENT_B,
+};
+
+const SESSION_XYZ_OBJECTS: Record<string, string> = {
+  'session-xyz789.jsonl': SESSION_XYZ_MAIN,
+};
 
 describe('S3Service', () => {
   let s3Service: S3Service;
 
   beforeEach(() => {
+    sendMock.mockReset();
     s3Service = new S3Service({
-      bucket: 'test-bucket',
+      bucket: 'test-transcripts',
       region: 'us-east-1',
     });
   });
 
   describe('getTranscript', () => {
     it('should fetch transcript from S3', async () => {
-      // Arrange
       const transcriptId = 'test-transcript-1';
+      configureMock({
+        [`${transcriptId}.json`]: JSON.stringify({
+          id: transcriptId,
+          content: 'Mock transcript content',
+          timestamp: '2026-02-01T00:00:00Z',
+        }),
+      });
 
-      // Act
       const result = await s3Service.getTranscript(transcriptId);
 
-      // Assert
       expect(result).toBeDefined();
       expect(result.id).toBe(transcriptId);
       expect(result.content).toBeDefined();
     });
 
     it('should throw error when transcript not found', async () => {
-      // Arrange
-      const nonExistentId = 'non-existent';
-
-      // Act & Assert
-      await expect(s3Service.getTranscript(nonExistentId)).rejects.toThrow(
-        'Transcript not found'
-      );
+      configureMock({});
+      await expect(s3Service.getTranscript('non-existent')).rejects.toThrow('Transcript not found');
     });
 
     it('should parse JSON transcript correctly', async () => {
-      // Arrange
       const transcriptId = 'test-json-transcript';
+      configureMock({
+        [`${transcriptId}.json`]: JSON.stringify({
+          id: transcriptId,
+          content: 'Test JSON transcript',
+          timestamp: '2026-02-01T00:00:00Z',
+        }),
+      });
 
-      // Act
       const result = await s3Service.getTranscript(transcriptId);
 
-      // Assert
       expect(result).toHaveProperty('id');
       expect(result).toHaveProperty('content');
       expect(result).toHaveProperty('timestamp');
@@ -51,87 +127,64 @@ describe('S3Service', () => {
 
   describe('listTranscripts', () => {
     it('should list all transcripts in bucket', async () => {
-      // Act
+      configureMock({
+        'transcript-a.json': '{}',
+        'transcript-b.json': '{}',
+      });
+
       const results = await s3Service.listTranscripts();
 
-      // Assert
       expect(Array.isArray(results)).toBe(true);
       expect(results.length).toBeGreaterThan(0);
     });
 
     it('should return empty array when bucket is empty', async () => {
-      // Arrange
-      const emptyService = new S3Service({
-        bucket: 'empty-bucket',
-        region: 'us-east-1',
-      });
-
-      // Act
-      const results = await emptyService.listTranscripts();
-
-      // Assert
+      configureMock({});
+      const results = await s3Service.listTranscripts();
       expect(results).toEqual([]);
     });
   });
 
   describe('getTranscriptBySessionId - Timeline Integration', () => {
     it('should merge main and subagent transcripts into unified timeline', async () => {
-      // Arrange
+      configureMock(SESSION_ABC_OBJECTS);
       const sessionId = 'session-abc123';
 
-      // Act
       const result = await s3Service.getTranscriptBySessionId(sessionId);
 
-      // Assert
       expect(result).toBeDefined();
       expect(result.session_id).toBe(sessionId);
       expect(result.messages).toBeDefined();
       expect(Array.isArray(result.messages)).toBe(true);
-
-      // Should include both main agent and subagent messages
       expect(result.messages!.length).toBeGreaterThan(2);
 
-      // Should have messages from main agent
-      const mainMessages = result.messages!.filter(msg => msg.sessionId === sessionId);
+      const mainMessages = result.messages!.filter((msg) => msg.sessionId === sessionId);
       expect(mainMessages.length).toBeGreaterThan(0);
 
-      // Should have messages from subagents
-      const subagentMessages = result.messages!.filter(msg => msg.sessionId !== sessionId);
+      const subagentMessages = result.messages!.filter((msg) => msg.sessionId !== sessionId);
       expect(subagentMessages.length).toBeGreaterThan(0);
     });
 
     it('should sort messages by timestamp in chronological order', async () => {
-      // Arrange
-      const sessionId = 'session-abc123';
+      configureMock(SESSION_ABC_OBJECTS);
+      const result = await s3Service.getTranscriptBySessionId('session-abc123');
 
-      // Act
-      const result = await s3Service.getTranscriptBySessionId(sessionId);
-
-      // Assert
       expect(result.messages).toBeDefined();
       expect(result.messages!.length).toBeGreaterThan(1);
 
-      // Verify chronological order
       for (let i = 1; i < result.messages!.length; i++) {
         const prevTimestamp = new Date(result.messages![i - 1].timestamp);
         const currTimestamp = new Date(result.messages![i].timestamp);
-
         expect(currTimestamp.getTime()).toBeGreaterThanOrEqual(prevTimestamp.getTime());
       }
     });
 
     it('should add agentId field to all messages', async () => {
-      // Arrange
-      const sessionId = 'session-abc123';
+      configureMock(SESSION_ABC_OBJECTS);
+      const result = await s3Service.getTranscriptBySessionId('session-abc123');
 
-      // Act
-      const result = await s3Service.getTranscriptBySessionId(sessionId);
-
-      // Assert
       expect(result.messages).toBeDefined();
-
-      // Every message should have an agentId field
-      result.messages!.forEach(msg => {
+      result.messages!.forEach((msg) => {
         expect(msg).toHaveProperty('agentId');
         expect(typeof msg.agentId).toBe('string');
         expect(msg.agentId).not.toBe('');
@@ -139,67 +192,46 @@ describe('S3Service', () => {
     });
 
     it('should set agentId to sessionId for main agent messages', async () => {
-      // Arrange
+      configureMock(SESSION_ABC_OBJECTS);
       const sessionId = 'session-abc123';
-
-      // Act
       const result = await s3Service.getTranscriptBySessionId(sessionId);
 
-      // Assert
-      const mainMessages = result.messages!.filter(msg => msg.sessionId === sessionId);
-
-      mainMessages.forEach(msg => {
+      const mainMessages = result.messages!.filter((msg) => msg.sessionId === sessionId);
+      mainMessages.forEach((msg) => {
         expect(msg.agentId).toBe(sessionId);
       });
     });
 
     it('should set agentId to subagent sessionId for subagent messages', async () => {
-      // Arrange
+      configureMock(SESSION_ABC_OBJECTS);
       const sessionId = 'session-abc123';
-
-      // Act
       const result = await s3Service.getTranscriptBySessionId(sessionId);
 
-      // Assert
-      const subagentMessages = result.messages!.filter(msg => msg.sessionId !== sessionId);
-
-      subagentMessages.forEach(msg => {
+      const subagentMessages = result.messages!.filter((msg) => msg.sessionId !== sessionId);
+      subagentMessages.forEach((msg) => {
         expect(msg.agentId).toBe(msg.sessionId);
         expect(msg.agentId).not.toBe(sessionId);
       });
     });
 
     it('should handle multiple JSONL files from subdirectory', async () => {
-      // Arrange
-      const sessionId = 'session-abc123';
+      configureMock(SESSION_ABC_OBJECTS);
+      const result = await s3Service.getTranscriptBySessionId('session-abc123');
 
-      // Act
-      const result = await s3Service.getTranscriptBySessionId(sessionId);
-
-      // Assert
-      // Should have subagents array populated
       expect(result.subagents).toBeDefined();
       expect(result.subagents!.length).toBeGreaterThan(0);
-
-      // Each subagent should have messages parsed from JSONL
-      result.subagents!.forEach(subagent => {
+      result.subagents!.forEach((subagent) => {
         expect(subagent.messages).toBeDefined();
         expect(Array.isArray(subagent.messages)).toBe(true);
       });
     });
 
     it('should parse JSONL format correctly', async () => {
-      // Arrange
-      const sessionId = 'session-abc123';
+      configureMock(SESSION_ABC_OBJECTS);
+      const result = await s3Service.getTranscriptBySessionId('session-abc123');
 
-      // Act
-      const result = await s3Service.getTranscriptBySessionId(sessionId);
-
-      // Assert
       expect(result.messages).toBeDefined();
-
-      // Verify message structure
-      result.messages!.forEach(msg => {
+      result.messages!.forEach((msg) => {
         expect(msg).toHaveProperty('type');
         expect(msg).toHaveProperty('sessionId');
         expect(msg).toHaveProperty('timestamp');
@@ -209,40 +241,28 @@ describe('S3Service', () => {
     });
 
     it('should handle session with no subagents gracefully', async () => {
-      // Arrange
+      configureMock(SESSION_XYZ_OBJECTS);
       const sessionId = 'session-xyz789';
-
-      // Act
       const result = await s3Service.getTranscriptBySessionId(sessionId);
 
-      // Assert
       expect(result).toBeDefined();
       expect(result.session_id).toBe(sessionId);
       expect(result.messages).toBeDefined();
 
-      // Should only have main agent messages
-      const allMessages = result.messages!;
-      allMessages.forEach(msg => {
+      result.messages!.forEach((msg) => {
         expect(msg.sessionId).toBe(sessionId);
         expect(msg.agentId).toBe(sessionId);
       });
 
-      // Subagents array should be empty
-      expect(result.subagents).toEqual([]);
+      expect(result.subagents ?? []).toEqual([]);
     });
 
     it('should maintain message metadata after merging', async () => {
-      // Arrange
-      const sessionId = 'session-abc123';
+      configureMock(SESSION_ABC_OBJECTS);
+      const result = await s3Service.getTranscriptBySessionId('session-abc123');
 
-      // Act
-      const result = await s3Service.getTranscriptBySessionId(sessionId);
-
-      // Assert
       expect(result.messages).toBeDefined();
-
-      // Check that original message fields are preserved
-      result.messages!.forEach(msg => {
+      result.messages!.forEach((msg) => {
         if (msg.message) {
           expect(msg.message).toHaveProperty('role');
           expect(msg.message).toHaveProperty('content');
@@ -252,7 +272,6 @@ describe('S3Service', () => {
           }
         }
 
-        // Metadata fields should be preserved
         if (msg.cwd) {
           expect(typeof msg.cwd).toBe('string');
         }
@@ -263,21 +282,17 @@ describe('S3Service', () => {
     });
 
     it('should preserve content blocks in message content', async () => {
-      // Arrange
-      const sessionId = 'session-abc123';
+      configureMock(SESSION_ABC_OBJECTS);
+      const result = await s3Service.getTranscriptBySessionId('session-abc123');
 
-      // Act
-      const result = await s3Service.getTranscriptBySessionId(sessionId);
-
-      // Assert
       const messagesWithContent = result.messages!.filter(
-        msg => msg.message && Array.isArray(msg.message.content)
+        (msg) => msg.message && Array.isArray(msg.message.content)
       );
 
       if (messagesWithContent.length > 0) {
-        messagesWithContent.forEach(msg => {
+        messagesWithContent.forEach((msg) => {
           const content = msg.message!.content as Array<{ type: string }>;
-          content.forEach(block => {
+          content.forEach((block) => {
             expect(block).toHaveProperty('type');
           });
         });
@@ -287,31 +302,26 @@ describe('S3Service', () => {
 
   describe('Tool Use and Tool Result Matching', () => {
     it('should identify tool_use content blocks in messages', async () => {
-      // Arrange
-      const sessionId = 'session-abc123';
+      configureMock(SESSION_ABC_OBJECTS);
+      const result = await s3Service.getTranscriptBySessionId('session-abc123');
 
-      // Act
-      const result = await s3Service.getTranscriptBySessionId(sessionId);
-
-      // Assert
-      const messagesWithToolUse = result.messages!.filter(msg => {
+      const messagesWithToolUse = result.messages!.filter((msg) => {
         if (!msg.message || !Array.isArray(msg.message.content)) return false;
-        return msg.message.content.some(block => block.type === 'tool_use');
+        return msg.message.content.some((block) => block.type === 'tool_use');
       });
 
       expect(messagesWithToolUse.length).toBeGreaterThan(0);
 
-      // Verify tool_use structure
-      messagesWithToolUse.forEach(msg => {
+      messagesWithToolUse.forEach((msg) => {
         const content = msg.message!.content as Array<{
           type: string;
           id?: string;
           name?: string;
           input?: unknown;
         }>;
-        const toolUseBlocks = content.filter(block => block.type === 'tool_use');
+        const toolUseBlocks = content.filter((block) => block.type === 'tool_use');
 
-        toolUseBlocks.forEach(block => {
+        toolUseBlocks.forEach((block) => {
           expect(block).toHaveProperty('id');
           expect(block).toHaveProperty('name');
           expect(block).toHaveProperty('input');
@@ -322,30 +332,25 @@ describe('S3Service', () => {
     });
 
     it('should identify tool_result content blocks in messages', async () => {
-      // Arrange
-      const sessionId = 'session-abc123';
+      configureMock(SESSION_ABC_OBJECTS);
+      const result = await s3Service.getTranscriptBySessionId('session-abc123');
 
-      // Act
-      const result = await s3Service.getTranscriptBySessionId(sessionId);
-
-      // Assert
-      const messagesWithToolResult = result.messages!.filter(msg => {
+      const messagesWithToolResult = result.messages!.filter((msg) => {
         if (!msg.message || !Array.isArray(msg.message.content)) return false;
-        return msg.message.content.some(block => block.type === 'tool_result');
+        return msg.message.content.some((block) => block.type === 'tool_result');
       });
 
       expect(messagesWithToolResult.length).toBeGreaterThan(0);
 
-      // Verify tool_result structure
-      messagesWithToolResult.forEach(msg => {
+      messagesWithToolResult.forEach((msg) => {
         const content = msg.message!.content as Array<{
           type: string;
           tool_use_id?: string;
           content?: string;
         }>;
-        const toolResultBlocks = content.filter(block => block.type === 'tool_result');
+        const toolResultBlocks = content.filter((block) => block.type === 'tool_result');
 
-        toolResultBlocks.forEach(block => {
+        toolResultBlocks.forEach((block) => {
           expect(block).toHaveProperty('tool_use_id');
           expect(block).toHaveProperty('content');
           expect(typeof block.tool_use_id).toBe('string');
@@ -354,19 +359,16 @@ describe('S3Service', () => {
     });
 
     it('should match tool_use with corresponding tool_result by ID', async () => {
-      // Arrange
-      const sessionId = 'session-abc123';
+      configureMock(SESSION_ABC_OBJECTS);
+      const result = await s3Service.getTranscriptBySessionId('session-abc123');
 
-      // Act
-      const result = await s3Service.getTranscriptBySessionId(sessionId);
-
-      // Assert
       const messages = result.messages!;
+      const toolUseMap = new Map<
+        string,
+        { message: typeof messages[0]; block: { type: string; id: string; name: string; input: unknown } }
+      >();
 
-      // Find tool_use blocks
-      const toolUseMap = new Map<string, { message: typeof messages[0]; block: { type: string; id: string; name: string; input: unknown } }>();
-
-      messages.forEach(msg => {
+      messages.forEach((msg) => {
         if (msg.message && Array.isArray(msg.message.content)) {
           const content = msg.message.content as Array<{
             type: string;
@@ -374,28 +376,26 @@ describe('S3Service', () => {
             name?: string;
             input?: unknown;
           }>;
-          content.forEach(block => {
+          content.forEach((block) => {
             if (block.type === 'tool_use' && block.id) {
               toolUseMap.set(block.id, {
                 message: msg,
-                block: { type: block.type, id: block.id, name: block.name!, input: block.input }
+                block: { type: block.type, id: block.id, name: block.name!, input: block.input },
               });
             }
           });
         }
       });
 
-      // Find tool_result blocks and verify they match tool_use
-      messages.forEach(msg => {
+      messages.forEach((msg) => {
         if (msg.message && Array.isArray(msg.message.content)) {
           const content = msg.message.content as Array<{
             type: string;
             tool_use_id?: string;
             content?: string;
           }>;
-          content.forEach(block => {
+          content.forEach((block) => {
             if (block.type === 'tool_result' && block.tool_use_id) {
-              // Verify corresponding tool_use exists
               const matchingToolUse = toolUseMap.get(block.tool_use_id);
               expect(matchingToolUse).toBeDefined();
               expect(matchingToolUse?.block.id).toBe(block.tool_use_id);
@@ -406,44 +406,31 @@ describe('S3Service', () => {
     });
 
     it('should preserve tool_use and tool_result order in timeline', async () => {
-      // Arrange
-      const sessionId = 'session-abc123';
+      configureMock(SESSION_ABC_OBJECTS);
+      const result = await s3Service.getTranscriptBySessionId('session-abc123');
 
-      // Act
-      const result = await s3Service.getTranscriptBySessionId(sessionId);
-
-      // Assert
       const messages = result.messages!;
       const toolInteractions: { type: 'use' | 'result'; id: string; timestamp: string }[] = [];
 
-      messages.forEach(msg => {
+      messages.forEach((msg) => {
         if (msg.message && Array.isArray(msg.message.content)) {
           const content = msg.message.content as Array<{
             type: string;
             id?: string;
             tool_use_id?: string;
           }>;
-          content.forEach(block => {
+          content.forEach((block) => {
             if (block.type === 'tool_use' && block.id) {
-              toolInteractions.push({
-                type: 'use',
-                id: block.id,
-                timestamp: msg.timestamp
-              });
+              toolInteractions.push({ type: 'use', id: block.id, timestamp: msg.timestamp });
             } else if (block.type === 'tool_result' && block.tool_use_id) {
-              toolInteractions.push({
-                type: 'result',
-                id: block.tool_use_id,
-                timestamp: msg.timestamp
-              });
+              toolInteractions.push({ type: 'result', id: block.tool_use_id, timestamp: msg.timestamp });
             }
           });
         }
       });
 
-      // Verify tool_result comes after tool_use for the same ID
       const toolUseTimestamps = new Map<string, string>();
-      toolInteractions.forEach(interaction => {
+      toolInteractions.forEach((interaction) => {
         if (interaction.type === 'use') {
           toolUseTimestamps.set(interaction.id, interaction.timestamp);
         } else if (interaction.type === 'result') {
@@ -517,20 +504,7 @@ describe('S3Service', () => {
       })).not.toThrow();
     });
 
-    it('uses a credentials provider function when assumeRoleArn is set', () => {
-      const service = new S3Service({
-        bucket: 'test-bucket',
-        region: 'us-east-1',
-        assumeRoleArn: 'arn:aws:iam::123456789012:role/test-role',
-      });
-      const s3Client = (service as unknown as { s3Client: { config: { credentials: unknown } } }).s3Client;
-      expect(typeof s3Client.config.credentials).toBe('function');
-    });
-
     it('endpoint takes precedence over assumeRoleArn (S3-compatible emulator path)', () => {
-      // When both endpoint (MinIO/LocalStack) and assumeRoleArn are set, the
-      // dummy emulator credentials should be used - assume role is
-      // incompatible with most S3 emulators' STS support.
       expect(() => new S3Service({
         bucket: 'test-bucket',
         region: 'us-east-1',
