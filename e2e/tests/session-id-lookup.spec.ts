@@ -15,7 +15,7 @@ import { test, expect } from '@playwright/test';
  * 3. System fetches transcript data associated with the session ID
  * 4. Transcript messages are displayed in the viewer
  *
- * Fixture Data: e2e/fixtures/sample-main-transcript.json contains session_id: "session-abc123"
+ * Fixture Data: e2e/fixtures/transcript-20260201-001.json contains session_id: "session-abc123"
  */
 test.describe('Session ID Lookup E2E', () => {
   test.beforeEach(async ({ page }) => {

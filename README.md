@@ -32,7 +32,7 @@ claude-transcript-viewer-v2/
 - **Frontend**: React 18, Vite, TypeScript, Vitest
 - **Backend**: Node.js, Express, AWS SDK v3
 - **E2E Testing**: Playwright
-- **Local Development**: LocalStack (AWS S3 emulation)
+- **Local Development**: MinIO (S3-compatible storage)
 - **CI/CD**: GitHub Actions
 - **Package Manager**: pnpm workspaces
 
@@ -40,7 +40,7 @@ claude-transcript-viewer-v2/
 
 - Node.js >= 20.0.0
 - pnpm >= 8.0.0
-- Docker (for LocalStack)
+- Docker (for MinIO)
 
 ## Installation
 
@@ -54,35 +54,53 @@ pnpm --filter e2e exec playwright install
 
 ## Development
 
-### Start LocalStack (for local S3)
+### Start MinIO (S3-compatible storage)
 
 ```bash
 docker run -d \
-  --name localstack \
-  -p 4566:4566 \
-  -e SERVICES=s3 \
-  localstack/localstack:latest
+  --name minio \
+  -p 9000:9000 \
+  -e MINIO_ROOT_USER=minioadmin \
+  -e MINIO_ROOT_PASSWORD=minioadmin \
+  minio/minio:latest server /data
 ```
 
-### Setup test data in LocalStack
+### Setup test data in MinIO
 
 ```bash
-# Install AWS CLI Local
-pip install awscli-local
+# Configure AWS CLI to point at MinIO
+export AWS_ACCESS_KEY_ID=minioadmin
+export AWS_SECRET_ACCESS_KEY=minioadmin
+export AWS_DEFAULT_REGION=us-east-1
+export AWS_ENDPOINT_URL=http://localhost:9000
 
-# Create bucket
-awslocal s3 mb s3://test-transcripts
-
-# Upload fixtures
-awslocal s3 cp e2e/fixtures/ s3://test-transcripts/ --recursive
+# Create bucket and upload fixtures
+aws --endpoint-url "$AWS_ENDPOINT_URL" s3 mb s3://test-transcripts
+aws --endpoint-url "$AWS_ENDPOINT_URL" s3 cp e2e/fixtures/ s3://test-transcripts/ --recursive
 ```
 
 ### Run development servers
 
+The backend reads transcripts exclusively from the configured S3 bucket. There
+is no built-in mock fallback, so the bucket must be populated before the
+backend can serve data — otherwise every request returns `404 Transcript not
+found`.
+
+Required environment variables when targeting MinIO:
+
+```bash
+export AWS_ENDPOINT_URL=http://localhost:9000
+export AWS_ACCESS_KEY_ID=minioadmin
+export AWS_SECRET_ACCESS_KEY=minioadmin
+export S3_BUCKET=test-transcripts
+```
+
+Then start the dev servers:
+
 ```bash
 # Terminal 1: Start backend
 cd backend
-cp ../.env.example .env
+cp ../.env.example .env  # Edit to match the variables above
 pnpm dev
 
 # Terminal 2: Start frontend
@@ -112,17 +130,14 @@ pnpm --filter frontend test:watch
 
 ### Integration Tests
 
-Integration tests require LocalStack to be running.
+Integration tests require MinIO to be running with the bucket and fixtures from
+the setup steps above.
 
 ```bash
-# Start LocalStack first
-docker run -d -p 4566:4566 -e SERVICES=s3 localstack/localstack:latest
-
-# Setup test data
-awslocal s3 mb s3://test-transcripts
-awslocal s3 cp e2e/fixtures/ s3://test-transcripts/ --recursive
-
-# Run integration tests
+# Run integration tests (MinIO must be reachable at AWS_ENDPOINT_URL)
+AWS_ENDPOINT_URL=http://localhost:9000 \
+AWS_ACCESS_KEY_ID=minioadmin \
+AWS_SECRET_ACCESS_KEY=minioadmin \
 pnpm --filter backend test:integration
 ```
 
@@ -144,11 +159,14 @@ pnpm --filter e2e test:debug
 
 ## Test Fixtures
 
-Sample transcript fixtures are located in `e2e/fixtures/`:
+Sample transcript fixtures live in `e2e/fixtures/` and are the single source of
+truth for backend integration tests and E2E tests:
 
-- `sample-main-transcript.json` - Main conversation transcript
+- `transcript-20260201-001.json` - Main conversation transcript
 - `subagent-data-analyzer-20260201-001.json` - Data analysis subagent transcript
 - `subagent-visualizer-20260201-001.json` - Visualization subagent transcript
+- `session-abc123.jsonl` + `session-abc123/agent-*.jsonl` - Session-based JSONL fixtures
+- `session-xyz789.jsonl`, `session-task-subagent.jsonl`, `f47ac10b-...jsonl` - Additional session fixtures
 
 These fixtures demonstrate:
 - Main transcript with metadata
@@ -161,12 +179,12 @@ These fixtures demonstrate:
 GitHub Actions workflow includes:
 
 1. **Unit Tests**: Tests for frontend and backend
-2. **Integration Tests**: Backend tests with LocalStack S3
+2. **Integration Tests**: Backend tests with MinIO S3
 3. **E2E Tests**: Full application tests with Playwright
 4. **Linting**: Code quality checks
 
 The workflow automatically:
-- Starts LocalStack service
+- Starts MinIO service
 - Creates S3 bucket and uploads fixtures
 - Runs all test suites
 - Uploads Playwright reports as artifacts
@@ -180,7 +198,7 @@ Copy `.env.example` to `.env` and configure:
 PORT=3000
 AWS_REGION=us-east-1
 S3_BUCKET=test-transcripts
-AWS_ENDPOINT_URL=http://localhost:4566  # For LocalStack
+AWS_ENDPOINT_URL=http://localhost:9000  # For local MinIO
 
 # Frontend
 VITE_API_URL=http://localhost:3000/api
