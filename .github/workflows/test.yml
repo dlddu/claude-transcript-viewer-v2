@@ -445,12 +445,9 @@ jobs:
       - name: Setup S3 test data in LocalStack
         run: |
           kubectl exec deploy/localstack -- awslocal s3 mb s3://test-transcripts
-          for f in e2e/fixtures/*.json e2e/fixtures/*.jsonl; do
-            [ -f "$f" ] && kubectl cp "$f" "$(kubectl get pod -l app=localstack -o jsonpath='{.items[0].metadata.name}'):/tmp/$(basename $f)"
-          done
-          for f in e2e/fixtures/*.json e2e/fixtures/*.jsonl; do
-            [ -f "$f" ] && kubectl exec deploy/localstack -- awslocal s3 cp "/tmp/$(basename $f)" "s3://test-transcripts/$(basename $f)"
-          done
+          pod=$(kubectl get pod -l app=localstack -o jsonpath='{.items[0].metadata.name}')
+          kubectl cp e2e/fixtures "$pod:/tmp/fixtures"
+          kubectl exec deploy/localstack -- awslocal s3 cp /tmp/fixtures/ s3://test-transcripts/ --recursive
 
       - name: Port forward services
         run: |
