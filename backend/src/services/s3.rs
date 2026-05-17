@@ -58,6 +58,17 @@ pub fn normalize_prefix(prefix: Option<&str>) -> String {
     }
 }
 
+fn format_error_chain<E: std::error::Error + ?Sized>(err: &E) -> String {
+    use std::fmt::Write;
+    let mut out = err.to_string();
+    let mut source = err.source();
+    while let Some(s) = source {
+        let _ = write!(&mut out, ": {}", s);
+        source = s.source();
+    }
+    out
+}
+
 #[async_trait]
 pub trait S3Repo: Send + Sync {
     async fn get_transcript(&self, transcript_id: &str) -> Result<Transcript, S3Error>;
@@ -162,7 +173,10 @@ impl S3Repo for S3Service {
                 if is_get_object_not_found(&sdk_err) {
                     return Err(S3Error::TranscriptNotFound);
                 }
-                return Err(S3Error::Other(format!("S3 GetObject failed: {}", sdk_err)));
+                return Err(S3Error::Other(format!(
+                    "S3 GetObject failed: {}",
+                    format_error_chain(&sdk_err)
+                )));
             }
         };
 
@@ -201,7 +215,7 @@ impl S3Repo for S3Service {
                 }
                 return Err(S3Error::Other(format!(
                     "S3 ListObjectsV2 failed: {}",
-                    sdk_err
+                    format_error_chain(&sdk_err)
                 )));
             }
         };
@@ -257,7 +271,7 @@ impl S3Repo for S3Service {
                 }
                 return Err(S3Error::Other(format!(
                     "S3 ListObjectsV2 failed: {}",
-                    sdk_err
+                    format_error_chain(&sdk_err)
                 )));
             }
         };
@@ -290,7 +304,10 @@ impl S3Repo for S3Service {
                 if is_get_object_not_found(&sdk_err) {
                     S3Error::NoTranscriptForSession
                 } else {
-                    S3Error::Other(format!("S3 GetObject failed: {}", sdk_err))
+                    S3Error::Other(format!(
+                        "S3 GetObject failed: {}",
+                        format_error_chain(&sdk_err)
+                    ))
                 }
             })?;
 
