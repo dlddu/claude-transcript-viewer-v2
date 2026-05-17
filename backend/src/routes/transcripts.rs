@@ -37,8 +37,8 @@ async fn get_transcript_by_session(
         }
         Err(S3Error::NoTranscriptForSession) => Err(AppError::TranscriptNotFound),
         Err(S3Error::SessionIdRequired) => Err(AppError::SessionIdRequired),
-        Err(_) => {
-            tracing::error!("Error fetching transcript by session ID");
+        Err(err) => {
+            tracing::error!(session_id = %trimmed, error = %err, "Error fetching transcript by session ID");
             Err(AppError::FetchFailed)
         }
     }
@@ -58,8 +58,8 @@ async fn get_transcript(
             Ok(Json(value))
         }
         Err(S3Error::TranscriptNotFound) => Err(AppError::TranscriptNotFound),
-        Err(_) => {
-            tracing::error!("Error fetching transcript");
+        Err(err) => {
+            tracing::error!(transcript_id = %id, error = %err, "Error fetching transcript");
             Err(AppError::FetchFailed)
         }
     }
@@ -68,8 +68,8 @@ async fn get_transcript(
 async fn list_transcripts(State(repo): State<SharedRepo>) -> Result<Json<Vec<String>>, AppError> {
     match repo.list_transcripts().await {
         Ok(list) => Ok(Json(list)),
-        Err(_) => {
-            tracing::error!("Error listing transcripts");
+        Err(err) => {
+            tracing::error!(error = %err, "Error listing transcripts");
             Err(AppError::ListFailed)
         }
     }
