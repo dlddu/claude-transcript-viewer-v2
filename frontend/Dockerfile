@@ -9,7 +9,6 @@ WORKDIR /app
 # Copy workspace configuration and all package.json files for proper lockfile resolution
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY frontend/package.json ./frontend/
-COPY backend/package.json ./backend/
 COPY e2e/package.json ./e2e/
 
 # Install dependencies for frontend
