@@ -19,8 +19,8 @@ spec:
     spec:
       securityContext:
         runAsNonRoot: true
-        runAsUser: 1000
-        fsGroup: 1000
+        runAsUser: 65532
+        fsGroup: 65532
       containers:
         - name: backend
           image: ghcr.io/dlddu/claude-transcript-viewer-v2/backend:latest
@@ -62,4 +62,4 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: false
             runAsNonRoot: true
-            runAsUser: 1000
+            runAsUser: 65532

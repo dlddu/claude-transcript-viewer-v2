@@ -1,41 +1,10 @@
-# Dependencies
-node_modules
-
-# Build output
-dist
-
-# Git
+target
 .git
-.gitignore
-
-# Test files
-**/*.test.*
-**/*.spec.*
-**/*.integration.test.*
-coverage
-
-# Documentation
-README.md
 *.md
-
-# Environment files
 .env
 .env.*
-
-# IDE
-.vscode
-.idea
-*.swp
-*.swo
-*~
-
-# OS files
-.DS_Store
-Thumbs.db
-
-# Logs
-*.log
-npm-debug.log*
-pnpm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+e2e
+frontend
+node_modules
+**/*.test.ts
+**/*.test.*

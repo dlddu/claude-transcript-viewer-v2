@@ -175,16 +175,20 @@ describe('Docker Build - Backend', () => {
     assert.strictEqual(dockerImageExists(imageName), true);
   });
 
-  it('should use node:20-alpine base image', () => {
+  it('should use rust slim builder and distroless runtime', () => {
     // Arrange
     const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
     const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
 
     // Assert
-    assert.ok(dockerfileContent.includes('FROM node:20-alpine'));
+    assert.ok(dockerfileContent.includes('FROM rust:'), 'Should use rust base for build stage');
+    assert.ok(
+      dockerfileContent.includes('gcr.io/distroless/cc-debian12'),
+      'Should use distroless cc-debian12 base for runtime'
+    );
   });
 
-  it('should produce an optimized image size under 300MB', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
+  it('should produce an optimized image size under 100MB', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
     // Arrange
     const imageName = 'claude-transcript-viewer-backend:test';
 
@@ -199,7 +203,7 @@ describe('Docker Build - Backend', () => {
     const sizeInMB = sizeInBytes / (1024 * 1024);
 
     // Assert
-    assert.ok(sizeInMB < 300, `Backend image size ${sizeInMB.toFixed(1)}MB exceeds 300MB`);
+    assert.ok(sizeInMB < 100, `Backend image size ${sizeInMB.toFixed(1)}MB exceeds 100MB`);
   });
 
   it('should expose port 3000', () => {
@@ -233,14 +237,14 @@ describe('Docker Build - Backend', () => {
     assert.ok(curlOutput.length > 0);
   });
 
-  it('should exclude node_modules and dist from build context', () => {
+  it('should exclude build artifacts and node_modules from build context', () => {
     // Arrange
     const dockerignorePath = resolve(BACKEND_DIR, '.dockerignore');
     const dockerignoreContent = readFileSync(dockerignorePath, 'utf-8');
 
     // Assert
     assert.ok(dockerignoreContent.includes('node_modules'));
-    assert.ok(dockerignoreContent.includes('dist'));
+    assert.ok(dockerignoreContent.includes('target'), 'Should exclude Cargo target directory');
   });
 
   it('should use non-root user for security', () => {
@@ -248,19 +252,23 @@ describe('Docker Build - Backend', () => {
     const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
     const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
 
-    // Assert
-    assert.ok(dockerfileContent.includes('USER node'));
+    // Assert - distroless nonroot variant runs as uid 65532
+    assert.ok(dockerfileContent.includes('USER nonroot'));
   });
 
-  it('should run dist/index.js as entrypoint', () => {
+  it('should run the compiled rust binary as entrypoint', () => {
     // Arrange
     const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
     const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
 
     // Assert
     assert.ok(dockerfileContent.includes('CMD'));
-    assert.ok(dockerfileContent.includes('node'));
-    assert.ok(dockerfileContent.includes('dist/index.js'));
+    assert.ok(
+      dockerfileContent.includes('/app/server'),
+      'CMD should invoke the rust server binary at /app/server'
+    );
+    assert.ok(!dockerfileContent.includes('node'), 'No node runtime should be present');
+    assert.ok(!dockerfileContent.includes('dist/index.js'), 'No node entrypoint should be present');
   });
 });
 

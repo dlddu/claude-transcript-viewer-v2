@@ -12,11 +12,12 @@ claude-transcript-viewer-v2/
 │   │   ├── hooks/         # Custom React hooks
 │   │   └── test/          # Test utilities
 │   └── package.json
-├── backend/               # Node.js + Express S3 proxy
+├── backend/               # Rust + axum S3 proxy
 │   ├── src/
 │   │   ├── routes/        # API routes
 │   │   └── services/      # Business logic (S3 service)
-│   └── package.json
+│   ├── tests/             # Integration tests against an S3 endpoint
+│   └── Cargo.toml
 ├── e2e/                   # Playwright E2E tests
 │   ├── fixtures/          # Sample transcript fixtures
 │   ├── tests/             # E2E test specs
@@ -30,23 +31,29 @@ claude-transcript-viewer-v2/
 ## Technology Stack
 
 - **Frontend**: React 18, Vite, TypeScript, Vitest
-- **Backend**: Node.js, Express, AWS SDK v3
+- **Backend**: Rust, axum, aws-sdk-rust
 - **E2E Testing**: Playwright
 - **Local Development**: MinIO (S3-compatible storage)
 - **CI/CD**: GitHub Actions
-- **Package Manager**: pnpm workspaces
+- **Package Manager**: pnpm workspaces (frontend/e2e), Cargo (backend)
+- **Task Runner**: [`just`](https://just.systems) (install with `cargo install just`)
 
 ## Prerequisites
 
 - Node.js >= 20.0.0
 - pnpm >= 8.0.0
+- Rust >= 1.75 (install via [`rustup`](https://rustup.rs))
 - Docker (for MinIO)
 
 ## Installation
 
 ```bash
-# Install dependencies
-pnpm install
+# Install JS dependencies and fetch Rust crates
+just install
+# (equivalent to: pnpm install && cd backend && cargo fetch)
+
+# Build the backend binary
+cd backend && cargo build --release
 
 # Install Playwright browsers (for E2E tests)
 pnpm --filter e2e exec playwright install
@@ -100,12 +107,12 @@ Then start the dev servers:
 ```bash
 # Terminal 1: Start backend
 cd backend
-cp ../.env.example .env  # Edit to match the variables above
-pnpm dev
+cp .env.example .env  # Edit to match the variables above
+cargo run             # or: just dev-backend
 
 # Terminal 2: Start frontend
 cd frontend
-pnpm dev
+pnpm dev              # or: just dev-frontend
 ```
 
 Visit http://localhost:5173
@@ -115,16 +122,16 @@ Visit http://localhost:5173
 ### Unit Tests
 
 ```bash
-# Run all unit tests
-pnpm test:unit
+# Run all unit tests (frontend + backend)
+just test
 
 # Run frontend tests only
 pnpm --filter frontend test
 
 # Run backend tests only
-pnpm --filter backend test
+cd backend && cargo test --lib
 
-# Watch mode
+# Watch mode (frontend)
 pnpm --filter frontend test:watch
 ```
 
@@ -138,7 +145,9 @@ the setup steps above.
 AWS_ENDPOINT_URL=http://localhost:9000 \
 AWS_ACCESS_KEY_ID=minioadmin \
 AWS_SECRET_ACCESS_KEY=minioadmin \
-pnpm --filter backend test:integration
+AWS_REGION=us-east-1 \
+just test-integration
+# (equivalent to: cd backend && cargo test --test integration -- --test-threads=1)
 ```
 
 ### E2E Tests
