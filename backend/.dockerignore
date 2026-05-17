@@ -1,18 +1,14 @@
-# Dependencies
-node_modules
-
-# Build output
-dist
+# Build artifacts
+/server
+/dist
 
 # Git
 .git
 .gitignore
 
 # Test files
-**/*.test.*
-**/*.spec.*
-**/*.integration.test.*
-coverage
+**/*_test.go
+**/*_integration_test.go
 
 # Documentation
 README.md
@@ -32,10 +28,3 @@ README.md
 # OS files
 .DS_Store
 Thumbs.db
-
-# Logs
-*.log
-npm-debug.log*
-pnpm-debug.log*
-yarn-debug.log*
-yarn-error.log*

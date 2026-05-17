@@ -1,55 +1,25 @@
 # Build stage
-FROM node:20-alpine AS build
+FROM golang:1.24-alpine AS build
 
-# Enable corepack and install correct pnpm version
-RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
+WORKDIR /src
 
-WORKDIR /app
+# Cache module downloads.
+COPY backend/go.mod backend/go.sum ./
+RUN go mod download
 
-# Copy workspace configuration and all package.json files for proper lockfile resolution
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY frontend/package.json ./frontend/
-COPY backend/package.json ./backend/
-COPY e2e/package.json ./e2e/
+# Copy source and build a static binary.
+COPY backend/ ./
+RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -ldflags="-s -w" -o /out/server .
 
-# Install all dependencies (including dev dependencies for build)
-RUN pnpm install --frozen-lockfile --filter @claude-transcript-viewer/backend...
+# Runtime stage
+FROM alpine:3.20
 
-# Copy backend source code
-COPY backend/ ./backend/
+RUN apk add --no-cache ca-certificates \
+    && addgroup -S app -g 1000 \
+    && adduser -S -G app -u 1000 -s /sbin/nologin app
 
-# Build TypeScript code
-WORKDIR /app/backend
-RUN pnpm build
+COPY --from=build /out/server /usr/local/bin/server
 
-# Production stage
-FROM node:20-alpine
-
-# Enable corepack and install correct pnpm version
-RUN corepack enable && corepack prepare pnpm@8.15.0 --activate
-
-WORKDIR /app
-
-# Set production environment
-ENV NODE_ENV=production
-
-# Copy workspace configuration and all package.json files
-COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
-COPY frontend/package.json ./frontend/
-COPY backend/package.json ./backend/
-COPY e2e/package.json ./e2e/
-
-# Install production dependencies only
-RUN pnpm install --prod --frozen-lockfile --filter @claude-transcript-viewer/backend...
-
-# Copy built files from build stage
-COPY --from=build /app/backend/dist ./backend/dist
-
-# Use non-root user
-USER node
-
-# Expose port 3000
+USER app
 EXPOSE 3000
-
-# Start the application
-CMD ["node", "backend/dist/index.js"]
+ENTRYPOINT ["/usr/local/bin/server"]

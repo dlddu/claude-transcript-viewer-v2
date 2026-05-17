@@ -6,6 +6,8 @@ node_modules/
 dist/
 build/
 .vite/
+backend/server
+backend/backend
 
 # Test coverage
 coverage/
