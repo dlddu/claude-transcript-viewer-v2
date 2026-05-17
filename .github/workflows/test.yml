@@ -24,6 +24,11 @@ jobs:
           node-version: '20'
           cache: 'pnpm'
 
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache-dependency-path: backend/go.sum
+
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
@@ -31,7 +36,12 @@ jobs:
         run: pnpm --filter @claude-transcript-viewer/frontend test:unit
 
       - name: Run backend unit tests
-        run: pnpm --filter @claude-transcript-viewer/backend test:unit
+        working-directory: backend
+        run: go test ./...
+
+      - name: Backend vet
+        working-directory: backend
+        run: go vet ./...
 
       - name: Type check
         run: pnpm typecheck
@@ -43,17 +53,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - uses: pnpm/action-setup@v3
+      - uses: actions/setup-go@v5
         with:
-          version: 8
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'pnpm'
-
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+          go-version: '1.24'
+          cache-dependency-path: backend/go.sum
 
       - name: Start MinIO
         run: |
@@ -86,12 +89,13 @@ jobs:
           aws --endpoint-url "$AWS_ENDPOINT_URL" s3 ls s3://test-transcripts/
 
       - name: Run integration tests
+        working-directory: backend
         env:
           AWS_ENDPOINT_URL: http://localhost:9000
           AWS_ACCESS_KEY_ID: minioadmin
           AWS_SECRET_ACCESS_KEY: minioadmin
           AWS_DEFAULT_REGION: us-east-1
-        run: pnpm --filter @claude-transcript-viewer/backend test:integration
+        run: go test -tags=integration -v -count=1 ./...
 
   e2e-tests:
     name: E2E Tests with Playwright
@@ -108,6 +112,11 @@ jobs:
         with:
           node-version: '20'
           cache: 'pnpm'
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache-dependency-path: backend/go.sum
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
@@ -155,7 +164,8 @@ jobs:
         run: pnpm --filter @claude-transcript-viewer/frontend build
 
       - name: Build backend
-        run: pnpm --filter @claude-transcript-viewer/backend build
+        working-directory: backend
+        run: go build -o ./server .
 
       - name: Start backend server
         env:
@@ -164,7 +174,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: minioadmin
           S3_BUCKET: test-transcripts
         run: |
-          pnpm --filter @claude-transcript-viewer/backend start &
+          ./backend/server &
           timeout 30 bash -c 'until curl -f http://localhost:3000/api/health; do sleep 2; done'
 
       - name: Start frontend server
@@ -518,7 +528,6 @@ jobs:
         with:
           path: |
             frontend/.eslintcache
-            backend/.eslintcache
           key: eslint-${{ runner.os }}-${{ hashFiles('**/eslint*') }}-${{ github.sha }}
           restore-keys: |
             eslint-${{ runner.os }}-${{ hashFiles('**/eslint*') }}-

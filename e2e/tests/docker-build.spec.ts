@@ -175,13 +175,13 @@ describe('Docker Build - Backend', () => {
     assert.strictEqual(dockerImageExists(imageName), true);
   });
 
-  it('should use node:20-alpine base image', () => {
+  it('should use a golang alpine base image for the build stage', () => {
     // Arrange
     const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
     const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
 
     // Assert
-    assert.ok(dockerfileContent.includes('FROM node:20-alpine'));
+    assert.ok(/FROM golang:\S+-alpine/i.test(dockerfileContent));
   });
 
   it('should produce an optimized image size under 300MB', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
@@ -211,7 +211,7 @@ describe('Docker Build - Backend', () => {
     assert.ok(dockerfileContent.includes('EXPOSE 3000'));
   });
 
-  it('should run Express app and respond to health check', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
+  it('should run the server and respond to health check', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
     // Arrange
     const imageName = 'claude-transcript-viewer-backend:test';
     const containerName = 'claude-backend-test';
@@ -225,7 +225,7 @@ describe('Docker Build - Backend', () => {
     // Wait for container to be ready
     execCommand('sleep 5');
 
-    // Check if Express is responding
+    // Check if the server is responding
     const curlOutput = execCommand('curl -f http://localhost:3001/api/health');
 
     // Assert
@@ -233,34 +233,32 @@ describe('Docker Build - Backend', () => {
     assert.ok(curlOutput.length > 0);
   });
 
-  it('should exclude node_modules and dist from build context', () => {
-    // Arrange
-    const dockerignorePath = resolve(BACKEND_DIR, '.dockerignore');
-    const dockerignoreContent = readFileSync(dockerignorePath, 'utf-8');
-
-    // Assert
-    assert.ok(dockerignoreContent.includes('node_modules'));
-    assert.ok(dockerignoreContent.includes('dist'));
-  });
-
-  it('should use non-root user for security', () => {
+  it('should produce a static build with CGO disabled', () => {
     // Arrange
     const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
     const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
 
     // Assert
-    assert.ok(dockerfileContent.includes('USER node'));
+    assert.ok(dockerfileContent.includes('CGO_ENABLED=0'));
+    assert.ok(dockerfileContent.includes('go build'));
   });
 
-  it('should run dist/index.js as entrypoint', () => {
+  it('should use a non-root user for security', () => {
     // Arrange
     const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
     const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
 
     // Assert
-    assert.ok(dockerfileContent.includes('CMD'));
-    assert.ok(dockerfileContent.includes('node'));
-    assert.ok(dockerfileContent.includes('dist/index.js'));
+    assert.ok(/^USER\s+(?!root\b)\S+/m.test(dockerfileContent));
+  });
+
+  it('should run the compiled server binary as entrypoint', () => {
+    // Arrange
+    const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
+    const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
+
+    // Assert
+    assert.ok(/^(ENTRYPOINT|CMD)\s+\[.*server/m.test(dockerfileContent));
   });
 });
 
@@ -304,8 +302,8 @@ describe('Docker Build - .dockerignore Optimization', () => {
 
     // Assert
     const excludesTests =
-      dockerignoreContent.includes('*.test.ts') ||
-      dockerignoreContent.includes('**/*.test.*');
+      dockerignoreContent.includes('*_test.go') ||
+      dockerignoreContent.includes('**/*_test.go');
 
     assert.strictEqual(excludesTests, true);
   });

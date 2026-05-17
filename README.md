@@ -12,11 +12,11 @@ claude-transcript-viewer-v2/
 │   │   ├── hooks/         # Custom React hooks
 │   │   └── test/          # Test utilities
 │   └── package.json
-├── backend/               # Node.js + Express S3 proxy
-│   ├── src/
-│   │   ├── routes/        # API routes
-│   │   └── services/      # Business logic (S3 service)
-│   └── package.json
+├── backend/               # Go S3 proxy (net/http + AWS SDK for Go v2)
+│   ├── main.go            # Entry point
+│   ├── server.go          # HTTP routing
+│   ├── s3.go              # S3 service
+│   └── go.mod
 ├── e2e/                   # Playwright E2E tests
 │   ├── fixtures/          # Sample transcript fixtures
 │   ├── tests/             # E2E test specs
@@ -30,16 +30,17 @@ claude-transcript-viewer-v2/
 ## Technology Stack
 
 - **Frontend**: React 18, Vite, TypeScript, Vitest
-- **Backend**: Node.js, Express, AWS SDK v3
+- **Backend**: Go (net/http + AWS SDK for Go v2)
 - **E2E Testing**: Playwright
 - **Local Development**: MinIO (S3-compatible storage)
 - **CI/CD**: GitHub Actions
-- **Package Manager**: pnpm workspaces
+- **Package Manager**: pnpm workspaces (frontend + e2e), Go modules (backend)
 
 ## Prerequisites
 
 - Node.js >= 20.0.0
 - pnpm >= 8.0.0
+- Go >= 1.24
 - Docker (for MinIO)
 
 ## Installation
@@ -98,10 +99,10 @@ export S3_BUCKET=test-transcripts
 Then start the dev servers:
 
 ```bash
-# Terminal 1: Start backend
+# Terminal 1: Start backend (Go)
 cd backend
 cp ../.env.example .env  # Edit to match the variables above
-pnpm dev
+go run .
 
 # Terminal 2: Start frontend
 cd frontend
@@ -115,16 +116,16 @@ Visit http://localhost:5173
 ### Unit Tests
 
 ```bash
-# Run all unit tests
+# Run all unit tests (frontend only — backend uses Go)
 pnpm test:unit
 
 # Run frontend tests only
 pnpm --filter frontend test
 
-# Run backend tests only
-pnpm --filter backend test
+# Run backend tests only (Go)
+cd backend && go test ./...
 
-# Watch mode
+# Watch mode (frontend)
 pnpm --filter frontend test:watch
 ```
 
@@ -134,11 +135,12 @@ Integration tests require MinIO to be running with the bucket and fixtures from
 the setup steps above.
 
 ```bash
-# Run integration tests (MinIO must be reachable at AWS_ENDPOINT_URL)
+# Run backend integration tests against MinIO
+cd backend
 AWS_ENDPOINT_URL=http://localhost:9000 \
 AWS_ACCESS_KEY_ID=minioadmin \
 AWS_SECRET_ACCESS_KEY=minioadmin \
-pnpm --filter backend test:integration
+go test -tags=integration ./...
 ```
 
 ### E2E Tests
