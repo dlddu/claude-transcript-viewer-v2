@@ -285,7 +285,9 @@ jobs:
             -e S3_BUCKET=test-bucket \
             claude-transcript-viewer-backend:test
           sleep 5
-          curl -f http://localhost:3001/api/health || exit 1
+          docker ps -a --filter name=backend-test
+          docker logs backend-test || true
+          curl -f http://localhost:3001/api/health || { docker logs backend-test; exit 1; }
           docker stop backend-test
           docker rm backend-test
 
