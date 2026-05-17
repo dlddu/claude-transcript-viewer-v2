@@ -128,8 +128,29 @@ impl S3Service {
                 .credentials_provider(provider)
                 .build()
         } else {
+            // Default chain: env vars → profile → IRSA / container creds → IMDS.
+            // The pre-migration Node.js code reached IMDS on EKS worker nodes
+            // without any special config; aws-sdk-rust's default IMDS client
+            // has a 1s connect/read timeout which can be too aggressive on
+            // some networks and causes the chain to silently report "no
+            // providers in chain provided credentials". Build the chain with
+            // an IMDS client that has 5s timeouts so the instance-profile
+            // path actually completes.
+            let imds_client = aws_config::imds::Client::builder()
+                .connect_timeout(std::time::Duration::from_secs(5))
+                .read_timeout(std::time::Duration::from_secs(5))
+                .build();
+
+            let credentials =
+                aws_config::default_provider::credentials::DefaultCredentialsChain::builder()
+                    .imds_client(imds_client)
+                    .region(region.clone())
+                    .build()
+                    .await;
+
             let base_config = aws_config::defaults(BehaviorVersion::latest())
                 .region(region)
+                .credentials_provider(credentials)
                 .load()
                 .await;
             aws_sdk_s3::config::Builder::from(&base_config).build()
