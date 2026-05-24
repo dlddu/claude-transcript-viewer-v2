@@ -16,9 +16,15 @@ FROM alpine:3.20
 
 RUN apk add --no-cache ca-certificates \
     && addgroup -S app -g 1000 \
-    && adduser -S -G app -u 1000 -s /sbin/nologin app
+    && adduser -S -G app -u 1000 -s /sbin/nologin app \
+    && mkdir -p /data \
+    && chown app:app /data
 
 COPY --from=build /out/server /usr/local/bin/server
+
+# SQLite session-mapping database. In Kubernetes this path is backed by a
+# PersistentVolumeClaim; the image dir is a writable fallback for local runs.
+ENV DB_PATH=/data/transcripts.db
 
 USER app
 EXPOSE 3000

@@ -140,7 +140,7 @@ jobs:
         run: |
           timeout 60 bash -c 'until curl -fs http://localhost:9000/minio/health/live; do sleep 2; done'
 
-      - name: Setup S3 test data
+      - name: Create S3 bucket
         env:
           AWS_ACCESS_KEY_ID: minioadmin
           AWS_SECRET_ACCESS_KEY: minioadmin
@@ -148,7 +148,6 @@ jobs:
           AWS_ENDPOINT_URL: http://localhost:9000
         run: |
           aws --endpoint-url "$AWS_ENDPOINT_URL" s3 mb s3://test-transcripts
-          aws --endpoint-url "$AWS_ENDPOINT_URL" s3 cp e2e/fixtures/ s3://test-transcripts/ --recursive
 
       - name: Build frontend
         env:
@@ -159,12 +158,25 @@ jobs:
         working-directory: backend
         run: go build -o ./server .
 
+      # Upload fixtures to their Hive-partitioned S3 keys and record the
+      # session→prefix mapping in the same SQLite DB the server reads from.
+      - name: Seed transcripts into S3 and SQLite (Hive layout)
+        env:
+          AWS_ENDPOINT_URL: http://localhost:9000
+          AWS_ACCESS_KEY_ID: minioadmin
+          AWS_SECRET_ACCESS_KEY: minioadmin
+          AWS_DEFAULT_REGION: us-east-1
+          S3_BUCKET: test-transcripts
+          DB_PATH: ${{ github.workspace }}/backend-e2e.db
+        run: ./backend/server seed --dir e2e/fixtures
+
       - name: Start backend server
         env:
           AWS_ENDPOINT_URL: http://localhost:9000
           AWS_ACCESS_KEY_ID: minioadmin
           AWS_SECRET_ACCESS_KEY: minioadmin
           S3_BUCKET: test-transcripts
+          DB_PATH: ${{ github.workspace }}/backend-e2e.db
         run: |
           ./backend/server &
           timeout 30 bash -c 'until curl -f http://localhost:3000/api/health; do sleep 2; done'
@@ -420,6 +432,7 @@ jobs:
 
       - name: Deploy backend to kind cluster
         run: |
+          kubectl apply -f k8s/backend/pvc.yaml
           kubectl apply -f k8s/backend/deployment.yaml
           kubectl apply -f k8s/backend/service.yaml
           kubectl set image deployment/claude-transcript-viewer-backend \
@@ -444,12 +457,19 @@ jobs:
           kubectl rollout status deployment/claude-transcript-viewer-backend --timeout=120s
           kubectl rollout status deployment/claude-transcript-viewer-frontend --timeout=120s
 
-      - name: Setup S3 test data in LocalStack
+      # Seed by running the backend's own `seed` subcommand inside the backend
+      # pod: it uploads fixtures to their Hive-partitioned keys (in-cluster
+      # LocalStack endpoint) and writes the session→prefix mapping to the
+      # SQLite DB on the PVC. Restart afterwards so the serving pod reads the
+      # freshly seeded database.
+      - name: Seed transcripts into LocalStack and SQLite (Hive layout)
         run: |
           kubectl exec deploy/localstack -- awslocal s3 mb s3://test-transcripts
-          pod=$(kubectl get pod -l app=localstack -o jsonpath='{.items[0].metadata.name}')
-          kubectl cp e2e/fixtures "$pod:/tmp/fixtures"
-          kubectl exec deploy/localstack -- awslocal s3 cp /tmp/fixtures/ s3://test-transcripts/ --recursive
+          backend_pod=$(kubectl get pod -l app=claude-transcript-viewer-backend -o jsonpath='{.items[0].metadata.name}')
+          kubectl cp e2e/fixtures "$backend_pod:/tmp/fixtures"
+          kubectl exec "$backend_pod" -- /usr/local/bin/server seed --dir /tmp/fixtures
+          kubectl rollout restart deployment/claude-transcript-viewer-backend
+          kubectl rollout status deployment/claude-transcript-viewer-backend --timeout=120s
 
       - name: Port forward services
         run: |

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: claude-transcript-viewer-data
+  labels:
+    app: claude-transcript-viewer-backend
+    tier: backend
+spec:
+  # SQLite is a single-writer database, so the volume is mounted by exactly
+  # one backend pod (the Deployment uses the Recreate strategy and 1 replica).
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

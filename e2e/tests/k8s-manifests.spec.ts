@@ -159,6 +159,18 @@ describe('K8s Manifests - File Structure', () => {
       'secret.example.yaml should exist in k8s/backend directory'
     );
   });
+
+  it('should have pvc.yaml file', () => {
+    // Arrange
+    const pvcPath = resolve(K8S_DIR, 'pvc.yaml');
+
+    // Assert
+    assert.strictEqual(
+      existsSync(pvcPath),
+      true,
+      'pvc.yaml should exist in k8s/backend directory'
+    );
+  });
 });
 
 describe('K8s Manifests - YAML Validity', () => {
@@ -320,6 +332,76 @@ describe('K8s Manifests - Deployment Configuration', () => {
     assert.ok(containsKey(content, 'resources'), 'Container should define resources');
     assert.ok(containsKey(content, 'limits'), 'Resources should include limits');
     assert.ok(containsKey(content, 'requests'), 'Resources should include requests');
+  });
+
+  it('should mount the SQLite data volume and set DB_PATH', () => {
+    // Arrange
+    const deploymentPath = resolve(K8S_DIR, 'deployment.yaml');
+    const content = readFileSync(deploymentPath, 'utf-8');
+
+    // Assert
+    assert.ok(containsKey(content, 'volumeMounts'), 'Container should declare volumeMounts');
+    assert.ok(content.includes('mountPath: /data'), 'Volume should mount at /data');
+    assert.ok(content.includes('DB_PATH'), 'Deployment should set DB_PATH env');
+    assert.ok(content.includes('/data/transcripts.db'), 'DB_PATH should point at the mounted volume');
+  });
+
+  it('should back the data volume with the PersistentVolumeClaim', () => {
+    // Arrange
+    const deploymentPath = resolve(K8S_DIR, 'deployment.yaml');
+    const content = readFileSync(deploymentPath, 'utf-8');
+
+    // Assert
+    assert.ok(containsKey(content, 'volumes'), 'Pod spec should declare volumes');
+    assert.ok(content.includes('persistentVolumeClaim'), 'Volume should use a persistentVolumeClaim');
+    assert.ok(
+      content.includes('claimName: claude-transcript-viewer-data'),
+      'Volume claimName should match the PVC name'
+    );
+  });
+
+  it('should use the Recreate strategy for the single-writer SQLite volume', () => {
+    // Arrange
+    const deploymentPath = resolve(K8S_DIR, 'deployment.yaml');
+    const content = readFileSync(deploymentPath, 'utf-8');
+
+    // Assert
+    assert.ok(content.includes('type: Recreate'),
+      'Deployment should use Recreate strategy so only one pod holds the RWO PVC');
+  });
+});
+
+describe('K8s Manifests - PVC Configuration', () => {
+  it('should have apiVersion and kind fields in pvc.yaml', () => {
+    // Arrange
+    const pvcPath = resolve(K8S_DIR, 'pvc.yaml');
+    const content = readFileSync(pvcPath, 'utf-8');
+
+    // Assert
+    assert.ok(containsKey(content, 'apiVersion'), 'PVC should have apiVersion field');
+    assert.ok(content.includes('kind: PersistentVolumeClaim'), 'kind should be PersistentVolumeClaim');
+  });
+
+  it('should have metadata name matching the deployment claimName', () => {
+    // Arrange
+    const pvcPath = resolve(K8S_DIR, 'pvc.yaml');
+    const content = readFileSync(pvcPath, 'utf-8');
+
+    // Assert
+    assert.ok(content.includes('name: claude-transcript-viewer-data'),
+      'PVC name should be claude-transcript-viewer-data');
+  });
+
+  it('should request ReadWriteOnce access and storage', () => {
+    // Arrange
+    const pvcPath = resolve(K8S_DIR, 'pvc.yaml');
+    const content = readFileSync(pvcPath, 'utf-8');
+
+    // Assert
+    assert.ok(containsKey(content, 'accessModes'), 'PVC should declare accessModes');
+    assert.ok(content.includes('ReadWriteOnce'), 'PVC should use ReadWriteOnce');
+    assert.ok(containsKey(content, 'resources'), 'PVC should declare resources');
+    assert.ok(content.includes('storage:'), 'PVC should request storage');
   });
 });
 
@@ -569,6 +651,16 @@ describe('K8s Manifests - kubectl dry-run validation', () => {
     assert.doesNotThrow(() => {
       execCommand(`KUBECONFIG=/dev/null kubectl create --dry-run=client --validate=false -f ${secretPath} -o yaml`);
     }, 'secret.example.yaml should pass kubectl dry-run validation');
+  });
+
+  it('should pass kubectl dry-run for pvc.yaml', { skip: !isKubectlAvailable() ? 'kubectl is not available' : false }, () => {
+    // Arrange
+    const pvcPath = resolve(K8S_DIR, 'pvc.yaml');
+
+    // Act & Assert
+    assert.doesNotThrow(() => {
+      execCommand(`KUBECONFIG=/dev/null kubectl create --dry-run=client --validate=false -f ${pvcPath} -o yaml`);
+    }, 'pvc.yaml should pass kubectl dry-run validation');
   });
 
   it('should validate all manifests can be applied together', { skip: !isKubectlAvailable() ? 'kubectl is not available' : false }, () => {

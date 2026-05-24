@@ -4,6 +4,7 @@ kind: Kustomization
 # Manifests applied by Flux for the production deployment. Local-dev
 # helpers (LocalStack, *.example.yaml) are intentionally excluded.
 resources:
+  - backend/pvc.yaml
   - backend/deployment.yaml
   - backend/service.yaml
   - frontend/deployment.yaml

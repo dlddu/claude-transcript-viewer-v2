@@ -15,6 +15,7 @@ import (
 type fakeService struct {
 	getTranscriptBySession func(ctx context.Context, sessionID string) (Transcript, error)
 	listTranscripts        func(ctx context.Context) ([]string, error)
+	createUploadURL        func(ctx context.Context, req UploadURLRequest) (UploadURLResponse, error)
 	lastSessionIDPassed    string
 }
 
@@ -31,6 +32,13 @@ func (f *fakeService) ListTranscripts(ctx context.Context) ([]string, error) {
 		return f.listTranscripts(ctx)
 	}
 	return nil, errors.New("not stubbed")
+}
+
+func (f *fakeService) CreateUploadURL(ctx context.Context, req UploadURLRequest) (UploadURLResponse, error) {
+	if f.createUploadURL != nil {
+		return f.createUploadURL(ctx, req)
+	}
+	return UploadURLResponse{}, errors.New("not stubbed")
 }
 
 func newTranscript(t *testing.T, fields map[string]any) Transcript {
@@ -58,6 +66,15 @@ func decodeResponse(t *testing.T, body []byte) map[string]any {
 func doRequest(t *testing.T, server http.Handler, path string) *httptest.ResponseRecorder {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodGet, path, nil)
+	rec := httptest.NewRecorder()
+	server.ServeHTTP(rec, req)
+	return rec
+}
+
+func doPost(t *testing.T, server http.Handler, path, body string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
+	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	server.ServeHTTP(rec, req)
 	return rec
@@ -235,6 +252,74 @@ func TestHandleGetBySession_TrimsWhitespace(t *testing.T) {
 	body := decodeResponse(t, rec.Body.Bytes())
 	if body["session_id"] != sessionID {
 		t.Errorf("session_id = %v, want %q", body["session_id"], sessionID)
+	}
+}
+
+// --- /api/transcript/upload-url ---------------------------------------------
+
+func TestHandleCreateUploadURL_ReturnsPresignedURL(t *testing.T) {
+	fake := &fakeService{
+		createUploadURL: func(_ context.Context, req UploadURLRequest) (UploadURLResponse, error) {
+			return UploadURLResponse{
+				URL:       "https://s3.example.com/bucket/key?sig=x",
+				Method:    http.MethodPut,
+				Key:       "year=2026/month=05/day=24/hour=00/session_id=" + req.SessionID + "/transcript.jsonl",
+				SessionID: req.SessionID,
+				ExpiresIn: 900,
+			}, nil
+		},
+	}
+	server := NewServer(fake)
+
+	rec := doPost(t, server, "/api/transcripts/upload-url", `{"session_id":"session-abc123"}`)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	body := decodeResponse(t, rec.Body.Bytes())
+	if body["url"] == "" || body["url"] == nil {
+		t.Error("missing url")
+	}
+	if body["method"] != http.MethodPut {
+		t.Errorf("method = %v, want PUT", body["method"])
+	}
+	if body["session_id"] != "session-abc123" {
+		t.Errorf("session_id = %v, want session-abc123", body["session_id"])
+	}
+}
+
+func TestHandleCreateUploadURL_BothBasePrefixes(t *testing.T) {
+	fake := &fakeService{
+		createUploadURL: func(_ context.Context, req UploadURLRequest) (UploadURLResponse, error) {
+			return UploadURLResponse{URL: "https://x", Method: http.MethodPut, SessionID: req.SessionID}, nil
+		},
+	}
+	server := NewServer(fake)
+	for _, base := range []string{"/api/transcripts", "/api/transcript"} {
+		rec := doPost(t, server, base+"/upload-url", `{"session_id":"abc"}`)
+		if rec.Code != http.StatusOK {
+			t.Errorf("%s: status = %d, want 200", base, rec.Code)
+		}
+	}
+}
+
+func TestHandleCreateUploadURL_InvalidBodyReturns400(t *testing.T) {
+	server := NewServer(&fakeService{})
+	rec := doPost(t, server, "/api/transcripts/upload-url", `not json`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+func TestHandleCreateUploadURL_InvalidSessionReturns400(t *testing.T) {
+	fake := &fakeService{
+		createUploadURL: func(_ context.Context, _ UploadURLRequest) (UploadURLResponse, error) {
+			return UploadURLResponse{}, ErrSessionIDInvalid
+		},
+	}
+	server := NewServer(fake)
+	rec := doPost(t, server, "/api/transcripts/upload-url", `{"session_id":"a/b"}`)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
 	}
 }
 

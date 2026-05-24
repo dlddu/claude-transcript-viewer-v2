@@ -7,6 +7,10 @@ metadata:
     tier: backend
 spec:
   replicas: 1
+  # SQLite on a ReadWriteOnce volume tolerates only one writer, so the old pod
+  # must release the PVC before the new one starts.
+  strategy:
+    type: Recreate
   selector:
     matchLabels:
       app: claude-transcript-viewer-backend
@@ -32,9 +36,14 @@ spec:
           env:
             - name: PORT
               value: "3000"
+            - name: DB_PATH
+              value: /data/transcripts.db
           envFrom:
             - secretRef:
                 name: claude-transcript-viewer-secrets
+          volumeMounts:
+            - name: data
+              mountPath: /data
           livenessProbe:
             httpGet:
               path: /api/health
@@ -63,3 +72,7 @@ spec:
             readOnlyRootFilesystem: false
             runAsNonRoot: true
             runAsUser: 1000
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: claude-transcript-viewer-data
