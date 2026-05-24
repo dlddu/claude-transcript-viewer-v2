@@ -4,7 +4,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"errors"
 	"os"
 	"path/filepath"
@@ -95,51 +94,13 @@ func newIntegrationService(t *testing.T, prefix string) *S3Service {
 	return svc
 }
 
-func TestIntegration_GetTranscript(t *testing.T) {
-	client := newRealS3Client(t)
-	body := readFixtureFile(t, "transcript-20260201-001.json")
-
-	var meta struct {
-		ID      string `json:"id"`
-		Content string `json:"content"`
-	}
-	if err := json.Unmarshal([]byte(body), &meta); err != nil {
-		t.Fatalf("parse fixture: %v", err)
-	}
-
-	key := meta.ID + ".json"
-	putObject(t, client, key, body)
-	t.Cleanup(func() { deleteObject(t, client, key) })
-
-	svc := newIntegrationService(t, "")
-	got, err := svc.GetTranscript(context.Background(), meta.ID)
-	if err != nil {
-		t.Fatalf("GetTranscript: %v", err)
-	}
-	if got.GetString("id") != meta.ID {
-		t.Errorf("id = %q, want %q", got.GetString("id"), meta.ID)
-	}
-	if got.GetString("content") != meta.Content {
-		t.Errorf("content mismatch")
-	}
-	if _, ok := got["subagents"]; !ok {
-		t.Error("missing subagents field from fixture")
-	}
-}
-
 func TestIntegration_ListTranscriptsIncludesUploaded(t *testing.T) {
 	client := newRealS3Client(t)
-	body := readFixtureFile(t, "transcript-20260201-001.json")
+	const id = "session-xyz789"
+	body := readFixtureFile(t, "session-xyz789.jsonl")
 
-	var meta struct {
-		ID string `json:"id"`
-	}
-	if err := json.Unmarshal([]byte(body), &meta); err != nil {
-		t.Fatalf("parse fixture: %v", err)
-	}
-
-	putObject(t, client, meta.ID+".json", body)
-	t.Cleanup(func() { deleteObject(t, client, meta.ID+".json") })
+	putObject(t, client, id+".jsonl", body)
+	t.Cleanup(func() { deleteObject(t, client, id+".jsonl") })
 
 	svc := newIntegrationService(t, "")
 	ids, err := svc.ListTranscripts(context.Background())
@@ -147,46 +108,39 @@ func TestIntegration_ListTranscriptsIncludesUploaded(t *testing.T) {
 		t.Fatalf("ListTranscripts: %v", err)
 	}
 	found := false
-	for _, id := range ids {
-		if id == meta.ID {
+	for _, gotID := range ids {
+		if gotID == id {
 			found = true
 			break
 		}
 	}
 	if !found {
-		t.Errorf("expected %q in %v", meta.ID, ids)
+		t.Errorf("expected %q in %v", id, ids)
 	}
 }
 
-func TestIntegration_GetTranscriptWithPrefix(t *testing.T) {
+func TestIntegration_GetTranscriptBySessionIdWithPrefix(t *testing.T) {
 	client := newRealS3Client(t)
 	prefix := "tenants/acme/transcripts/"
-	id := "prefixed-integration-transcript"
-	body, _ := json.Marshal(map[string]any{
-		"id":        id,
-		"content":   "Prefixed transcript content for integration testing",
-		"timestamp": "2026-02-01T00:00:00Z",
-	})
+	id := "prefixed-session"
+	body := readFixtureFile(t, "session-xyz789.jsonl")
 
-	putObject(t, client, prefix+id+".json", string(body))
-	t.Cleanup(func() { deleteObject(t, client, prefix+id+".json") })
+	putObject(t, client, prefix+id+".jsonl", body)
+	t.Cleanup(func() { deleteObject(t, client, prefix+id+".jsonl") })
 
 	prefixedSvc := newIntegrationService(t, prefix)
-	got, err := prefixedSvc.GetTranscript(context.Background(), id)
+	got, err := prefixedSvc.GetTranscriptBySessionId(context.Background(), id)
 	if err != nil {
-		t.Fatalf("GetTranscript: %v", err)
+		t.Fatalf("GetTranscriptBySessionId: %v", err)
 	}
-	if got.GetString("id") != id {
-		t.Errorf("id = %q, want %q", got.GetString("id"), id)
-	}
-	if !strings.Contains(got.GetString("content"), "Prefixed transcript content") {
-		t.Errorf("content missing expected substring, got %q", got.GetString("content"))
+	if got.GetString("session_id") != id {
+		t.Errorf("session_id = %q, want %q", got.GetString("session_id"), id)
 	}
 
 	noPrefixSvc := newIntegrationService(t, "")
-	_, err = noPrefixSvc.GetTranscript(context.Background(), id)
-	if !errors.Is(err, ErrTranscriptNotFound) {
-		t.Errorf("expected ErrTranscriptNotFound without prefix, got %v", err)
+	_, err = noPrefixSvc.GetTranscriptBySessionId(context.Background(), id)
+	if !errors.Is(err, ErrNoSessionTranscriptFound) {
+		t.Errorf("expected ErrNoSessionTranscriptFound without prefix, got %v", err)
 	}
 
 	ids, err := prefixedSvc.ListTranscripts(context.Background())

@@ -70,23 +70,15 @@ jobs:
         run: |
           timeout 60 bash -c 'until curl -fs http://localhost:9000/minio/health/live; do sleep 2; done'
 
-      - name: Create S3 bucket and upload test fixtures
+      - name: Create S3 bucket
         env:
           AWS_ACCESS_KEY_ID: minioadmin
           AWS_SECRET_ACCESS_KEY: minioadmin
           AWS_DEFAULT_REGION: us-east-1
           AWS_ENDPOINT_URL: http://localhost:9000
         run: |
-          # Create bucket
+          # Create bucket (integration tests upload their own fixtures at runtime)
           aws --endpoint-url "$AWS_ENDPOINT_URL" s3 mb s3://test-transcripts
-
-          # Upload test fixtures
-          aws --endpoint-url "$AWS_ENDPOINT_URL" s3 cp e2e/fixtures/transcript-20260201-001.json s3://test-transcripts/
-          aws --endpoint-url "$AWS_ENDPOINT_URL" s3 cp e2e/fixtures/subagent-data-analyzer-20260201-001.json s3://test-transcripts/subagent-data-analyzer-20260201-001.json
-          aws --endpoint-url "$AWS_ENDPOINT_URL" s3 cp e2e/fixtures/subagent-visualizer-20260201-001.json s3://test-transcripts/subagent-visualizer-20260201-001.json
-
-          # Verify upload
-          aws --endpoint-url "$AWS_ENDPOINT_URL" s3 ls s3://test-transcripts/
 
       - name: Run integration tests
         working-directory: backend

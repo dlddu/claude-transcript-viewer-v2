@@ -12,7 +12,6 @@ import (
 // TranscriptService is the interface the HTTP layer needs from the
 // underlying storage. Tests use a fake; production wires in *S3Service.
 type TranscriptService interface {
-	GetTranscript(ctx context.Context, id string) (Transcript, error)
 	GetTranscriptBySessionId(ctx context.Context, sessionID string) (Transcript, error)
 	ListTranscripts(ctx context.Context) ([]string, error)
 }
@@ -49,7 +48,6 @@ func (s *Server) registerRoutes() {
 	for _, base := range []string{"/api/transcripts", "/api/transcript"} {
 		s.mux.HandleFunc("GET "+base, s.handleList)
 		s.mux.HandleFunc("GET "+base+"/{$}", s.handleList)
-		s.mux.HandleFunc("GET "+base+"/{id}", s.handleGetByID)
 		s.mux.HandleFunc("GET "+base+"/session/{sessionId}", s.handleGetBySession)
 	}
 
@@ -72,25 +70,6 @@ func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, ids)
-}
-
-func (s *Server) handleGetByID(w http.ResponseWriter, r *http.Request) {
-	id := r.PathValue("id")
-	if id == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Transcript ID is required"})
-		return
-	}
-	transcript, err := s.svc.GetTranscript(r.Context(), id)
-	if err != nil {
-		if errors.Is(err, ErrTranscriptNotFound) {
-			writeJSON(w, http.StatusNotFound, map[string]string{"error": "Transcript not found"})
-			return
-		}
-		log.Printf("Error fetching transcript: %v", err)
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to fetch transcript"})
-		return
-	}
-	writeJSON(w, http.StatusOK, transcript)
 }
 
 func (s *Server) handleGetBySession(w http.ResponseWriter, r *http.Request) {
