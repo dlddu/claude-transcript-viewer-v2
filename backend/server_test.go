@@ -13,17 +13,9 @@ import (
 
 // fakeService implements TranscriptService for handler tests.
 type fakeService struct {
-	getTranscript           func(ctx context.Context, id string) (Transcript, error)
-	getTranscriptBySession  func(ctx context.Context, sessionID string) (Transcript, error)
-	listTranscripts         func(ctx context.Context) ([]string, error)
-	lastSessionIDPassed     string
-}
-
-func (f *fakeService) GetTranscript(ctx context.Context, id string) (Transcript, error) {
-	if f.getTranscript != nil {
-		return f.getTranscript(ctx, id)
-	}
-	return nil, errors.New("not stubbed")
+	getTranscriptBySession func(ctx context.Context, sessionID string) (Transcript, error)
+	listTranscripts        func(ctx context.Context) ([]string, error)
+	lastSessionIDPassed    string
 }
 
 func (f *fakeService) GetTranscriptBySessionId(ctx context.Context, sessionID string) (Transcript, error) {
@@ -69,95 +61,6 @@ func doRequest(t *testing.T, server http.Handler, path string) *httptest.Respons
 	rec := httptest.NewRecorder()
 	server.ServeHTTP(rec, req)
 	return rec
-}
-
-// --- /api/transcripts/:id --------------------------------------------------
-
-func TestHandleGetByID_ReturnsTranscript(t *testing.T) {
-	id := "test-transcript-1"
-	fake := &fakeService{
-		getTranscript: func(_ context.Context, gotID string) (Transcript, error) {
-			if gotID != id {
-				t.Errorf("service got id %q, want %q", gotID, id)
-			}
-			return newTranscript(t, map[string]any{
-				"id":      id,
-				"content": "Some transcript content",
-			}), nil
-		},
-	}
-	server := NewServer(fake)
-
-	rec := doRequest(t, server, "/api/transcripts/"+id)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", rec.Code)
-	}
-	body := decodeResponse(t, rec.Body.Bytes())
-	if body["id"] != id {
-		t.Errorf("id = %v, want %q", body["id"], id)
-	}
-	if _, ok := body["content"]; !ok {
-		t.Error("missing content field")
-	}
-}
-
-func TestHandleGetByID_NotFound(t *testing.T) {
-	fake := &fakeService{
-		getTranscript: func(_ context.Context, _ string) (Transcript, error) {
-			return nil, ErrTranscriptNotFound
-		},
-	}
-	server := NewServer(fake)
-
-	rec := doRequest(t, server, "/api/transcripts/non-existent-id")
-	if rec.Code != http.StatusNotFound {
-		t.Fatalf("status = %d, want 404", rec.Code)
-	}
-	body := decodeResponse(t, rec.Body.Bytes())
-	if _, ok := body["error"]; !ok {
-		t.Error("expected error field")
-	}
-}
-
-func TestHandleGetByID_S3FailureReturnsError(t *testing.T) {
-	fake := &fakeService{
-		getTranscript: func(_ context.Context, _ string) (Transcript, error) {
-			return nil, errors.New("Unexpected S3 failure")
-		},
-	}
-	server := NewServer(fake)
-
-	rec := doRequest(t, server, "/api/transcripts/invalid-id")
-	if rec.Code < 400 {
-		t.Errorf("status = %d, want >= 400", rec.Code)
-	}
-}
-
-func TestHandleGetByID_IncludesSubagents(t *testing.T) {
-	id := "test-with-subagents"
-	fake := &fakeService{
-		getTranscript: func(_ context.Context, _ string) (Transcript, error) {
-			return newTranscript(t, map[string]any{
-				"id":        id,
-				"content":   "Transcript with subagents",
-				"subagents": []any{},
-			}), nil
-		},
-	}
-	server := NewServer(fake)
-
-	rec := doRequest(t, server, "/api/transcripts/"+id)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", rec.Code)
-	}
-	body := decodeResponse(t, rec.Body.Bytes())
-	subs, ok := body["subagents"].([]any)
-	if !ok {
-		t.Fatalf("subagents not an array, got %T", body["subagents"])
-	}
-	if len(subs) != 0 {
-		t.Errorf("expected empty subagents, got %v", subs)
-	}
 }
 
 // --- /api/transcript/session/:sessionId -------------------------------------
@@ -352,18 +255,24 @@ func TestHandleHealth_ReturnsHealthy(t *testing.T) {
 // --- Both /api/transcript and /api/transcripts prefixes work ---------------
 
 func TestBothBasePrefixes_Work(t *testing.T) {
-	id := "test-transcript-1"
+	sessionID := "session-abc123"
 	fake := &fakeService{
-		getTranscript: func(_ context.Context, _ string) (Transcript, error) {
-			return newTranscript(t, map[string]any{"id": id, "content": "x"}), nil
+		getTranscriptBySession: func(_ context.Context, _ string) (Transcript, error) {
+			return newTranscript(t, map[string]any{
+				"id":         sessionID,
+				"session_id": sessionID,
+				"content":    "{}",
+				"messages":   []any{},
+				"subagents":  []any{},
+			}), nil
 		},
 	}
 	server := NewServer(fake)
 
-	for _, path := range []string{"/api/transcripts/" + id, "/api/transcript/" + id} {
-		rec := doRequest(t, server, path)
+	for _, base := range []string{"/api/transcripts", "/api/transcript"} {
+		rec := doRequest(t, server, base+"/session/"+sessionID)
 		if rec.Code != http.StatusOK {
-			t.Errorf("%s: status = %d, want 200", path, rec.Code)
+			t.Errorf("%s: status = %d, want 200", base, rec.Code)
 		}
 	}
 }

@@ -19,7 +19,6 @@ import (
 	"github.com/aws/aws-sdk-go-v2/service/s3"
 	"github.com/aws/aws-sdk-go-v2/service/sts"
 	"github.com/aws/smithy-go"
-	smithyhttp "github.com/aws/smithy-go/transport/http"
 )
 
 // S3API is the subset of *s3.Client used by S3Service. It exists so that
@@ -47,7 +46,6 @@ type S3Service struct {
 }
 
 var (
-	ErrTranscriptNotFound       = errors.New("Transcript not found")
 	ErrSessionIDRequired        = errors.New("Session ID is required")
 	ErrNoSessionTranscriptFound = errors.New("No transcript found for session ID")
 )
@@ -122,37 +120,6 @@ func normalizePrefix(prefix string) string {
 
 func (s *S3Service) Prefix() string { return s.prefix }
 
-func (s *S3Service) GetTranscript(ctx context.Context, id string) (Transcript, error) {
-	baseKey := id
-	if !strings.HasSuffix(baseKey, ".json") {
-		baseKey += ".json"
-	}
-	key := s.prefix + baseKey
-
-	out, err := s.client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(s.bucket),
-		Key:    aws.String(key),
-	})
-	if err != nil {
-		if isNotFoundError(err) {
-			return nil, ErrTranscriptNotFound
-		}
-		return nil, err
-	}
-	defer out.Body.Close()
-
-	body, err := io.ReadAll(out.Body)
-	if err != nil {
-		return nil, err
-	}
-
-	var t Transcript
-	if err := json.Unmarshal(body, &t); err != nil {
-		return nil, fmt.Errorf("parse transcript JSON: %w", err)
-	}
-	return t, nil
-}
-
 func (s *S3Service) ListTranscripts(ctx context.Context) ([]string, error) {
 	in := &s3.ListObjectsV2Input{Bucket: aws.String(s.bucket)}
 	if s.prefix != "" {
@@ -180,7 +147,7 @@ func (s *S3Service) ListTranscripts(ctx context.Context) ([]string, error) {
 		if s.prefix != "" && strings.HasPrefix(key, s.prefix) {
 			key = key[len(s.prefix):]
 		}
-		key = strings.TrimSuffix(key, ".json")
+		key = strings.TrimSuffix(key, ".jsonl")
 		ids = append(ids, key)
 	}
 	return ids, nil
@@ -212,7 +179,7 @@ func (s *S3Service) GetTranscriptBySessionId(ctx context.Context, sessionID stri
 	var mainKey string
 	for _, item := range listOut.Contents {
 		k := aws.ToString(item.Key)
-		if k == sessionKeyPrefix+".jsonl" || k == sessionKeyPrefix+".json" {
+		if k == sessionKeyPrefix+".jsonl" {
 			mainKey = k
 			break
 		}
@@ -236,24 +203,15 @@ func (s *S3Service) GetTranscriptBySessionId(ctx context.Context, sessionID stri
 	}
 	bodyStr := string(body)
 
-	var transcript Transcript
-	var mainMessages []TranscriptMessage
-
-	if strings.HasSuffix(mainKey, ".jsonl") {
-		mainMessages, err = parseJSONLines(body)
-		if err != nil {
-			return nil, fmt.Errorf("parse main jsonl: %w", err)
-		}
-		transcript = Transcript{}
-		transcript.SetString("id", trimmed)
-		transcript.SetString("session_id", trimmed)
-		transcript.SetString("content", bodyStr)
-	} else {
-		if err := json.Unmarshal(body, &transcript); err != nil {
-			return nil, fmt.Errorf("parse main json: %w", err)
-		}
-		mainMessages, _ = extractMessages(transcript)
+	mainMessages, err := parseJSONLines(body)
+	if err != nil {
+		return nil, fmt.Errorf("parse main jsonl: %w", err)
 	}
+
+	transcript := Transcript{}
+	transcript.SetString("id", trimmed)
+	transcript.SetString("session_id", trimmed)
+	transcript.SetString("content", bodyStr)
 
 	for _, msg := range mainMessages {
 		if msg.GetString("agentId") == "" {
@@ -317,7 +275,6 @@ func (s *S3Service) fetchSubagent(ctx context.Context, key string) (SubagentTran
 		fileName = fileName[i+1:]
 	}
 	agentID := strings.TrimSuffix(fileName, ".jsonl")
-	agentID = strings.TrimSuffix(agentID, ".json")
 
 	messages, err := parseJSONLines(body)
 	if err != nil {
@@ -360,18 +317,6 @@ func parseJSONLines(body []byte) ([]TranscriptMessage, error) {
 	return out, nil
 }
 
-func extractMessages(t Transcript) ([]TranscriptMessage, error) {
-	raw, ok := t["messages"]
-	if !ok {
-		return nil, nil
-	}
-	var msgs []TranscriptMessage
-	if err := json.Unmarshal(raw, &msgs); err != nil {
-		return nil, err
-	}
-	return msgs, nil
-}
-
 func parseTimestamp(s string) time.Time {
 	if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
 		return t
@@ -380,21 +325,6 @@ func parseTimestamp(s string) time.Time {
 		return t
 	}
 	return time.Time{}
-}
-
-func isNotFoundError(err error) bool {
-	var apiErr smithy.APIError
-	if errors.As(err, &apiErr) {
-		code := apiErr.ErrorCode()
-		if code == "NoSuchKey" || code == "NotFound" {
-			return true
-		}
-	}
-	var respErr *smithyhttp.ResponseError
-	if errors.As(err, &respErr) {
-		return respErr.HTTPStatusCode() == 404
-	}
-	return false
 }
 
 func isNoSuchBucketError(err error) bool {

@@ -76,8 +76,7 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
     if (!isExpanded && transcriptFile && !subagentData.has(subagentId)) {
       try {
         const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
-        const fileId = transcriptFile.replace('.json', '');
-        const response = await fetch(`${apiUrl}/api/transcript/session/${fileId}`);
+        const response = await fetch(`${apiUrl}/api/transcript/session/${transcriptFile}`);
 
         if (response.ok) {
           const data = await response.json();

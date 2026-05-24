@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -89,67 +88,12 @@ func newServiceWithMock(objects map[string]string, prefix string) *S3Service {
 	return NewS3ServiceWithClient(&mockS3Client{objects: objects}, "test-transcripts", prefix)
 }
 
-// --- GetTranscript ----------------------------------------------------------
-
-func TestGetTranscript_ReturnsParsedTranscript(t *testing.T) {
-	id := "test-transcript-1"
-	body, _ := json.Marshal(map[string]any{
-		"id":        id,
-		"content":   "Mock transcript content",
-		"timestamp": "2026-02-01T00:00:00Z",
-	})
-	svc := newServiceWithMock(map[string]string{id + ".json": string(body)}, "")
-
-	got, err := svc.GetTranscript(context.Background(), id)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got.GetString("id") != id {
-		t.Errorf("id = %q, want %q", got.GetString("id"), id)
-	}
-	if got.GetString("content") == "" {
-		t.Errorf("content should be non-empty")
-	}
-}
-
-func TestGetTranscript_NotFound(t *testing.T) {
-	svc := newServiceWithMock(map[string]string{}, "")
-	_, err := svc.GetTranscript(context.Background(), "non-existent")
-	if !errors.Is(err, ErrTranscriptNotFound) {
-		t.Errorf("err = %v, want ErrTranscriptNotFound", err)
-	}
-}
-
-func TestGetTranscript_PreservesAllFields(t *testing.T) {
-	id := "test-json-transcript"
-	body, _ := json.Marshal(map[string]any{
-		"id":        id,
-		"content":   "Test JSON transcript",
-		"timestamp": "2026-02-01T00:00:00Z",
-	})
-	svc := newServiceWithMock(map[string]string{id + ".json": string(body)}, "")
-
-	got, err := svc.GetTranscript(context.Background(), id)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if _, ok := got["id"]; !ok {
-		t.Error("missing id field")
-	}
-	if _, ok := got["content"]; !ok {
-		t.Error("missing content field")
-	}
-	if _, ok := got["timestamp"]; !ok {
-		t.Error("missing timestamp field")
-	}
-}
-
 // --- ListTranscripts --------------------------------------------------------
 
 func TestListTranscripts_ReturnsAllIDs(t *testing.T) {
 	svc := newServiceWithMock(map[string]string{
-		"transcript-a.json": "{}",
-		"transcript-b.json": "{}",
+		"transcript-a.jsonl": "{}",
+		"transcript-b.jsonl": "{}",
 	}, "")
 
 	got, err := svc.ListTranscripts(context.Background())

@@ -21,7 +21,7 @@ import { test, expect } from '@playwright/test';
  * Breakpoint: 640px (mobile vs. desktop)
  *
  * Fixture Data:
- * - e2e/fixtures/transcript-20260201-001.json
+ * - e2e/fixtures/session-abc123.jsonl
  *   - session_id: "session-abc123"
  *   - Contains main agent and subagent messages for layout testing
  */

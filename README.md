@@ -164,17 +164,14 @@ pnpm --filter e2e test:debug
 Sample transcript fixtures live in `e2e/fixtures/` and are the single source of
 truth for backend integration tests and E2E tests:
 
-- `transcript-20260201-001.json` - Main conversation transcript
-- `subagent-data-analyzer-20260201-001.json` - Data analysis subagent transcript
-- `subagent-visualizer-20260201-001.json` - Visualization subagent transcript
-- `session-abc123.jsonl` + `session-abc123/agent-*.jsonl` - Session-based JSONL fixtures
+- `session-abc123.jsonl` + `session-abc123/agent-*.jsonl` - Session-based JSONL transcript with subagents
 - `session-xyz789.jsonl`, `session-task-subagent.jsonl`, `f47ac10b-...jsonl` - Additional session fixtures
 
 These fixtures demonstrate:
-- Main transcript with metadata
-- Multiple subagent invocations
-- Tool usage tracking
-- Hierarchical transcript structure
+- Session-based JSONL transcripts
+- A main session with multiple subagent transcripts
+- A unified main + subagent message timeline
+- Tool use / tool result blocks
 
 ## CI/CD
 
