@@ -54,9 +54,14 @@ func mainTranscriptName(sessionID string) string {
 	return sessionID + ".jsonl"
 }
 
+// subagentsDir is an optional subdirectory inside a session's Hive directory
+// where subagent transcripts may live, e.g. session_id=<id>/subagents/<file>.
+const subagentsDir = "subagents/"
+
 var (
-	sessionIDPattern  = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
-	uploadNamePattern = regexp.MustCompile(`^[A-Za-z0-9._-]+\.jsonl$`)
+	sessionIDPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+	// An upload file name is a bare "<name>.jsonl" or "subagents/<name>.jsonl".
+	uploadNamePattern = regexp.MustCompile(`^(subagents/)?[A-Za-z0-9._-]+\.jsonl$`)
 )
 
 type S3ServiceConfig struct {
@@ -308,6 +313,7 @@ func (s *S3Service) GetTranscriptBySessionId(ctx context.Context, sessionID stri
 	}
 
 	mainKey := keyPrefix + mainTranscriptName(trimmed)
+	subagentsPrefix := keyPrefix + subagentsDir
 	var subagentKeys []string
 	hasMain := false
 	for _, item := range listOut.Contents {
@@ -315,7 +321,11 @@ func (s *S3Service) GetTranscriptBySessionId(ctx context.Context, sessionID stri
 		switch {
 		case k == mainKey:
 			hasMain = true
+		case strings.HasPrefix(k, subagentsPrefix):
+			// Any file under session_id=<id>/subagents/ is a subagent.
+			subagentKeys = append(subagentKeys, k)
 		case strings.HasPrefix(baseName(k), "agent-"):
+			// Backwards-compatible: agent-*.jsonl directly in the session dir.
 			subagentKeys = append(subagentKeys, k)
 		}
 	}

@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"os"
@@ -181,20 +182,7 @@ func TestIntegration_UploadURLRoundTrip(t *testing.T) {
 	}
 	t.Cleanup(func() { deleteObject(t, client, resp.Key) })
 
-	body := readFixtureFile(t, "session-xyz789.jsonl")
-	req, err := http.NewRequest(http.MethodPut, resp.URL, strings.NewReader(body))
-	if err != nil {
-		t.Fatalf("new request: %v", err)
-	}
-	httpResp, err := http.DefaultClient.Do(req)
-	if err != nil {
-		t.Fatalf("PUT to presigned URL: %v", err)
-	}
-	defer httpResp.Body.Close()
-	if httpResp.StatusCode != http.StatusOK {
-		b, _ := io.ReadAll(httpResp.Body)
-		t.Fatalf("presigned PUT status = %d, body=%s", httpResp.StatusCode, string(b))
-	}
+	putToPresignedURL(t, resp.URL, readFixtureFile(t, "session-xyz789.jsonl"))
 
 	got, err := svc.GetTranscriptBySessionId(context.Background(), sessionID)
 	if err != nil {
@@ -205,5 +193,68 @@ func TestIntegration_UploadURLRoundTrip(t *testing.T) {
 	}
 	if len(decodeMessages(t, got)) == 0 {
 		t.Error("expected messages after round-trip upload")
+	}
+}
+
+// TestIntegration_UploadSubagentRoundTrip uploads a main transcript and a
+// subagent under subagents/ via presigned URLs, then verifies the subagent is
+// discovered and merged on read.
+func TestIntegration_UploadSubagentRoundTrip(t *testing.T) {
+	client := newRealS3Client(t)
+	store := newIntegrationStore(t)
+	svc := newIntegrationService(t, store, "")
+
+	sessionID := "presigned-subagent"
+	mainResp, err := svc.CreateUploadURL(context.Background(), UploadURLRequest{SessionID: sessionID})
+	if err != nil {
+		t.Fatalf("CreateUploadURL main: %v", err)
+	}
+	t.Cleanup(func() { deleteObject(t, client, mainResp.Key) })
+	putToPresignedURL(t, mainResp.URL, readFixtureFile(t, "session-xyz789.jsonl"))
+
+	subResp, err := svc.CreateUploadURL(context.Background(), UploadURLRequest{
+		SessionID: sessionID,
+		FileName:  "subagents/agent-a1b2c3d.jsonl",
+	})
+	if err != nil {
+		t.Fatalf("CreateUploadURL subagent: %v", err)
+	}
+	t.Cleanup(func() { deleteObject(t, client, subResp.Key) })
+	if !strings.Contains(subResp.Key, "/subagents/agent-a1b2c3d.jsonl") {
+		t.Fatalf("subagent key %q not under subagents/", subResp.Key)
+	}
+	putToPresignedURL(t, subResp.URL, readFixtureFile(t, "session-abc123/agent-a1b2c3d.jsonl"))
+
+	got, err := svc.GetTranscriptBySessionId(context.Background(), sessionID)
+	if err != nil {
+		t.Fatalf("GetTranscriptBySessionId: %v", err)
+	}
+	raw, ok := got["subagents"]
+	if !ok {
+		t.Fatal("missing subagents after subagent upload")
+	}
+	var subs []SubagentTranscript
+	if err := json.Unmarshal(raw, &subs); err != nil {
+		t.Fatalf("subagents not array: %v", err)
+	}
+	if len(subs) != 1 {
+		t.Fatalf("expected 1 subagent, got %d", len(subs))
+	}
+}
+
+func putToPresignedURL(t *testing.T, url, body string) {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPut, url, strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PUT to presigned URL: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("presigned PUT status = %d, body=%s", resp.StatusCode, string(b))
 	}
 }

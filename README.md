@@ -47,7 +47,11 @@ by a SQLite database that maps each session id to its key prefix:
 ```
 {S3_PREFIX}year=YYYY/month=MM/day=DD/hour=HH/session_id=<id>/<id>.jsonl
 {S3_PREFIX}year=YYYY/month=MM/day=DD/hour=HH/session_id=<id>/agent-<id>.jsonl
+{S3_PREFIX}year=YYYY/month=MM/day=DD/hour=HH/session_id=<id>/subagents/<file>
 ```
+
+Subagent transcripts are discovered either as `agent-*.jsonl` directly in the
+session directory or as any file under a `subagents/` subdirectory.
 
 - **Upload**: `POST /api/transcripts/upload-url/{sessionId}` returns a
   presigned S3 `PUT` URL for `<sessionId>.jsonl`. The server computes the
@@ -65,8 +69,9 @@ by a SQLite database that maps each session id to its key prefix:
   curl -X PUT --upload-file session-abc123.jsonl "<url from above>"
   ```
 
-  Optional `?file_name=` (matching `[A-Za-z0-9._-]+.jsonl`) targets a specific
-  file such as `agent-xyz.jsonl`; it defaults to `<sessionId>.jsonl`.
+  Optional `?file_name=` targets a specific file; it defaults to
+  `<sessionId>.jsonl`. It accepts `<name>.jsonl` or `subagents/<name>.jsonl`
+  (e.g. `?file_name=subagents/agent-xyz.jsonl`) for subagent uploads.
 
 - **Download**: `GET /api/transcript/session/{id}` resolves the S3 prefix
   from SQLite (returning `404` when a session is not mapped), then lists and

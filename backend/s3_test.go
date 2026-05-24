@@ -292,6 +292,8 @@ func TestCreateUploadURL_RejectsInvalidInput(t *testing.T) {
 		{"bad session chars", UploadURLRequest{SessionID: "a/b"}},
 		{"bad filename ext", UploadURLRequest{SessionID: "abc", FileName: "evil.txt"}},
 		{"filename traversal", UploadURLRequest{SessionID: "abc", FileName: "../escape.jsonl"}},
+		{"wrong subdir", UploadURLRequest{SessionID: "abc", FileName: "evil/agent.jsonl"}},
+		{"nested subagents", UploadURLRequest{SessionID: "abc", FileName: "subagents/deep/x.jsonl"}},
 	}
 	for _, c := range cases {
 		t.Run(c.name, func(t *testing.T) {
@@ -299,6 +301,23 @@ func TestCreateUploadURL_RejectsInvalidInput(t *testing.T) {
 				t.Errorf("expected error for %+v", c.req)
 			}
 		})
+	}
+}
+
+func TestCreateUploadURL_AcceptsSubagentsSubdir(t *testing.T) {
+	svc, _, _ := newServiceWithSessions(t, nil)
+	svc.now = func() time.Time { return time.Date(2026, 5, 24, 15, 0, 0, 0, time.UTC) }
+
+	resp, err := svc.CreateUploadURL(context.Background(), UploadURLRequest{
+		SessionID: "session-x",
+		FileName:  "subagents/agent-1.jsonl",
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := "year=2026/month=05/day=24/hour=15/session_id=session-x/subagents/agent-1.jsonl"
+	if resp.Key != want {
+		t.Errorf("key = %q, want %q", resp.Key, want)
 	}
 }
 
@@ -430,6 +449,52 @@ func TestGetTranscriptBySessionId_AttachesSubagents(t *testing.T) {
 		if len(s.Messages) == 0 {
 			t.Errorf("subagent %q missing messages", s.ID)
 		}
+	}
+}
+
+func TestGetTranscriptBySessionId_DiscoversSubagentsSubdir(t *testing.T) {
+	svc, _, _ := newServiceWithSessions(t, map[string]sessionFixture{
+		"session-abc123": {
+			main: readFixture(t, "session-abc123.jsonl"),
+			subagents: map[string]string{
+				"subagents/agent-a1b2c3d.jsonl": readFixture(t, "session-abc123/agent-a1b2c3d.jsonl"),
+				"subagents/agent-xyz789.jsonl":  readFixture(t, "session-abc123/agent-xyz789.jsonl"),
+			},
+		},
+	})
+
+	got, err := svc.GetTranscriptBySessionId(context.Background(), "session-abc123")
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	var subs []SubagentTranscript
+	if raw, ok := got["subagents"]; ok {
+		if err := json.Unmarshal(raw, &subs); err != nil {
+			t.Fatalf("subagents not array: %v", err)
+		}
+	}
+	if len(subs) != 2 {
+		t.Fatalf("expected 2 subagents from subagents/ subdir, got %d", len(subs))
+	}
+	for _, s := range subs {
+		if !strings.HasPrefix(s.TranscriptFile, "year=2026/") || !strings.Contains(s.TranscriptFile, "/subagents/") {
+			t.Errorf("subagent file %q should live under subagents/", s.TranscriptFile)
+		}
+		if len(s.Messages) == 0 {
+			t.Errorf("subagent %q missing messages", s.ID)
+		}
+	}
+
+	// Subagent messages must still merge into the unified timeline.
+	sub := 0
+	for _, m := range decodeMessages(t, got) {
+		if m.GetString("sessionId") != "session-abc123" {
+			sub++
+		}
+	}
+	if sub == 0 {
+		t.Error("expected subagent messages merged into the timeline")
 	}
 }
 

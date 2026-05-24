@@ -79,9 +79,12 @@ func seedDir(ctx context.Context, svc *S3Service, store SessionStore, dir string
 	return nil
 }
 
+// seedSubagents uploads a session's subagent files. It accepts both
+// "<session>/agent-*.jsonl" (placed directly in the session dir) and
+// "<session>/subagents/*.jsonl" (placed under the subagents/ subdir).
 func seedSubagents(ctx context.Context, svc *S3Service, dir, sessionID, prefix string) (int, error) {
 	subDir := filepath.Join(dir, sessionID)
-	subEntries, err := os.ReadDir(subDir)
+	entries, err := os.ReadDir(subDir)
 	if errors.Is(err, os.ErrNotExist) {
 		return 0, nil
 	}
@@ -90,18 +93,39 @@ func seedSubagents(ctx context.Context, svc *S3Service, dir, sessionID, prefix s
 	}
 
 	count := 0
-	for _, sub := range subEntries {
-		if sub.IsDir() || !strings.HasPrefix(sub.Name(), "agent-") || !strings.HasSuffix(sub.Name(), ".jsonl") {
-			continue
+	for _, e := range entries {
+		switch {
+		case e.IsDir() && e.Name() == strings.TrimSuffix(subagentsDir, "/"):
+			nested, err := os.ReadDir(filepath.Join(subDir, e.Name()))
+			if err != nil {
+				return count, fmt.Errorf("read subagents dir: %w", err)
+			}
+			for _, n := range nested {
+				if n.IsDir() || !strings.HasSuffix(n.Name(), ".jsonl") {
+					continue
+				}
+				if err := seedFile(ctx, svc, filepath.Join(subDir, e.Name(), n.Name()), prefix+subagentsDir+n.Name()); err != nil {
+					return count, err
+				}
+				count++
+			}
+		case !e.IsDir() && strings.HasPrefix(e.Name(), "agent-") && strings.HasSuffix(e.Name(), ".jsonl"):
+			if err := seedFile(ctx, svc, filepath.Join(subDir, e.Name()), prefix+e.Name()); err != nil {
+				return count, err
+			}
+			count++
 		}
-		body, err := os.ReadFile(filepath.Join(subDir, sub.Name()))
-		if err != nil {
-			return count, err
-		}
-		if err := svc.PutObject(ctx, prefix+sub.Name(), body); err != nil {
-			return count, fmt.Errorf("upload subagent %q: %w", sub.Name(), err)
-		}
-		count++
 	}
 	return count, nil
+}
+
+func seedFile(ctx context.Context, svc *S3Service, path, key string) error {
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	if err := svc.PutObject(ctx, key, body); err != nil {
+		return fmt.Errorf("upload %q: %w", key, err)
+	}
+	return nil
 }
