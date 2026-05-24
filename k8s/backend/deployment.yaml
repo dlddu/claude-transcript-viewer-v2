@@ -32,6 +32,8 @@ spec:
           env:
             - name: PORT
               value: "3000"
+            - name: SQLITE_PATH
+              value: "/data/transcripts.db"
           envFrom:
             - secretRef:
                 name: claude-transcript-viewer-secrets
@@ -63,3 +65,10 @@ spec:
             readOnlyRootFilesystem: false
             runAsNonRoot: true
             runAsUser: 1000
+          volumeMounts:
+            - name: sqlite-data
+              mountPath: /data
+      volumes:
+        - name: sqlite-data
+          persistentVolumeClaim:
+            claimName: claude-transcript-viewer-sqlite

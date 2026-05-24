@@ -664,3 +664,64 @@ describe('K8s Manifests - Best Practices', () => {
     assert.ok(serviceContent.length > 0, 'Service file should have content');
   });
 });
+
+describe('K8s Manifests - PVC Configuration', () => {
+  const PVC_PATH = resolve(K8S_DIR, 'pvc.yaml');
+
+  it('should have pvc.yaml file', () => {
+    assert.strictEqual(
+      existsSync(PVC_PATH),
+      true,
+      'pvc.yaml should exist in k8s/backend directory'
+    );
+  });
+
+  it('should declare a PersistentVolumeClaim', () => {
+    const content = readFileSync(PVC_PATH, 'utf-8');
+    assert.ok(containsKey(content, 'apiVersion'), 'PVC should have apiVersion field');
+    assert.ok(content.includes('kind: PersistentVolumeClaim'),
+      'kind should be PersistentVolumeClaim');
+  });
+
+  it('should request ReadWriteOnce storage', () => {
+    const content = readFileSync(PVC_PATH, 'utf-8');
+    assert.ok(content.includes('ReadWriteOnce'), 'PVC should use ReadWriteOnce access mode');
+    assert.ok(containsKey(content, 'storage'), 'PVC should request a storage size');
+  });
+
+  it('should have valid YAML syntax and use spaces', () => {
+    const content = readFileSync(PVC_PATH, 'utf-8');
+    assert.doesNotThrow(() => parseYAML(content), 'pvc.yaml should have valid YAML syntax');
+    assert.ok(!content.includes('\t'), 'YAML should use spaces, not tabs');
+  });
+});
+
+describe('K8s Manifests - SQLite Volume Wiring', () => {
+  const DEPLOYMENT_PATH = resolve(K8S_DIR, 'deployment.yaml');
+
+  it('should mount the SQLite PVC in the deployment', () => {
+    const content = readFileSync(DEPLOYMENT_PATH, 'utf-8');
+    assert.ok(containsKey(content, 'volumes'), 'Deployment should define volumes');
+    assert.ok(containsKey(content, 'volumeMounts'), 'Container should define volumeMounts');
+    assert.ok(content.includes('persistentVolumeClaim'),
+      'Deployment should mount a persistentVolumeClaim');
+    assert.ok(content.includes('claude-transcript-viewer-sqlite'),
+      'Deployment should reference the SQLite PVC by name');
+  });
+
+  it('should configure SQLITE_PATH on the mounted volume', () => {
+    const content = readFileSync(DEPLOYMENT_PATH, 'utf-8');
+    assert.ok(content.includes('SQLITE_PATH'), 'Deployment should set SQLITE_PATH');
+    assert.ok(content.includes('/data'),
+      'SQLITE_PATH should point at the mounted /data volume');
+  });
+
+  it('should use a claimName that matches the PVC name', () => {
+    const dep = readFileSync(DEPLOYMENT_PATH, 'utf-8');
+    const pvc = readFileSync(resolve(K8S_DIR, 'pvc.yaml'), 'utf-8');
+    assert.ok(pvc.match(/name:\s*claude-transcript-viewer-sqlite/),
+      'PVC should be named claude-transcript-viewer-sqlite');
+    assert.ok(dep.includes('claimName: claude-transcript-viewer-sqlite'),
+      'Deployment claimName should match the PVC name');
+  });
+});

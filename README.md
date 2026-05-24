@@ -14,8 +14,9 @@ claude-transcript-viewer-v2/
 │   └── package.json
 ├── backend/               # Go S3 proxy (net/http + AWS SDK for Go v2)
 │   ├── main.go            # Entry point
-│   ├── server.go          # HTTP routing
-│   ├── s3.go              # S3 service
+│   ├── server.go          # HTTP routing (list, get, upload)
+│   ├── s3.go              # S3 service + Hive-style upload
+│   ├── db.go              # SQLite session_id -> s3_key mapping store
 │   └── go.mod
 ├── e2e/                   # Playwright E2E tests
 │   ├── fixtures/          # Sample transcript fixtures
@@ -30,7 +31,7 @@ claude-transcript-viewer-v2/
 ## Technology Stack
 
 - **Frontend**: React 18, Vite, TypeScript, Vitest
-- **Backend**: Go (net/http + AWS SDK for Go v2)
+- **Backend**: Go (net/http + AWS SDK for Go v2), SQLite (modernc.org/sqlite, pure Go)
 - **E2E Testing**: Playwright
 - **Local Development**: MinIO (S3-compatible storage)
 - **CI/CD**: GitHub Actions
@@ -66,7 +67,7 @@ docker run -d \
   minio/minio:latest server /data
 ```
 
-### Setup test data in MinIO
+### Create the S3 bucket
 
 ```bash
 # Configure AWS CLI to point at MinIO
@@ -75,17 +76,17 @@ export AWS_SECRET_ACCESS_KEY=minioadmin
 export AWS_DEFAULT_REGION=us-east-1
 export AWS_ENDPOINT_URL=http://localhost:9000
 
-# Create bucket and upload fixtures
 aws --endpoint-url "$AWS_ENDPOINT_URL" s3 mb s3://test-transcripts
-aws --endpoint-url "$AWS_ENDPOINT_URL" s3 cp e2e/fixtures/ s3://test-transcripts/ --recursive
 ```
 
 ### Run development servers
 
-The backend reads transcripts exclusively from the configured S3 bucket. There
-is no built-in mock fallback, so the bucket must be populated before the
-backend can serve data — otherwise every request returns `404 Transcript not
-found`.
+The backend serves only the sessions it has indexed. Transcripts are ingested
+through the upload API (`POST /api/transcripts`), which writes the object to S3
+under a Hive-style key (`year=YYYY/month=MM/day=DD/hour=HH/<sessionId>.jsonl`)
+and records the `session_id → s3_key` mapping in a SQLite database. Copying
+objects straight into the bucket is **not** enough — without a mapping every
+read returns `404 Transcript not found`.
 
 Required environment variables when targeting MinIO:
 
@@ -94,6 +95,7 @@ export AWS_ENDPOINT_URL=http://localhost:9000
 export AWS_ACCESS_KEY_ID=minioadmin
 export AWS_SECRET_ACCESS_KEY=minioadmin
 export S3_BUCKET=test-transcripts
+export SQLITE_PATH=./data/transcripts.db   # parent dir is created automatically
 ```
 
 Then start the dev servers:
@@ -109,7 +111,30 @@ cd frontend
 pnpm dev
 ```
 
+Once the backend is up, seed the sample fixtures through the upload API:
+
+```bash
+./scripts/seed-transcripts.sh http://localhost:3000
+```
+
 Visit http://localhost:5173
+
+### Uploading transcripts
+
+`POST /api/transcripts` accepts a `multipart/form-data` body:
+
+| Field       | Required | Description                                          |
+| ----------- | -------- | ---------------------------------------------------- |
+| `sessionId` | yes      | Session ID used as the lookup key and file name      |
+| `file`      | yes      | Main transcript as JSONL                             |
+| `subagents` | no       | Zero or more subagent JSONL files (repeat the field) |
+
+```bash
+curl -X POST http://localhost:3000/api/transcripts \
+  -F "sessionId=session-abc123" \
+  -F "file=@e2e/fixtures/session-abc123.jsonl" \
+  -F "subagents=@e2e/fixtures/session-abc123/agent-a1b2c3d.jsonl"
+```
 
 ## Testing
 
@@ -131,8 +156,10 @@ pnpm --filter frontend test:watch
 
 ### Integration Tests
 
-Integration tests require MinIO to be running with the bucket and fixtures from
-the setup steps above.
+Integration tests require MinIO to be running with the `test-transcripts`
+bucket created (see "Create the S3 bucket"). Each test uploads its own fixtures
+through the service and uses a temporary SQLite database, so no manual seeding
+is needed.
 
 ```bash
 # Run backend integration tests against MinIO
@@ -184,7 +211,7 @@ GitHub Actions workflow includes:
 
 The workflow automatically:
 - Starts MinIO service
-- Creates S3 bucket and uploads fixtures
+- Creates the S3 bucket and seeds fixtures through the upload API
 - Runs all test suites
 - Uploads Playwright reports as artifacts
 
@@ -198,10 +225,15 @@ PORT=3000
 AWS_REGION=us-east-1
 S3_BUCKET=test-transcripts
 AWS_ENDPOINT_URL=http://localhost:9000  # For local MinIO
+SQLITE_PATH=./data/transcripts.db       # session_id -> s3_key mapping DB
 
 # Frontend
 VITE_API_URL=http://localhost:3000/api
 ```
+
+In Kubernetes the SQLite database lives on a PersistentVolume mounted at
+`/data` (see `k8s/backend/pvc.yaml`); `SQLITE_PATH` defaults to
+`/data/transcripts.db` in the container image.
 
 ## Scripts
 

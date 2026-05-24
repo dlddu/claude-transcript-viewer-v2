@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
@@ -52,6 +53,47 @@ func (m *mockS3Client) ListObjectsV2(_ context.Context, in *s3.ListObjectsV2Inpu
 	return &s3.ListObjectsV2Output{Contents: contents}, nil
 }
 
+func (m *mockS3Client) PutObject(_ context.Context, in *s3.PutObjectInput, _ ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
+	if m.objects == nil {
+		m.objects = map[string]string{}
+	}
+	body, err := io.ReadAll(in.Body)
+	if err != nil {
+		return nil, err
+	}
+	m.objects[aws.ToString(in.Key)] = string(body)
+	return &s3.PutObjectOutput{}, nil
+}
+
+// fakeStore is an in-memory MappingStore for unit tests.
+type fakeStore struct {
+	keys  map[string]string
+	order []string
+}
+
+func newFakeStore() *fakeStore {
+	return &fakeStore{keys: map[string]string{}}
+}
+
+func (f *fakeStore) Put(_ context.Context, sessionID, s3Key, _ string) error {
+	if _, ok := f.keys[sessionID]; !ok {
+		f.order = append(f.order, sessionID)
+	}
+	f.keys[sessionID] = s3Key
+	return nil
+}
+
+func (f *fakeStore) Get(_ context.Context, sessionID string) (string, error) {
+	if k, ok := f.keys[sessionID]; ok {
+		return k, nil
+	}
+	return "", ErrMappingNotFound
+}
+
+func (f *fakeStore) List(_ context.Context) ([]string, error) {
+	return append([]string{}, f.order...), nil
+}
+
 func fixturesDir(t *testing.T) string {
 	t.Helper()
 	wd, err := os.Getwd()
@@ -84,8 +126,25 @@ func sessionXyzObjects(t *testing.T) map[string]string {
 	}
 }
 
+// newServiceWithMock builds a service over the given S3 objects and seeds the
+// mapping store with one entry per "main" object (a top-level "<id>.jsonl",
+// i.e. one with no slash after the prefix). Subagent objects live under a
+// subdirectory and are resolved at read time, not listed in the store.
 func newServiceWithMock(objects map[string]string, prefix string) *S3Service {
-	return NewS3ServiceWithClient(&mockS3Client{objects: objects}, "test-transcripts", prefix)
+	store := newFakeStore()
+	np := normalizePrefix(prefix)
+	for k := range objects {
+		rel := k
+		if np != "" && strings.HasPrefix(rel, np) {
+			rel = rel[len(np):]
+		}
+		if strings.Contains(rel, "/") || !strings.HasSuffix(rel, ".jsonl") {
+			continue
+		}
+		id := strings.TrimSuffix(rel, ".jsonl")
+		_ = store.Put(context.Background(), id, k, "2026-01-01T00:00:00Z")
+	}
+	return NewS3ServiceWithClient(&mockS3Client{objects: objects}, "test-transcripts", prefix, store)
 }
 
 // --- ListTranscripts --------------------------------------------------------
@@ -454,13 +513,155 @@ func TestPrefixNormalization(t *testing.T) {
 	}
 }
 
+// --- Strict mapping behaviour ----------------------------------------------
+
+func TestGetTranscriptBySessionId_NotFoundWhenNoMapping(t *testing.T) {
+	// Object exists in S3 but no mapping is recorded: strict mode returns 404.
+	mock := &mockS3Client{objects: map[string]string{
+		"orphan.jsonl": readFixture(t, "session-xyz789.jsonl"),
+	}}
+	svc := NewS3ServiceWithClient(mock, "test-transcripts", "", newFakeStore())
+
+	_, err := svc.GetTranscriptBySessionId(context.Background(), "orphan")
+	if !errors.Is(err, ErrNoSessionTranscriptFound) {
+		t.Errorf("expected ErrNoSessionTranscriptFound, got %v", err)
+	}
+}
+
+func TestListTranscripts_ComesFromStoreNotBucket(t *testing.T) {
+	mock := &mockS3Client{objects: map[string]string{"orphan.jsonl": "{}"}}
+	store := newFakeStore()
+	_ = store.Put(context.Background(), "mapped-only", "year=2026/month=05/day=24/hour=00/mapped-only.jsonl", "2026-05-24T00:00:00Z")
+	svc := NewS3ServiceWithClient(mock, "test-transcripts", "", store)
+
+	got, err := svc.ListTranscripts(context.Background())
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if len(got) != 1 || got[0] != "mapped-only" {
+		t.Errorf("expected [mapped-only], got %v", got)
+	}
+}
+
+// --- Hive-style upload ------------------------------------------------------
+
+func TestHiveKey_Format(t *testing.T) {
+	ts := time.Date(2026, 5, 24, 9, 0, 0, 0, time.UTC)
+	got := hiveKey("", "session-xyz789", ts)
+	want := "year=2026/month=05/day=24/hour=09/session-xyz789.jsonl"
+	if got != want {
+		t.Errorf("hiveKey = %q, want %q", got, want)
+	}
+	if withPrefix := hiveKey("tenants/acme/", "s1", ts); withPrefix != "tenants/acme/year=2026/month=05/day=24/hour=09/s1.jsonl" {
+		t.Errorf("prefixed hiveKey = %q", withPrefix)
+	}
+}
+
+func newUploadService(prefix string, at time.Time) (*S3Service, *mockS3Client) {
+	mock := &mockS3Client{objects: map[string]string{}}
+	svc := NewS3ServiceWithClient(mock, "test-transcripts", prefix, newFakeStore())
+	svc.now = func() time.Time { return at }
+	return svc, mock
+}
+
+func TestUploadTranscript_WritesHiveKeyAndMapping(t *testing.T) {
+	at := time.Date(2026, 5, 24, 14, 5, 0, 0, time.UTC)
+	svc, mock := newUploadService("", at)
+	body := readFixture(t, "session-xyz789.jsonl")
+
+	key, err := svc.UploadTranscript(context.Background(), UploadInput{
+		SessionID: "session-xyz789",
+		Content:   []byte(body),
+	})
+	if err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+
+	wantKey := "year=2026/month=05/day=24/hour=14/session-xyz789.jsonl"
+	if key != wantKey {
+		t.Errorf("key = %q, want %q", key, wantKey)
+	}
+	if _, ok := mock.objects[wantKey]; !ok {
+		t.Errorf("object not stored at %q; have %v", wantKey, mock.objects)
+	}
+
+	got, err := svc.GetTranscriptBySessionId(context.Background(), "session-xyz789")
+	if err != nil {
+		t.Fatalf("get after upload: %v", err)
+	}
+	if got.GetString("session_id") != "session-xyz789" {
+		t.Errorf("session_id = %q", got.GetString("session_id"))
+	}
+
+	ids, _ := svc.ListTranscripts(context.Background())
+	if len(ids) != 1 || ids[0] != "session-xyz789" {
+		t.Errorf("list = %v, want [session-xyz789]", ids)
+	}
+}
+
+func TestUploadTranscript_WithSubagentsRoundTrips(t *testing.T) {
+	at := time.Date(2026, 5, 24, 14, 0, 0, 0, time.UTC)
+	svc, mock := newUploadService("tenants/acme/", at)
+
+	key, err := svc.UploadTranscript(context.Background(), UploadInput{
+		SessionID: "session-abc123",
+		Content:   []byte(readFixture(t, "session-abc123.jsonl")),
+		Subagents: []SubagentUpload{
+			{ID: "agent-a1b2c3d.jsonl", Content: []byte(readFixture(t, "session-abc123/agent-a1b2c3d.jsonl"))},
+			{ID: "agent-xyz789.jsonl", Content: []byte(readFixture(t, "session-abc123/agent-xyz789.jsonl"))},
+		},
+	})
+	if err != nil {
+		t.Fatalf("upload: %v", err)
+	}
+	if !strings.HasPrefix(key, "tenants/acme/year=2026/") {
+		t.Errorf("key missing prefix/partition: %q", key)
+	}
+	base := strings.TrimSuffix(key, ".jsonl")
+	for _, agent := range []string{"agent-a1b2c3d", "agent-xyz789"} {
+		if _, ok := mock.objects[base+"/"+agent+".jsonl"]; !ok {
+			t.Errorf("subagent object missing: %s", base+"/"+agent+".jsonl")
+		}
+	}
+
+	got, err := svc.GetTranscriptBySessionId(context.Background(), "session-abc123")
+	if err != nil {
+		t.Fatalf("get: %v", err)
+	}
+	raw, ok := got["subagents"]
+	if !ok {
+		t.Fatal("missing subagents")
+	}
+	var subs []SubagentTranscript
+	if err := json.Unmarshal(raw, &subs); err != nil {
+		t.Fatalf("subagents decode: %v", err)
+	}
+	if len(subs) != 2 {
+		t.Errorf("expected 2 subagents, got %d", len(subs))
+	}
+}
+
+func TestUploadTranscript_RejectsEmptyAndInvalid(t *testing.T) {
+	svc, _ := newUploadService("", time.Now())
+
+	if _, err := svc.UploadTranscript(context.Background(), UploadInput{SessionID: "s", Content: nil}); !errors.Is(err, ErrEmptyTranscript) {
+		t.Errorf("empty content: expected ErrEmptyTranscript, got %v", err)
+	}
+	if _, err := svc.UploadTranscript(context.Background(), UploadInput{SessionID: " ", Content: []byte("{}")}); !errors.Is(err, ErrSessionIDRequired) {
+		t.Errorf("blank session: expected ErrSessionIDRequired, got %v", err)
+	}
+	if _, err := svc.UploadTranscript(context.Background(), UploadInput{SessionID: "s", Content: []byte("not json\n")}); !errors.Is(err, ErrInvalidTranscript) {
+		t.Errorf("invalid jsonl: expected ErrInvalidTranscript, got %v", err)
+	}
+}
+
 // --- AssumeRole construction ------------------------------------------------
 
 func TestNewS3Service_DoesNotFailWithoutAssumeRole(t *testing.T) {
 	_, err := NewS3Service(context.Background(), S3ServiceConfig{
 		Bucket: "test-bucket",
 		Region: "us-east-1",
-	})
+	}, newFakeStore())
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -471,7 +672,7 @@ func TestNewS3Service_DoesNotFailWithAssumeRole(t *testing.T) {
 		Bucket:        "test-bucket",
 		Region:        "us-east-1",
 		AssumeRoleARN: "arn:aws:iam::123456789012:role/test-role",
-	})
+	}, newFakeStore())
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -485,7 +686,7 @@ func TestNewS3Service_FullAssumeRoleConfig(t *testing.T) {
 		AssumeRoleSessionName: "custom-session",
 		AssumeRoleExternalID:  "ext-123",
 		AssumeRoleDuration:    30 * time.Minute,
-	})
+	}, newFakeStore())
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}
@@ -497,7 +698,7 @@ func TestNewS3Service_EndpointTakesPrecedenceOverAssumeRole(t *testing.T) {
 		Region:        "us-east-1",
 		Endpoint:      "http://localhost:9000",
 		AssumeRoleARN: "arn:aws:iam::123456789012:role/test-role",
-	})
+	}, newFakeStore())
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 	}

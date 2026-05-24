@@ -9,3 +9,6 @@ data:
   PORT: "3000"
   AWS_REGION: "us-east-1"
   S3_BUCKET: "your-s3-bucket-name"
+  # Path to the SQLite database that maps session IDs to S3 keys.
+  # Should live on the mounted PersistentVolume (see pvc.yaml).
+  SQLITE_PATH: "/data/transcripts.db"

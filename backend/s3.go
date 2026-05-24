@@ -26,6 +26,15 @@ import (
 type S3API interface {
 	GetObject(ctx context.Context, in *s3.GetObjectInput, opts ...func(*s3.Options)) (*s3.GetObjectOutput, error)
 	ListObjectsV2(ctx context.Context, in *s3.ListObjectsV2Input, opts ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
+	PutObject(ctx context.Context, in *s3.PutObjectInput, opts ...func(*s3.Options)) (*s3.PutObjectOutput, error)
+}
+
+// MappingStore records which S3 key holds the transcript for a session ID.
+// It is the authoritative index of available transcripts.
+type MappingStore interface {
+	Put(ctx context.Context, sessionID, s3Key, uploadedAt string) error
+	Get(ctx context.Context, sessionID string) (string, error)
+	List(ctx context.Context) ([]string, error)
 }
 
 type S3ServiceConfig struct {
@@ -43,14 +52,18 @@ type S3Service struct {
 	client S3API
 	bucket string
 	prefix string
+	store  MappingStore
+	now    func() time.Time
 }
 
 var (
 	ErrSessionIDRequired        = errors.New("Session ID is required")
 	ErrNoSessionTranscriptFound = errors.New("No transcript found for session ID")
+	ErrEmptyTranscript          = errors.New("transcript content is empty")
+	ErrInvalidTranscript        = errors.New("transcript content is not valid JSONL")
 )
 
-func NewS3Service(ctx context.Context, cfg S3ServiceConfig) (*S3Service, error) {
+func NewS3Service(ctx context.Context, cfg S3ServiceConfig, store MappingStore) (*S3Service, error) {
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(cfg.Region))
 	if err != nil {
 		return nil, fmt.Errorf("load aws config: %w", err)
@@ -90,17 +103,21 @@ func NewS3Service(ctx context.Context, cfg S3ServiceConfig) (*S3Service, error) 
 		client: client,
 		bucket: cfg.Bucket,
 		prefix: normalizePrefix(cfg.Prefix),
+		store:  store,
+		now:    time.Now,
 	}, nil
 }
 
 // NewS3ServiceWithClient builds a service around a pre-existing client.
 // Used by tests with a mocked S3API and by code that already configured
 // its own AWS client.
-func NewS3ServiceWithClient(client S3API, bucket, prefix string) *S3Service {
+func NewS3ServiceWithClient(client S3API, bucket, prefix string, store MappingStore) *S3Service {
 	return &S3Service{
 		client: client,
 		bucket: bucket,
 		prefix: normalizePrefix(prefix),
+		store:  store,
+		now:    time.Now,
 	}
 }
 
@@ -121,34 +138,12 @@ func normalizePrefix(prefix string) string {
 func (s *S3Service) Prefix() string { return s.prefix }
 
 func (s *S3Service) ListTranscripts(ctx context.Context) ([]string, error) {
-	in := &s3.ListObjectsV2Input{Bucket: aws.String(s.bucket)}
-	if s.prefix != "" {
-		in.Prefix = aws.String(s.prefix)
-	}
-
-	out, err := s.client.ListObjectsV2(ctx, in)
+	ids, err := s.store.List(ctx)
 	if err != nil {
-		if isNoSuchBucketError(err) {
-			return []string{}, nil
-		}
 		return nil, err
 	}
-
-	if len(out.Contents) == 0 {
+	if ids == nil {
 		return []string{}, nil
-	}
-
-	ids := make([]string, 0, len(out.Contents))
-	for _, item := range out.Contents {
-		key := aws.ToString(item.Key)
-		if key == "" {
-			continue
-		}
-		if s.prefix != "" && strings.HasPrefix(key, s.prefix) {
-			key = key[len(s.prefix):]
-		}
-		key = strings.TrimSuffix(key, ".jsonl")
-		ids = append(ids, key)
 	}
 	return ids, nil
 }
@@ -159,33 +154,12 @@ func (s *S3Service) GetTranscriptBySessionId(ctx context.Context, sessionID stri
 		return nil, ErrSessionIDRequired
 	}
 
-	sessionKeyPrefix := s.prefix + trimmed
-
-	listOut, err := s.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
-		Bucket: aws.String(s.bucket),
-		Prefix: aws.String(sessionKeyPrefix),
-	})
+	mainKey, err := s.store.Get(ctx, trimmed)
 	if err != nil {
-		if isNoSuchBucketError(err) {
+		if errors.Is(err, ErrMappingNotFound) {
 			return nil, ErrNoSessionTranscriptFound
 		}
 		return nil, err
-	}
-
-	if len(listOut.Contents) == 0 {
-		return nil, ErrNoSessionTranscriptFound
-	}
-
-	var mainKey string
-	for _, item := range listOut.Contents {
-		k := aws.ToString(item.Key)
-		if k == sessionKeyPrefix+".jsonl" {
-			mainKey = k
-			break
-		}
-	}
-	if mainKey == "" {
-		return nil, ErrNoSessionTranscriptFound
 	}
 
 	mainOut, err := s.client.GetObject(ctx, &s3.GetObjectInput{
@@ -193,6 +167,9 @@ func (s *S3Service) GetTranscriptBySessionId(ctx context.Context, sessionID stri
 		Key:    aws.String(mainKey),
 	})
 	if err != nil {
+		if isNoSuchKeyError(err) || isNoSuchBucketError(err) {
+			return nil, ErrNoSessionTranscriptFound
+		}
 		return nil, err
 	}
 	defer mainOut.Body.Close()
@@ -221,11 +198,27 @@ func (s *S3Service) GetTranscriptBySessionId(ctx context.Context, sessionID stri
 
 	allMessages := append([]TranscriptMessage{}, mainMessages...)
 
-	subagentPrefix := sessionKeyPrefix + "/"
+	// Subagent files live under "<mainKeyWithoutExt>/". The main key never
+	// matches this prefix, so listing it yields only subagent objects.
+	subagentPrefix := strings.TrimSuffix(mainKey, ".jsonl") + "/"
+	listOut, err := s.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+		Bucket: aws.String(s.bucket),
+		Prefix: aws.String(subagentPrefix),
+	})
+	if err != nil && !isNoSuchBucketError(err) {
+		return nil, err
+	}
+
 	var subagentKeys []string
-	for _, item := range listOut.Contents {
-		k := aws.ToString(item.Key)
-		if strings.HasPrefix(k, subagentPrefix) && strings.Contains(k, "agent-") {
+	if listOut != nil {
+		for _, item := range listOut.Contents {
+			k := aws.ToString(item.Key)
+			if k == "" || !strings.HasPrefix(k, subagentPrefix) {
+				continue
+			}
+			if !strings.HasSuffix(k, ".jsonl") {
+				continue
+			}
 			subagentKeys = append(subagentKeys, k)
 		}
 	}
@@ -253,6 +246,79 @@ func (s *S3Service) GetTranscriptBySessionId(ctx context.Context, sessionID stri
 
 	transcript.SetAny("messages", allMessages)
 	return transcript, nil
+}
+
+// UploadTranscript stores a session's transcript (and any subagent files) in S3
+// under a Hive-style partitioned key derived from the upload time, then records
+// the session ID to S3 key mapping. It returns the main object's S3 key.
+func (s *S3Service) UploadTranscript(ctx context.Context, in UploadInput) (string, error) {
+	sessionID := strings.TrimSpace(in.SessionID)
+	if sessionID == "" {
+		return "", ErrSessionIDRequired
+	}
+	if len(in.Content) == 0 {
+		return "", ErrEmptyTranscript
+	}
+	if _, err := parseJSONLines(in.Content); err != nil {
+		return "", fmt.Errorf("%w: %v", ErrInvalidTranscript, err)
+	}
+
+	uploadedAt := s.now().UTC()
+	mainKey := hiveKey(s.prefix, sessionID, uploadedAt)
+
+	if _, err := s.client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(s.bucket),
+		Key:         aws.String(mainKey),
+		Body:        bytes.NewReader(in.Content),
+		ContentType: aws.String("application/x-ndjson"),
+	}); err != nil {
+		return "", fmt.Errorf("put main object: %w", err)
+	}
+
+	base := strings.TrimSuffix(mainKey, ".jsonl")
+	for i, sub := range in.Subagents {
+		if _, err := parseJSONLines(sub.Content); err != nil {
+			return "", fmt.Errorf("%w: subagent %d: %v", ErrInvalidTranscript, i, err)
+		}
+		agentID := sanitizeAgentID(sub.ID)
+		if agentID == "" {
+			agentID = fmt.Sprintf("agent-%d", i+1)
+		}
+		subKey := base + "/" + agentID + ".jsonl"
+		if _, err := s.client.PutObject(ctx, &s3.PutObjectInput{
+			Bucket:      aws.String(s.bucket),
+			Key:         aws.String(subKey),
+			Body:        bytes.NewReader(sub.Content),
+			ContentType: aws.String("application/x-ndjson"),
+		}); err != nil {
+			return "", fmt.Errorf("put subagent %q: %w", agentID, err)
+		}
+	}
+
+	if err := s.store.Put(ctx, sessionID, mainKey, uploadedAt.Format(time.RFC3339)); err != nil {
+		return "", fmt.Errorf("record mapping: %w", err)
+	}
+	return mainKey, nil
+}
+
+// hiveKey builds a Hive-style partitioned S3 key from the upload time (UTC):
+//
+//	<prefix>year=YYYY/month=MM/day=DD/hour=HH/<sessionID>.jsonl
+func hiveKey(prefix, sessionID string, t time.Time) string {
+	t = t.UTC()
+	return fmt.Sprintf("%syear=%04d/month=%02d/day=%02d/hour=%02d/%s.jsonl",
+		prefix, t.Year(), int(t.Month()), t.Day(), t.Hour(), sessionID)
+}
+
+// sanitizeAgentID reduces an uploaded subagent file name to a bare agent ID:
+// the base name without any directory component or .jsonl suffix.
+func sanitizeAgentID(name string) string {
+	name = strings.TrimSpace(name)
+	if i := strings.LastIndexAny(name, "/\\"); i >= 0 {
+		name = name[i+1:]
+	}
+	name = strings.TrimSuffix(name, ".jsonl")
+	return strings.TrimSpace(name)
 }
 
 func (s *S3Service) fetchSubagent(ctx context.Context, key string) (SubagentTranscript, []TranscriptMessage, error) {
@@ -331,6 +397,15 @@ func isNoSuchBucketError(err error) bool {
 	var apiErr smithy.APIError
 	if errors.As(err, &apiErr) {
 		return apiErr.ErrorCode() == "NoSuchBucket"
+	}
+	return false
+}
+
+func isNoSuchKeyError(err error) bool {
+	var apiErr smithy.APIError
+	if errors.As(err, &apiErr) {
+		code := apiErr.ErrorCode()
+		return code == "NoSuchKey" || code == "NotFound"
 	}
 	return false
 }

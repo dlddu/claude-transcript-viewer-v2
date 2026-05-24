@@ -140,15 +140,17 @@ jobs:
         run: |
           timeout 60 bash -c 'until curl -fs http://localhost:9000/minio/health/live; do sleep 2; done'
 
-      - name: Setup S3 test data
+      - name: Create S3 bucket
         env:
           AWS_ACCESS_KEY_ID: minioadmin
           AWS_SECRET_ACCESS_KEY: minioadmin
           AWS_DEFAULT_REGION: us-east-1
           AWS_ENDPOINT_URL: http://localhost:9000
         run: |
+          # Fixtures are ingested through the upload API once the backend is up
+          # (see "Seed transcript fixtures"), so they receive Hive-style keys
+          # and SQLite mappings instead of being copied straight into the bucket.
           aws --endpoint-url "$AWS_ENDPOINT_URL" s3 mb s3://test-transcripts
-          aws --endpoint-url "$AWS_ENDPOINT_URL" s3 cp e2e/fixtures/ s3://test-transcripts/ --recursive
 
       - name: Build frontend
         env:
@@ -165,9 +167,13 @@ jobs:
           AWS_ACCESS_KEY_ID: minioadmin
           AWS_SECRET_ACCESS_KEY: minioadmin
           S3_BUCKET: test-transcripts
+          SQLITE_PATH: ${{ runner.temp }}/ctv/transcripts.db
         run: |
           ./backend/server &
           timeout 30 bash -c 'until curl -f http://localhost:3000/api/health; do sleep 2; done'
+
+      - name: Seed transcript fixtures
+        run: ./scripts/seed-transcripts.sh http://localhost:3000
 
       - name: Start frontend server
         run: |
@@ -420,6 +426,7 @@ jobs:
 
       - name: Deploy backend to kind cluster
         run: |
+          kubectl apply -f k8s/backend/pvc.yaml
           kubectl apply -f k8s/backend/deployment.yaml
           kubectl apply -f k8s/backend/service.yaml
           kubectl set image deployment/claude-transcript-viewer-backend \
@@ -444,12 +451,11 @@ jobs:
           kubectl rollout status deployment/claude-transcript-viewer-backend --timeout=120s
           kubectl rollout status deployment/claude-transcript-viewer-frontend --timeout=120s
 
-      - name: Setup S3 test data in LocalStack
+      - name: Create S3 bucket in LocalStack
         run: |
+          # Fixtures are uploaded through the backend API after port-forward so
+          # they receive Hive-style keys and SQLite mappings.
           kubectl exec deploy/localstack -- awslocal s3 mb s3://test-transcripts
-          pod=$(kubectl get pod -l app=localstack -o jsonpath='{.items[0].metadata.name}')
-          kubectl cp e2e/fixtures "$pod:/tmp/fixtures"
-          kubectl exec deploy/localstack -- awslocal s3 cp /tmp/fixtures/ s3://test-transcripts/ --recursive
 
       - name: Port forward services
         run: |
@@ -457,6 +463,11 @@ jobs:
           kubectl port-forward svc/claude-transcript-viewer-backend 3000:80 &
           kubectl port-forward svc/localstack 4566:4566 &
           sleep 5
+
+      - name: Seed transcript fixtures
+        run: |
+          timeout 60 bash -c 'until curl -fsS http://localhost:3000/api/health; do sleep 2; done'
+          ./scripts/seed-transcripts.sh http://localhost:3000
 
       - name: Cache Playwright browsers
         id: playwright-cache-kind

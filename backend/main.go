@@ -16,8 +16,14 @@ func main() {
 
 	port := envOr("PORT", "3000")
 
+	store, err := OpenSQLiteStore(envOr("SQLITE_PATH", "./data/transcripts.db"))
+	if err != nil {
+		log.Fatalf("failed to open sqlite store: %v", err)
+	}
+	defer store.Close()
+
 	cfg := loadConfigFromEnv()
-	svc, err := NewS3Service(context.Background(), cfg)
+	svc, err := NewS3Service(context.Background(), cfg, store)
 	if err != nil {
 		log.Fatalf("failed to initialize S3 service: %v", err)
 	}

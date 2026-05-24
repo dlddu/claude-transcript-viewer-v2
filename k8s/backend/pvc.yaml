@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: claude-transcript-viewer-sqlite
+  labels:
+    app: claude-transcript-viewer-backend
+    tier: backend
+spec:
+  # The SQLite database has a single writer (backend runs with replicas: 1),
+  # so ReadWriteOnce is sufficient.
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi

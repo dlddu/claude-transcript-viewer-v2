@@ -43,3 +43,19 @@ type SubagentTranscript struct {
 	Content        string              `json:"content,omitempty"`
 	Messages       []TranscriptMessage `json:"messages,omitempty"`
 }
+
+// SubagentUpload is a single subagent transcript file included in an upload.
+// ID is typically the uploaded file name; the stored agent ID is derived from
+// it.
+type SubagentUpload struct {
+	ID      string
+	Content []byte
+}
+
+// UploadInput is the payload accepted when uploading a transcript. Content is
+// the main session's JSONL; Subagents are optional attached subagent files.
+type UploadInput struct {
+	SessionID string
+	Content   []byte
+	Subagents []SubagentUpload
+}
