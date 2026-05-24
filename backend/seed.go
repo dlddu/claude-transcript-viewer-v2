@@ -66,7 +66,7 @@ func seedDir(ctx context.Context, svc *S3Service, store SessionStore, dir string
 		if err != nil {
 			return err
 		}
-		if err := svc.PutObject(ctx, prefix+mainTranscriptFile, mainBody); err != nil {
+		if err := svc.PutObject(ctx, prefix+mainTranscriptName(sessionID), mainBody); err != nil {
 			return fmt.Errorf("upload main %q: %w", sessionID, err)
 		}
 

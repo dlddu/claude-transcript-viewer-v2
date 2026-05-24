@@ -115,29 +115,37 @@ func hivePrefixFor(sessionID string) string {
 	return "year=2026/month=05/day=24/hour=00/session_id=" + sessionID + "/"
 }
 
-func abcFiles(t *testing.T) map[string]string {
-	return map[string]string{
-		mainTranscriptFile:    readFixture(t, "session-abc123.jsonl"),
-		"agent-a1b2c3d.jsonl": readFixture(t, "session-abc123/agent-a1b2c3d.jsonl"),
-		"agent-xyz789.jsonl":  readFixture(t, "session-abc123/agent-xyz789.jsonl"),
+// sessionFixture describes a session's stored objects. The main transcript is
+// named "<session_id>.jsonl" automatically; subagents are keyed by file name.
+type sessionFixture struct {
+	main      string
+	subagents map[string]string
+}
+
+func abcFixture(t *testing.T) sessionFixture {
+	return sessionFixture{
+		main: readFixture(t, "session-abc123.jsonl"),
+		subagents: map[string]string{
+			"agent-a1b2c3d.jsonl": readFixture(t, "session-abc123/agent-a1b2c3d.jsonl"),
+			"agent-xyz789.jsonl":  readFixture(t, "session-abc123/agent-xyz789.jsonl"),
+		},
 	}
 }
 
-func xyzFiles(t *testing.T) map[string]string {
-	return map[string]string{
-		mainTranscriptFile: readFixture(t, "session-xyz789.jsonl"),
-	}
+func xyzFixture(t *testing.T) sessionFixture {
+	return sessionFixture{main: readFixture(t, "session-xyz789.jsonl")}
 }
 
 // newServiceWithSessions seeds the mock S3 (objects under each session's Hive
 // prefix) and the store (session→prefix mapping), then returns a wired service.
-func newServiceWithSessions(t *testing.T, sessions map[string]map[string]string) (*S3Service, *fakePresigner, *Store) {
+func newServiceWithSessions(t *testing.T, sessions map[string]sessionFixture) (*S3Service, *fakePresigner, *Store) {
 	t.Helper()
 	store := newTestStore(t)
 	objects := map[string]string{}
-	for sessionID, files := range sessions {
+	for sessionID, fx := range sessions {
 		prefix := hivePrefixFor(sessionID)
-		for name, body := range files {
+		objects[prefix+mainTranscriptName(sessionID)] = fx.main
+		for name, body := range fx.subagents {
 			objects[prefix+name] = body
 		}
 		if err := store.PutSession(context.Background(), sessionID, prefix); err != nil {
@@ -150,8 +158,8 @@ func newServiceWithSessions(t *testing.T, sessions map[string]map[string]string)
 }
 
 func abcService(t *testing.T) *S3Service {
-	svc, _, _ := newServiceWithSessions(t, map[string]map[string]string{
-		"session-abc123": abcFiles(t),
+	svc, _, _ := newServiceWithSessions(t, map[string]sessionFixture{
+		"session-abc123": abcFixture(t),
 	})
 	return svc
 }
@@ -159,9 +167,9 @@ func abcService(t *testing.T) *S3Service {
 // --- ListTranscripts --------------------------------------------------------
 
 func TestListTranscripts_ReturnsMappedSessionIDs(t *testing.T) {
-	svc, _, _ := newServiceWithSessions(t, map[string]map[string]string{
-		"session-abc123": xyzFiles(t),
-		"session-xyz789": xyzFiles(t),
+	svc, _, _ := newServiceWithSessions(t, map[string]sessionFixture{
+		"session-abc123": xyzFixture(t),
+		"session-xyz789": xyzFixture(t),
 	})
 
 	got, err := svc.ListTranscripts(context.Background())
@@ -204,7 +212,7 @@ func TestCreateUploadURL_NewSessionUsesHiveKeyAndStoresMapping(t *testing.T) {
 	}
 
 	wantPrefix := "year=2026/month=05/day=24/hour=15/session_id=session-new/"
-	wantKey := wantPrefix + mainTranscriptFile
+	wantKey := wantPrefix + "session-new.jsonl"
 	if resp.Key != wantKey {
 		t.Errorf("key = %q, want %q", resp.Key, wantKey)
 	}
@@ -248,7 +256,7 @@ func TestCreateUploadURL_ReusesPrefixForSubagentUpload(t *testing.T) {
 		t.Fatalf("subagent: %v", err)
 	}
 
-	mainDir := strings.TrimSuffix(main.Key, mainTranscriptFile)
+	mainDir := strings.TrimSuffix(main.Key, "session-x.jsonl")
 	subDir := strings.TrimSuffix(sub.Key, "agent-abc.jsonl")
 	if mainDir != subDir {
 		t.Errorf("subagent dir %q should match main dir %q", subDir, mainDir)
@@ -267,7 +275,7 @@ func TestCreateUploadURL_AppliesConfiguredPrefix(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	want := "tenants/acme/year=2026/month=01/day=02/hour=03/session_id=abc/transcript.jsonl"
+	want := "tenants/acme/year=2026/month=01/day=02/hour=03/session_id=abc/abc.jsonl"
 	if resp.Key != want {
 		t.Errorf("key = %q, want %q", resp.Key, want)
 	}
@@ -441,8 +449,8 @@ func TestGetTranscriptBySessionId_ParsesJSONLLineStructure(t *testing.T) {
 }
 
 func TestGetTranscriptBySessionId_HandlesSessionWithoutSubagents(t *testing.T) {
-	svc, _, _ := newServiceWithSessions(t, map[string]map[string]string{
-		"session-xyz789": xyzFiles(t),
+	svc, _, _ := newServiceWithSessions(t, map[string]sessionFixture{
+		"session-xyz789": xyzFixture(t),
 	})
 	sessionID := "session-xyz789"
 	got, err := svc.GetTranscriptBySessionId(context.Background(), sessionID)

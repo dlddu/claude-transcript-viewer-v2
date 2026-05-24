@@ -50,7 +50,7 @@ func (s *Server) registerRoutes() {
 		s.mux.HandleFunc("GET "+base, s.handleList)
 		s.mux.HandleFunc("GET "+base+"/{$}", s.handleList)
 		s.mux.HandleFunc("GET "+base+"/session/{sessionId}", s.handleGetBySession)
-		s.mux.HandleFunc("POST "+base+"/upload-url", s.handleCreateUploadURL)
+		s.mux.HandleFunc("POST "+base+"/upload-url/{sessionId}", s.handleCreateUploadURL)
 	}
 
 	s.mux.HandleFunc("/", s.handle404)
@@ -98,10 +98,9 @@ func (s *Server) handleGetBySession(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleCreateUploadURL(w http.ResponseWriter, r *http.Request) {
-	var req UploadURLRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Invalid request body"})
-		return
+	req := UploadURLRequest{
+		SessionID: strings.TrimSpace(r.PathValue("sessionId")),
+		FileName:  strings.TrimSpace(r.URL.Query().Get("file_name")),
 	}
 
 	resp, err := s.svc.CreateUploadURL(r.Context(), req)

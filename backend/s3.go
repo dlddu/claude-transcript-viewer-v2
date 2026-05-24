@@ -45,12 +45,14 @@ type SessionStore interface {
 	ListSessionIDs(ctx context.Context) ([]string, error)
 }
 
-const (
-	// mainTranscriptFile is the object name used for a session's primary
-	// transcript within its Hive-partitioned directory.
-	mainTranscriptFile = "transcript.jsonl"
-	defaultUploadTTL   = 15 * time.Minute
-)
+// defaultUploadTTL is the lifetime of an issued presigned upload URL.
+const defaultUploadTTL = 15 * time.Minute
+
+// mainTranscriptName is the object name of a session's primary transcript
+// within its Hive-partitioned directory: the session id plus ".jsonl".
+func mainTranscriptName(sessionID string) string {
+	return sessionID + ".jsonl"
+}
 
 var (
 	sessionIDPattern  = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
@@ -86,12 +88,12 @@ var (
 	ErrNoSessionTranscriptFound = errors.New("No transcript found for session ID")
 )
 
-// UploadURLRequest is the body of POST /api/transcripts/upload-url.
+// UploadURLRequest selects which file of a session to issue an upload URL for.
+// SessionID comes from the route path. FileName is an optional override
+// (e.g. "agent-xyz.jsonl" for a subagent) that defaults to "<session_id>.jsonl".
 type UploadURLRequest struct {
-	SessionID string `json:"session_id"`
-	// FileName is optional; defaults to the main transcript. Subagent
-	// uploads pass e.g. "agent-xyz.jsonl" so they land beside the main file.
-	FileName string `json:"file_name,omitempty"`
+	SessionID string
+	FileName  string
 }
 
 // UploadURLResponse is returned to clients that will PUT a transcript to S3.
@@ -218,7 +220,7 @@ func (s *S3Service) CreateUploadURL(ctx context.Context, req UploadURLRequest) (
 
 	fileName := strings.TrimSpace(req.FileName)
 	if fileName == "" {
-		fileName = mainTranscriptFile
+		fileName = mainTranscriptName(sessionID)
 	}
 	if !uploadNamePattern.MatchString(fileName) {
 		return UploadURLResponse{}, ErrUploadNameInvalid
@@ -305,7 +307,7 @@ func (s *S3Service) GetTranscriptBySessionId(ctx context.Context, sessionID stri
 		return nil, ErrNoSessionTranscriptFound
 	}
 
-	mainKey := keyPrefix + mainTranscriptFile
+	mainKey := keyPrefix + mainTranscriptName(trimmed)
 	var subagentKeys []string
 	hasMain := false
 	for _, item := range listOut.Contents {

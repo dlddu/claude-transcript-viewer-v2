@@ -45,28 +45,28 @@ Transcripts are stored in S3 under **Hive-style partitioned keys** and indexed
 by a SQLite database that maps each session id to its key prefix:
 
 ```
-{S3_PREFIX}year=YYYY/month=MM/day=DD/hour=HH/session_id=<id>/transcript.jsonl
+{S3_PREFIX}year=YYYY/month=MM/day=DD/hour=HH/session_id=<id>/<id>.jsonl
 {S3_PREFIX}year=YYYY/month=MM/day=DD/hour=HH/session_id=<id>/agent-<id>.jsonl
 ```
 
-- **Upload**: `POST /api/transcripts/upload-url` returns a presigned S3 `PUT`
-  URL. The server computes the session's Hive prefix once, persists the
-  `session_id → s3_prefix` mapping in SQLite, and reuses it for subsequent
-  files (e.g. subagents) so a session's files share one directory.
+- **Upload**: `POST /api/transcripts/upload-url/{sessionId}` returns a
+  presigned S3 `PUT` URL for `<sessionId>.jsonl`. The server computes the
+  session's Hive prefix once, persists the `session_id → s3_prefix` mapping
+  in SQLite, and reuses it for subsequent files (e.g. subagents) so a
+  session's files share one directory.
 
   ```bash
-  curl -X POST http://localhost:3000/api/transcripts/upload-url \
-    -H 'Content-Type: application/json' \
-    -d '{"session_id":"session-abc123"}'
-  # => {"url":"https://...","method":"PUT","key":"year=.../transcript.jsonl",
+  curl -X POST http://localhost:3000/api/transcripts/upload-url/session-abc123
+  # => {"url":"https://...","method":"PUT",
+  #     "key":"year=.../session_id=session-abc123/session-abc123.jsonl",
   #     "session_id":"session-abc123","expires_in":900}
 
   # Then upload the file directly to S3:
-  curl -X PUT --upload-file transcript.jsonl "<url from above>"
+  curl -X PUT --upload-file session-abc123.jsonl "<url from above>"
   ```
 
-  Optional `file_name` (matching `[A-Za-z0-9._-]+.jsonl`) targets a specific
-  file such as `agent-xyz.jsonl`; it defaults to `transcript.jsonl`.
+  Optional `?file_name=` (matching `[A-Za-z0-9._-]+.jsonl`) targets a specific
+  file such as `agent-xyz.jsonl`; it defaults to `<sessionId>.jsonl`.
 
 - **Download**: `GET /api/transcript/session/{id}` resolves the S3 prefix
   from SQLite (returning `404` when a session is not mapped), then lists and

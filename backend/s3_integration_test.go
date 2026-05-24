@@ -113,7 +113,7 @@ func TestIntegration_GetTranscriptViaMapping(t *testing.T) {
 
 	sessionID := "session-xyz789"
 	prefix := hiveSessionPrefix(sessionID, time.Now())
-	mainKey := prefix + mainTranscriptFile
+	mainKey := prefix + mainTranscriptName(sessionID)
 	putObject(t, client, mainKey, readFixtureFile(t, "session-xyz789.jsonl"))
 	t.Cleanup(func() { deleteObject(t, client, mainKey) })
 	if err := store.PutSession(context.Background(), sessionID, prefix); err != nil {
@@ -151,7 +151,7 @@ func TestIntegration_GetTranscriptWithConfiguredPrefix(t *testing.T) {
 
 	sessionID := "prefixed-session"
 	prefix := configuredPrefix + hiveSessionPrefix(sessionID, time.Now())
-	mainKey := prefix + mainTranscriptFile
+	mainKey := prefix + mainTranscriptName(sessionID)
 	putObject(t, client, mainKey, readFixtureFile(t, "session-xyz789.jsonl"))
 	t.Cleanup(func() { deleteObject(t, client, mainKey) })
 	if err := store.PutSession(context.Background(), sessionID, prefix); err != nil {

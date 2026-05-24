@@ -258,12 +258,14 @@ func TestHandleGetBySession_TrimsWhitespace(t *testing.T) {
 // --- /api/transcript/upload-url ---------------------------------------------
 
 func TestHandleCreateUploadURL_ReturnsPresignedURL(t *testing.T) {
+	var gotReq UploadURLRequest
 	fake := &fakeService{
 		createUploadURL: func(_ context.Context, req UploadURLRequest) (UploadURLResponse, error) {
+			gotReq = req
 			return UploadURLResponse{
 				URL:       "https://s3.example.com/bucket/key?sig=x",
 				Method:    http.MethodPut,
-				Key:       "year=2026/month=05/day=24/hour=00/session_id=" + req.SessionID + "/transcript.jsonl",
+				Key:       "year=2026/month=05/day=24/hour=00/session_id=" + req.SessionID + "/" + req.SessionID + ".jsonl",
 				SessionID: req.SessionID,
 				ExpiresIn: 900,
 			}, nil
@@ -271,9 +273,12 @@ func TestHandleCreateUploadURL_ReturnsPresignedURL(t *testing.T) {
 	}
 	server := NewServer(fake)
 
-	rec := doPost(t, server, "/api/transcripts/upload-url", `{"session_id":"session-abc123"}`)
+	rec := doPost(t, server, "/api/transcripts/upload-url/session-abc123", "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	if gotReq.SessionID != "session-abc123" {
+		t.Errorf("service got session id %q from path, want session-abc123", gotReq.SessionID)
 	}
 	body := decodeResponse(t, rec.Body.Bytes())
 	if body["url"] == "" || body["url"] == nil {
@@ -287,6 +292,28 @@ func TestHandleCreateUploadURL_ReturnsPresignedURL(t *testing.T) {
 	}
 }
 
+func TestHandleCreateUploadURL_PassesFileNameQueryParam(t *testing.T) {
+	var gotReq UploadURLRequest
+	fake := &fakeService{
+		createUploadURL: func(_ context.Context, req UploadURLRequest) (UploadURLResponse, error) {
+			gotReq = req
+			return UploadURLResponse{URL: "https://x", Method: http.MethodPut, SessionID: req.SessionID}, nil
+		},
+	}
+	server := NewServer(fake)
+
+	rec := doPost(t, server, "/api/transcripts/upload-url/session-abc123?file_name=agent-xyz.jsonl", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if gotReq.SessionID != "session-abc123" {
+		t.Errorf("session id = %q, want session-abc123", gotReq.SessionID)
+	}
+	if gotReq.FileName != "agent-xyz.jsonl" {
+		t.Errorf("file_name = %q, want agent-xyz.jsonl", gotReq.FileName)
+	}
+}
+
 func TestHandleCreateUploadURL_BothBasePrefixes(t *testing.T) {
 	fake := &fakeService{
 		createUploadURL: func(_ context.Context, req UploadURLRequest) (UploadURLResponse, error) {
@@ -295,18 +322,10 @@ func TestHandleCreateUploadURL_BothBasePrefixes(t *testing.T) {
 	}
 	server := NewServer(fake)
 	for _, base := range []string{"/api/transcripts", "/api/transcript"} {
-		rec := doPost(t, server, base+"/upload-url", `{"session_id":"abc"}`)
+		rec := doPost(t, server, base+"/upload-url/abc", "")
 		if rec.Code != http.StatusOK {
 			t.Errorf("%s: status = %d, want 200", base, rec.Code)
 		}
-	}
-}
-
-func TestHandleCreateUploadURL_InvalidBodyReturns400(t *testing.T) {
-	server := NewServer(&fakeService{})
-	rec := doPost(t, server, "/api/transcripts/upload-url", `not json`)
-	if rec.Code != http.StatusBadRequest {
-		t.Fatalf("status = %d, want 400", rec.Code)
 	}
 }
 
@@ -317,7 +336,7 @@ func TestHandleCreateUploadURL_InvalidSessionReturns400(t *testing.T) {
 		},
 	}
 	server := NewServer(fake)
-	rec := doPost(t, server, "/api/transcripts/upload-url", `{"session_id":"a/b"}`)
+	rec := doPost(t, server, "/api/transcripts/upload-url/bad-session", "")
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", rec.Code)
 	}
