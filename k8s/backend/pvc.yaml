@@ -7,7 +7,7 @@ metadata:
     tier: backend
 spec:
   # SQLite is a single-writer database, so the volume is mounted by exactly
-  # one backend pod (the Deployment uses the Recreate strategy and 1 replica).
+  # one backend pod (the Deployment runs 1 replica with maxSurge: 0).
   accessModes:
     - ReadWriteOnce
   resources:

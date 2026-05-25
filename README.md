@@ -84,8 +84,9 @@ session directory or as any file under a `subagents/` subdirectory.
 
 The SQLite database path is configured by `DB_PATH`. In Kubernetes it is
 backed by a `PersistentVolumeClaim` (`k8s/backend/pvc.yaml`) mounted at
-`/data`, and the backend Deployment uses the `Recreate` strategy because
-SQLite allows only a single writer.
+`/data`. Because SQLite allows only a single writer, the backend Deployment
+runs one replica with `maxSurge: 0` so the old pod releases the
+ReadWriteOnce volume before the new pod mounts it during a rollout.
 
 ## Prerequisites
 

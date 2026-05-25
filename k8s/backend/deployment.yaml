@@ -7,10 +7,16 @@ metadata:
     tier: backend
 spec:
   replicas: 1
-  # SQLite on a ReadWriteOnce volume tolerates only one writer, so the old pod
-  # must release the PVC before the new one starts.
+  # Single-writer SQLite on a ReadWriteOnce PVC: maxSurge=0 keeps at most one
+  # pod during a rollout, so the old pod releases the volume before the new one
+  # mounts it (avoids a multi-attach deadlock). Recreate would behave the same
+  # but cannot be applied over an existing RollingUpdate Deployment without
+  # clearing the defaulted spec.strategy.rollingUpdate, which the API rejects.
   strategy:
-    type: Recreate
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 0
+      maxUnavailable: 1
   selector:
     matchLabels:
       app: claude-transcript-viewer-backend

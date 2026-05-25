@@ -360,14 +360,15 @@ describe('K8s Manifests - Deployment Configuration', () => {
     );
   });
 
-  it('should use the Recreate strategy for the single-writer SQLite volume', () => {
+  it('should keep at most one pod on the RWO PVC during rollouts', () => {
     // Arrange
     const deploymentPath = resolve(K8S_DIR, 'deployment.yaml');
     const content = readFileSync(deploymentPath, 'utf-8');
 
-    // Assert
-    assert.ok(content.includes('type: Recreate'),
-      'Deployment should use Recreate strategy so only one pod holds the RWO PVC');
+    // Assert: maxSurge: 0 means the old pod is removed before the new one is
+    // created, so only one pod ever mounts the single-writer RWO PVC.
+    assert.ok(content.includes('maxSurge: 0'),
+      'Deployment should set maxSurge: 0 so the old pod releases the RWO PVC before the new pod mounts it');
   });
 });
 
