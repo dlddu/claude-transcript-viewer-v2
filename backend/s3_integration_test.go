@@ -4,11 +4,14 @@ package main
 
 import (
 	"context"
-	"errors"
+	"encoding/json"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
@@ -80,83 +83,178 @@ func readFixtureFile(t *testing.T, name string) string {
 	return string(b)
 }
 
-func newIntegrationService(t *testing.T, prefix string) *S3Service {
+func newIntegrationStore(t *testing.T) *Store {
+	t.Helper()
+	store, err := OpenStore(context.Background(), filepath.Join(t.TempDir(), "integration.db"))
+	if err != nil {
+		t.Fatalf("open store: %v", err)
+	}
+	t.Cleanup(func() { store.Close() })
+	return store
+}
+
+func newIntegrationService(t *testing.T, store SessionStore, prefix string) *S3Service {
 	t.Helper()
 	svc, err := NewS3Service(context.Background(), S3ServiceConfig{
 		Bucket:   testBucket,
 		Region:   "us-east-1",
 		Endpoint: endpointFromEnv(),
 		Prefix:   prefix,
-	})
+	}, store)
 	if err != nil {
 		t.Fatalf("NewS3Service: %v", err)
 	}
 	return svc
 }
 
-func TestIntegration_ListTranscriptsIncludesUploaded(t *testing.T) {
+func TestIntegration_GetTranscriptViaMapping(t *testing.T) {
 	client := newRealS3Client(t)
-	const id = "session-xyz789"
-	body := readFixtureFile(t, "session-xyz789.jsonl")
+	store := newIntegrationStore(t)
+	svc := newIntegrationService(t, store, "")
 
-	putObject(t, client, id+".jsonl", body)
-	t.Cleanup(func() { deleteObject(t, client, id+".jsonl") })
+	sessionID := "session-xyz789"
+	prefix := hiveSessionPrefix(sessionID, time.Now())
+	mainKey := prefix + mainTranscriptName(sessionID)
+	putObject(t, client, mainKey, readFixtureFile(t, "session-xyz789.jsonl"))
+	t.Cleanup(func() { deleteObject(t, client, mainKey) })
+	if err := store.PutSession(context.Background(), sessionID, prefix); err != nil {
+		t.Fatalf("put session: %v", err)
+	}
 
-	svc := newIntegrationService(t, "")
+	got, err := svc.GetTranscriptBySessionId(context.Background(), sessionID)
+	if err != nil {
+		t.Fatalf("GetTranscriptBySessionId: %v", err)
+	}
+	if got.GetString("session_id") != sessionID {
+		t.Errorf("session_id = %q, want %q", got.GetString("session_id"), sessionID)
+	}
+
 	ids, err := svc.ListTranscripts(context.Background())
 	if err != nil {
 		t.Fatalf("ListTranscripts: %v", err)
 	}
 	found := false
-	for _, gotID := range ids {
-		if gotID == id {
+	for _, id := range ids {
+		if id == sessionID {
 			found = true
-			break
 		}
 	}
 	if !found {
-		t.Errorf("expected %q in %v", id, ids)
+		t.Errorf("expected %q in %v", sessionID, ids)
 	}
 }
 
-func TestIntegration_GetTranscriptBySessionIdWithPrefix(t *testing.T) {
+func TestIntegration_GetTranscriptWithConfiguredPrefix(t *testing.T) {
 	client := newRealS3Client(t)
-	prefix := "tenants/acme/transcripts/"
-	id := "prefixed-session"
-	body := readFixtureFile(t, "session-xyz789.jsonl")
+	store := newIntegrationStore(t)
+	const configuredPrefix = "tenants/acme/transcripts/"
+	svc := newIntegrationService(t, store, configuredPrefix)
 
-	putObject(t, client, prefix+id+".jsonl", body)
-	t.Cleanup(func() { deleteObject(t, client, prefix+id+".jsonl") })
+	sessionID := "prefixed-session"
+	prefix := configuredPrefix + hiveSessionPrefix(sessionID, time.Now())
+	mainKey := prefix + mainTranscriptName(sessionID)
+	putObject(t, client, mainKey, readFixtureFile(t, "session-xyz789.jsonl"))
+	t.Cleanup(func() { deleteObject(t, client, mainKey) })
+	if err := store.PutSession(context.Background(), sessionID, prefix); err != nil {
+		t.Fatalf("put session: %v", err)
+	}
 
-	prefixedSvc := newIntegrationService(t, prefix)
-	got, err := prefixedSvc.GetTranscriptBySessionId(context.Background(), id)
+	got, err := svc.GetTranscriptBySessionId(context.Background(), sessionID)
 	if err != nil {
 		t.Fatalf("GetTranscriptBySessionId: %v", err)
 	}
-	if got.GetString("session_id") != id {
-		t.Errorf("session_id = %q, want %q", got.GetString("session_id"), id)
+	if got.GetString("session_id") != sessionID {
+		t.Errorf("session_id = %q, want %q", got.GetString("session_id"), sessionID)
 	}
+}
 
-	noPrefixSvc := newIntegrationService(t, "")
-	_, err = noPrefixSvc.GetTranscriptBySessionId(context.Background(), id)
-	if !errors.Is(err, ErrNoSessionTranscriptFound) {
-		t.Errorf("expected ErrNoSessionTranscriptFound without prefix, got %v", err)
-	}
+// TestIntegration_UploadURLRoundTrip exercises the full new feature: request a
+// presigned URL, PUT a transcript to it, then read it back via the mapping.
+func TestIntegration_UploadURLRoundTrip(t *testing.T) {
+	client := newRealS3Client(t)
+	store := newIntegrationStore(t)
+	svc := newIntegrationService(t, store, "")
 
-	ids, err := prefixedSvc.ListTranscripts(context.Background())
+	sessionID := "presigned-roundtrip"
+	resp, err := svc.CreateUploadURL(context.Background(), UploadURLRequest{SessionID: sessionID})
 	if err != nil {
-		t.Fatalf("ListTranscripts: %v", err)
+		t.Fatalf("CreateUploadURL: %v", err)
 	}
-	found := false
-	for _, gotID := range ids {
-		if strings.HasPrefix(gotID, prefix) {
-			t.Errorf("listed id %q still contains prefix", gotID)
-		}
-		if gotID == id {
-			found = true
-		}
+	t.Cleanup(func() { deleteObject(t, client, resp.Key) })
+
+	putToPresignedURL(t, resp.URL, readFixtureFile(t, "session-xyz789.jsonl"))
+
+	got, err := svc.GetTranscriptBySessionId(context.Background(), sessionID)
+	if err != nil {
+		t.Fatalf("GetTranscriptBySessionId after upload: %v", err)
 	}
-	if !found {
-		t.Errorf("expected %q in %v", id, ids)
+	if got.GetString("session_id") != sessionID {
+		t.Errorf("session_id = %q, want %q", got.GetString("session_id"), sessionID)
+	}
+	if len(decodeMessages(t, got)) == 0 {
+		t.Error("expected messages after round-trip upload")
+	}
+}
+
+// TestIntegration_UploadSubagentRoundTrip uploads a main transcript and a
+// subagent under subagents/ via presigned URLs, then verifies the subagent is
+// discovered and merged on read.
+func TestIntegration_UploadSubagentRoundTrip(t *testing.T) {
+	client := newRealS3Client(t)
+	store := newIntegrationStore(t)
+	svc := newIntegrationService(t, store, "")
+
+	sessionID := "presigned-subagent"
+	mainResp, err := svc.CreateUploadURL(context.Background(), UploadURLRequest{SessionID: sessionID})
+	if err != nil {
+		t.Fatalf("CreateUploadURL main: %v", err)
+	}
+	t.Cleanup(func() { deleteObject(t, client, mainResp.Key) })
+	putToPresignedURL(t, mainResp.URL, readFixtureFile(t, "session-xyz789.jsonl"))
+
+	subResp, err := svc.CreateUploadURL(context.Background(), UploadURLRequest{
+		SessionID: sessionID,
+		FileName:  "subagents/agent-a1b2c3d.jsonl",
+	})
+	if err != nil {
+		t.Fatalf("CreateUploadURL subagent: %v", err)
+	}
+	t.Cleanup(func() { deleteObject(t, client, subResp.Key) })
+	if !strings.Contains(subResp.Key, "/subagents/agent-a1b2c3d.jsonl") {
+		t.Fatalf("subagent key %q not under subagents/", subResp.Key)
+	}
+	putToPresignedURL(t, subResp.URL, readFixtureFile(t, "session-abc123/agent-a1b2c3d.jsonl"))
+
+	got, err := svc.GetTranscriptBySessionId(context.Background(), sessionID)
+	if err != nil {
+		t.Fatalf("GetTranscriptBySessionId: %v", err)
+	}
+	raw, ok := got["subagents"]
+	if !ok {
+		t.Fatal("missing subagents after subagent upload")
+	}
+	var subs []SubagentTranscript
+	if err := json.Unmarshal(raw, &subs); err != nil {
+		t.Fatalf("subagents not array: %v", err)
+	}
+	if len(subs) != 1 {
+		t.Fatalf("expected 1 subagent, got %d", len(subs))
+	}
+}
+
+func putToPresignedURL(t *testing.T, url, body string) {
+	t.Helper()
+	req, err := http.NewRequest(http.MethodPut, url, strings.NewReader(body))
+	if err != nil {
+		t.Fatalf("new request: %v", err)
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		t.Fatalf("PUT to presigned URL: %v", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode != http.StatusOK {
+		b, _ := io.ReadAll(resp.Body)
+		t.Fatalf("presigned PUT status = %d, body=%s", resp.StatusCode, string(b))
 	}
 }

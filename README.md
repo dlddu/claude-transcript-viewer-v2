@@ -13,9 +13,11 @@ claude-transcript-viewer-v2/
 │   │   └── test/          # Test utilities
 │   └── package.json
 ├── backend/               # Go S3 proxy (net/http + AWS SDK for Go v2)
-│   ├── main.go            # Entry point
+│   ├── main.go            # Entry point + `seed` subcommand dispatch
 │   ├── server.go          # HTTP routing
-│   ├── s3.go              # S3 service
+│   ├── s3.go              # S3 service, Hive paths, presigned upload URLs
+│   ├── store.go           # SQLite session→S3-key mapping (modernc.org/sqlite)
+│   ├── seed.go            # `seed` subcommand: import fixtures to S3 + SQLite
 │   └── go.mod
 ├── e2e/                   # Playwright E2E tests
 │   ├── fixtures/          # Sample transcript fixtures
@@ -31,10 +33,60 @@ claude-transcript-viewer-v2/
 
 - **Frontend**: React 18, Vite, TypeScript, Vitest
 - **Backend**: Go (net/http + AWS SDK for Go v2)
+- **Session index**: SQLite (pure-Go `modernc.org/sqlite`, no CGO)
 - **E2E Testing**: Playwright
 - **Local Development**: MinIO (S3-compatible storage)
 - **CI/CD**: GitHub Actions
 - **Package Manager**: pnpm workspaces (frontend + e2e), Go modules (backend)
+
+## Storage Model
+
+Transcripts are stored in S3 under **Hive-style partitioned keys** and indexed
+by a SQLite database that maps each session id to its key prefix:
+
+```
+{S3_PREFIX}year=YYYY/month=MM/day=DD/hour=HH/session_id=<id>/<id>.jsonl
+{S3_PREFIX}year=YYYY/month=MM/day=DD/hour=HH/session_id=<id>/agent-<id>.jsonl
+{S3_PREFIX}year=YYYY/month=MM/day=DD/hour=HH/session_id=<id>/subagents/<file>
+```
+
+Subagent transcripts are discovered either as `agent-*.jsonl` directly in the
+session directory or as any file under a `subagents/` subdirectory.
+
+- **Upload**: `POST /api/transcripts/upload-url/{sessionId}` returns a
+  presigned S3 `PUT` URL for `<sessionId>.jsonl`. The server computes the
+  session's Hive prefix once, persists the `session_id → s3_prefix` mapping
+  in SQLite, and reuses it for subsequent files (e.g. subagents) so a
+  session's files share one directory.
+
+  ```bash
+  curl -X POST http://localhost:3000/api/transcripts/upload-url/session-abc123
+  # => {"url":"https://...","method":"PUT",
+  #     "key":"year=.../session_id=session-abc123/session-abc123.jsonl",
+  #     "session_id":"session-abc123","expires_in":900}
+
+  # Then upload the file directly to S3:
+  curl -X PUT --upload-file session-abc123.jsonl "<url from above>"
+  ```
+
+  Optional `?file_name=` targets a specific file; it defaults to
+  `<sessionId>.jsonl`. It accepts `<name>.jsonl` or `subagents/<name>.jsonl`
+  (e.g. `?file_name=subagents/agent-xyz.jsonl`) for subagent uploads.
+
+- **Download**: `GET /api/transcript/session/{id}` resolves the S3 prefix
+  from SQLite (returning `404` when a session is not mapped), then lists and
+  merges the main transcript with any subagent files.
+
+- **Seeding / import**: `server seed --dir <fixtures>` uploads a directory of
+  `*.jsonl` fixtures to their Hive keys and records the mappings, using the
+  same code paths as the server. The `DB_PATH` and AWS env vars select the
+  database and bucket. This is how CI populates MinIO/LocalStack.
+
+The SQLite database path is configured by `DB_PATH`. In Kubernetes it is
+backed by a `PersistentVolumeClaim` (`k8s/backend/pvc.yaml`) mounted at
+`/data`. Because SQLite allows only a single writer, the backend Deployment
+runs one replica with `maxSurge: 0` so the old pod releases the
+ReadWriteOnce volume before the new pod mounts it during a rollout.
 
 ## Prerequisites
 
@@ -75,9 +127,14 @@ export AWS_SECRET_ACCESS_KEY=minioadmin
 export AWS_DEFAULT_REGION=us-east-1
 export AWS_ENDPOINT_URL=http://localhost:9000
 
-# Create bucket and upload fixtures
+# Create the bucket
 aws --endpoint-url "$AWS_ENDPOINT_URL" s3 mb s3://test-transcripts
-aws --endpoint-url "$AWS_ENDPOINT_URL" s3 cp e2e/fixtures/ s3://test-transcripts/ --recursive
+
+# Seed fixtures to Hive-partitioned keys and build the SQLite index.
+# Uses the same DB_PATH the backend reads from.
+cd backend
+S3_BUCKET=test-transcripts DB_PATH=transcripts.db go run . seed --dir ../e2e/fixtures
+cd ..
 ```
 
 ### Run development servers
@@ -195,9 +252,11 @@ Copy `.env.example` to `.env` and configure:
 ```bash
 # Backend
 PORT=3000
+DB_PATH=transcripts.db                  # SQLite session index
 AWS_REGION=us-east-1
 S3_BUCKET=test-transcripts
 AWS_ENDPOINT_URL=http://localhost:9000  # For local MinIO
+# UPLOAD_URL_TTL_SECONDS=900            # Presigned upload URL lifetime
 
 # Frontend
 VITE_API_URL=http://localhost:3000/api

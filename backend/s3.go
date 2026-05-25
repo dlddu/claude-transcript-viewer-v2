@@ -8,11 +8,13 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"regexp"
 	"sort"
 	"strings"
 	"time"
 
 	"github.com/aws/aws-sdk-go-v2/aws"
+	v4 "github.com/aws/aws-sdk-go-v2/aws/signer/v4"
 	awsconfig "github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/credentials"
 	"github.com/aws/aws-sdk-go-v2/credentials/stscreds"
@@ -26,7 +28,41 @@ import (
 type S3API interface {
 	GetObject(ctx context.Context, in *s3.GetObjectInput, opts ...func(*s3.Options)) (*s3.GetObjectOutput, error)
 	ListObjectsV2(ctx context.Context, in *s3.ListObjectsV2Input, opts ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
+	PutObject(ctx context.Context, in *s3.PutObjectInput, opts ...func(*s3.Options)) (*s3.PutObjectOutput, error)
 }
+
+// Presigner produces presigned S3 requests. *s3.PresignClient satisfies it;
+// tests substitute a fake.
+type Presigner interface {
+	PresignPutObject(ctx context.Context, in *s3.PutObjectInput, opts ...func(*s3.PresignOptions)) (*v4.PresignedHTTPRequest, error)
+}
+
+// SessionStore maps a session id to the S3 key prefix holding its transcript
+// files. *Store is the production implementation.
+type SessionStore interface {
+	GetSessionPrefix(ctx context.Context, sessionID string) (string, error)
+	PutSession(ctx context.Context, sessionID, s3Prefix string) error
+	ListSessionIDs(ctx context.Context) ([]string, error)
+}
+
+// defaultUploadTTL is the lifetime of an issued presigned upload URL.
+const defaultUploadTTL = 15 * time.Minute
+
+// mainTranscriptName is the object name of a session's primary transcript
+// within its Hive-partitioned directory: the session id plus ".jsonl".
+func mainTranscriptName(sessionID string) string {
+	return sessionID + ".jsonl"
+}
+
+// subagentsDir is an optional subdirectory inside a session's Hive directory
+// where subagent transcripts may live, e.g. session_id=<id>/subagents/<file>.
+const subagentsDir = "subagents/"
+
+var (
+	sessionIDPattern = regexp.MustCompile(`^[A-Za-z0-9._-]+$`)
+	// An upload file name is a bare "<name>.jsonl" or "subagents/<name>.jsonl".
+	uploadNamePattern = regexp.MustCompile(`^(subagents/)?[A-Za-z0-9._-]+\.jsonl$`)
+)
 
 type S3ServiceConfig struct {
 	Bucket                string
@@ -37,20 +73,44 @@ type S3ServiceConfig struct {
 	AssumeRoleSessionName string
 	AssumeRoleExternalID  string
 	AssumeRoleDuration    time.Duration
+	UploadURLTTL          time.Duration
 }
 
 type S3Service struct {
-	client S3API
-	bucket string
-	prefix string
+	client    S3API
+	presigner Presigner
+	store     SessionStore
+	bucket    string
+	prefix    string
+	uploadTTL time.Duration
+	now       func() time.Time
 }
 
 var (
 	ErrSessionIDRequired        = errors.New("Session ID is required")
+	ErrSessionIDInvalid         = errors.New("Session ID contains invalid characters")
+	ErrUploadNameInvalid        = errors.New("Upload file name must match [A-Za-z0-9._-]+.jsonl")
 	ErrNoSessionTranscriptFound = errors.New("No transcript found for session ID")
 )
 
-func NewS3Service(ctx context.Context, cfg S3ServiceConfig) (*S3Service, error) {
+// UploadURLRequest selects which file of a session to issue an upload URL for.
+// SessionID comes from the route path. FileName is an optional override
+// (e.g. "agent-xyz.jsonl" for a subagent) that defaults to "<session_id>.jsonl".
+type UploadURLRequest struct {
+	SessionID string
+	FileName  string
+}
+
+// UploadURLResponse is returned to clients that will PUT a transcript to S3.
+type UploadURLResponse struct {
+	URL       string `json:"url"`
+	Method    string `json:"method"`
+	Key       string `json:"key"`
+	SessionID string `json:"session_id"`
+	ExpiresIn int    `json:"expires_in"`
+}
+
+func NewS3Service(ctx context.Context, cfg S3ServiceConfig, store SessionStore) (*S3Service, error) {
 	awsCfg, err := awsconfig.LoadDefaultConfig(ctx, awsconfig.WithRegion(cfg.Region))
 	if err != nil {
 		return nil, fmt.Errorf("load aws config: %w", err)
@@ -86,21 +146,33 @@ func NewS3Service(ctx context.Context, cfg S3ServiceConfig) (*S3Service, error) 
 	}
 
 	client := s3.NewFromConfig(awsCfg, clientOpts...)
+	ttl := cfg.UploadURLTTL
+	if ttl <= 0 {
+		ttl = defaultUploadTTL
+	}
 	return &S3Service{
-		client: client,
-		bucket: cfg.Bucket,
-		prefix: normalizePrefix(cfg.Prefix),
+		client:    client,
+		presigner: s3.NewPresignClient(client),
+		store:     store,
+		bucket:    cfg.Bucket,
+		prefix:    normalizePrefix(cfg.Prefix),
+		uploadTTL: ttl,
+		now:       time.Now,
 	}, nil
 }
 
-// NewS3ServiceWithClient builds a service around a pre-existing client.
-// Used by tests with a mocked S3API and by code that already configured
-// its own AWS client.
-func NewS3ServiceWithClient(client S3API, bucket, prefix string) *S3Service {
+// NewS3ServiceWithClient builds a service around pre-existing collaborators.
+// Used by tests with mocks and by code that already configured its own
+// AWS clients.
+func NewS3ServiceWithClient(client S3API, presigner Presigner, store SessionStore, bucket, prefix string) *S3Service {
 	return &S3Service{
-		client: client,
-		bucket: bucket,
-		prefix: normalizePrefix(prefix),
+		client:    client,
+		presigner: presigner,
+		store:     store,
+		bucket:    bucket,
+		prefix:    normalizePrefix(prefix),
+		uploadTTL: defaultUploadTTL,
+		now:       time.Now,
 	}
 }
 
@@ -120,37 +192,96 @@ func normalizePrefix(prefix string) string {
 
 func (s *S3Service) Prefix() string { return s.prefix }
 
-func (s *S3Service) ListTranscripts(ctx context.Context) ([]string, error) {
-	in := &s3.ListObjectsV2Input{Bucket: aws.String(s.bucket)}
-	if s.prefix != "" {
-		in.Prefix = aws.String(s.prefix)
-	}
+// hiveSessionPrefix builds the Hive-style partition path for a session,
+// relative to the configured S3 prefix:
+//
+//	year=2026/month=05/day=24/hour=15/session_id=<id>/
+func hiveSessionPrefix(sessionID string, t time.Time) string {
+	u := t.UTC()
+	return fmt.Sprintf("year=%04d/month=%02d/day=%02d/hour=%02d/session_id=%s/",
+		u.Year(), int(u.Month()), u.Day(), u.Hour(), sessionID)
+}
 
-	out, err := s.client.ListObjectsV2(ctx, in)
+func validateSessionID(sessionID string) (string, error) {
+	trimmed := strings.TrimSpace(sessionID)
+	if trimmed == "" {
+		return "", ErrSessionIDRequired
+	}
+	if !sessionIDPattern.MatchString(trimmed) {
+		return "", ErrSessionIDInvalid
+	}
+	return trimmed, nil
+}
+
+// CreateUploadURL issues a presigned PUT URL for uploading a transcript file
+// of the given session. The session's Hive-partitioned directory is computed
+// once and persisted so that the main transcript and any later subagent
+// uploads share a single directory.
+func (s *S3Service) CreateUploadURL(ctx context.Context, req UploadURLRequest) (UploadURLResponse, error) {
+	sessionID, err := validateSessionID(req.SessionID)
 	if err != nil {
-		if isNoSuchBucketError(err) {
-			return []string{}, nil
-		}
-		return nil, err
+		return UploadURLResponse{}, err
 	}
 
-	if len(out.Contents) == 0 {
-		return []string{}, nil
+	fileName := strings.TrimSpace(req.FileName)
+	if fileName == "" {
+		fileName = mainTranscriptName(sessionID)
+	}
+	if !uploadNamePattern.MatchString(fileName) {
+		return UploadURLResponse{}, ErrUploadNameInvalid
 	}
 
-	ids := make([]string, 0, len(out.Contents))
-	for _, item := range out.Contents {
-		key := aws.ToString(item.Key)
-		if key == "" {
-			continue
+	prefix, err := s.store.GetSessionPrefix(ctx, sessionID)
+	if errors.Is(err, ErrSessionNotMapped) {
+		candidate := s.prefix + hiveSessionPrefix(sessionID, s.now())
+		if err := s.store.PutSession(ctx, sessionID, candidate); err != nil {
+			return UploadURLResponse{}, err
 		}
-		if s.prefix != "" && strings.HasPrefix(key, s.prefix) {
-			key = key[len(s.prefix):]
-		}
-		key = strings.TrimSuffix(key, ".jsonl")
-		ids = append(ids, key)
+		// Re-read so a concurrent first-writer's value wins consistently.
+		prefix, err = s.store.GetSessionPrefix(ctx, sessionID)
 	}
-	return ids, nil
+	if err != nil {
+		return UploadURLResponse{}, err
+	}
+
+	key := prefix + fileName
+	presigned, err := s.presigner.PresignPutObject(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(key),
+	}, func(o *s3.PresignOptions) {
+		o.Expires = s.uploadTTL
+	})
+	if err != nil {
+		return UploadURLResponse{}, fmt.Errorf("presign put object: %w", err)
+	}
+
+	return UploadURLResponse{
+		URL:       presigned.URL,
+		Method:    presigned.Method,
+		Key:       key,
+		SessionID: sessionID,
+		ExpiresIn: int(s.uploadTTL.Seconds()),
+	}, nil
+}
+
+// PutObject uploads a transcript object directly using the service's S3
+// credentials. Used by the seed subcommand; the normal upload path goes
+// through presigned URLs.
+func (s *S3Service) PutObject(ctx context.Context, key string, body []byte) error {
+	_, err := s.client.PutObject(ctx, &s3.PutObjectInput{
+		Bucket:      aws.String(s.bucket),
+		Key:         aws.String(key),
+		Body:        bytes.NewReader(body),
+		ContentType: aws.String("application/x-ndjson"),
+	})
+	if err != nil {
+		return fmt.Errorf("put object %q: %w", key, err)
+	}
+	return nil
+}
+
+func (s *S3Service) ListTranscripts(ctx context.Context) ([]string, error) {
+	return s.store.ListSessionIDs(ctx)
 }
 
 func (s *S3Service) GetTranscriptBySessionId(ctx context.Context, sessionID string) (Transcript, error) {
@@ -159,11 +290,17 @@ func (s *S3Service) GetTranscriptBySessionId(ctx context.Context, sessionID stri
 		return nil, ErrSessionIDRequired
 	}
 
-	sessionKeyPrefix := s.prefix + trimmed
+	keyPrefix, err := s.store.GetSessionPrefix(ctx, trimmed)
+	if errors.Is(err, ErrSessionNotMapped) {
+		return nil, ErrNoSessionTranscriptFound
+	}
+	if err != nil {
+		return nil, err
+	}
 
 	listOut, err := s.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
 		Bucket: aws.String(s.bucket),
-		Prefix: aws.String(sessionKeyPrefix),
+		Prefix: aws.String(keyPrefix),
 	})
 	if err != nil {
 		if isNoSuchBucketError(err) {
@@ -171,20 +308,28 @@ func (s *S3Service) GetTranscriptBySessionId(ctx context.Context, sessionID stri
 		}
 		return nil, err
 	}
-
 	if len(listOut.Contents) == 0 {
 		return nil, ErrNoSessionTranscriptFound
 	}
 
-	var mainKey string
+	mainKey := keyPrefix + mainTranscriptName(trimmed)
+	subagentsPrefix := keyPrefix + subagentsDir
+	var subagentKeys []string
+	hasMain := false
 	for _, item := range listOut.Contents {
 		k := aws.ToString(item.Key)
-		if k == sessionKeyPrefix+".jsonl" {
-			mainKey = k
-			break
+		switch {
+		case k == mainKey:
+			hasMain = true
+		case strings.HasPrefix(k, subagentsPrefix):
+			// Any file under session_id=<id>/subagents/ is a subagent.
+			subagentKeys = append(subagentKeys, k)
+		case strings.HasPrefix(baseName(k), "agent-"):
+			// Backwards-compatible: agent-*.jsonl directly in the session dir.
+			subagentKeys = append(subagentKeys, k)
 		}
 	}
-	if mainKey == "" {
+	if !hasMain {
 		return nil, ErrNoSessionTranscriptFound
 	}
 
@@ -221,16 +366,7 @@ func (s *S3Service) GetTranscriptBySessionId(ctx context.Context, sessionID stri
 
 	allMessages := append([]TranscriptMessage{}, mainMessages...)
 
-	subagentPrefix := sessionKeyPrefix + "/"
-	var subagentKeys []string
-	for _, item := range listOut.Contents {
-		k := aws.ToString(item.Key)
-		if strings.HasPrefix(k, subagentPrefix) && strings.Contains(k, "agent-") {
-			subagentKeys = append(subagentKeys, k)
-		}
-	}
 	sort.Strings(subagentKeys)
-
 	subagents := make([]SubagentTranscript, 0, len(subagentKeys))
 	for _, k := range subagentKeys {
 		sub, msgs, err := s.fetchSubagent(ctx, k)
@@ -270,11 +406,7 @@ func (s *S3Service) fetchSubagent(ctx context.Context, key string) (SubagentTran
 		return SubagentTranscript{}, nil, err
 	}
 
-	fileName := key
-	if i := strings.LastIndex(fileName, "/"); i >= 0 {
-		fileName = fileName[i+1:]
-	}
-	agentID := strings.TrimSuffix(fileName, ".jsonl")
+	agentID := strings.TrimSuffix(baseName(key), ".jsonl")
 
 	messages, err := parseJSONLines(body)
 	if err != nil {
@@ -294,6 +426,13 @@ func (s *S3Service) fetchSubagent(ctx context.Context, key string) (SubagentTran
 		Content:        string(body),
 		Messages:       messages,
 	}, messages, nil
+}
+
+func baseName(key string) string {
+	if i := strings.LastIndex(key, "/"); i >= 0 {
+		return key[i+1:]
+	}
+	return key
 }
 
 func parseJSONLines(body []byte) ([]TranscriptMessage, error) {

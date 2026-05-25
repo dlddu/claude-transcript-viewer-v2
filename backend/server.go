@@ -14,6 +14,7 @@ import (
 type TranscriptService interface {
 	GetTranscriptBySessionId(ctx context.Context, sessionID string) (Transcript, error)
 	ListTranscripts(ctx context.Context) ([]string, error)
+	CreateUploadURL(ctx context.Context, req UploadURLRequest) (UploadURLResponse, error)
 }
 
 type Server struct {
@@ -49,6 +50,7 @@ func (s *Server) registerRoutes() {
 		s.mux.HandleFunc("GET "+base, s.handleList)
 		s.mux.HandleFunc("GET "+base+"/{$}", s.handleList)
 		s.mux.HandleFunc("GET "+base+"/session/{sessionId}", s.handleGetBySession)
+		s.mux.HandleFunc("POST "+base+"/upload-url/{sessionId}", s.handleCreateUploadURL)
 	}
 
 	s.mux.HandleFunc("/", s.handle404)
@@ -93,6 +95,30 @@ func (s *Server) handleGetBySession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, transcript)
+}
+
+func (s *Server) handleCreateUploadURL(w http.ResponseWriter, r *http.Request) {
+	req := UploadURLRequest{
+		SessionID: strings.TrimSpace(r.PathValue("sessionId")),
+		FileName:  strings.TrimSpace(r.URL.Query().Get("file_name")),
+	}
+
+	resp, err := s.svc.CreateUploadURL(r.Context(), req)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrSessionIDRequired):
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Session ID is required"})
+		case errors.Is(err, ErrSessionIDInvalid):
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": ErrSessionIDInvalid.Error()})
+		case errors.Is(err, ErrUploadNameInvalid):
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": ErrUploadNameInvalid.Error()})
+		default:
+			log.Printf("Error creating upload URL: %v", err)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to create upload URL"})
+		}
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
 }
 
 func writeJSON(w http.ResponseWriter, status int, data any) {
