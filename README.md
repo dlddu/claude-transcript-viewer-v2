@@ -73,6 +73,24 @@ session directory or as any file under a `subagents/` subdirectory.
   `<sessionId>.jsonl`. It accepts `<name>.jsonl` or `subagents/<name>.jsonl`
   (e.g. `?file_name=subagents/agent-xyz.jsonl`) for subagent uploads.
 
+- **Migration upload**: `POST /api/transcripts/migrate-upload-url/{sessionId}`
+  behaves like the upload endpoint, except the partition timestamp comes from a
+  required `?timestamp=` query param (RFC3339) instead of the server clock, so
+  historical transcripts can be placed in the partition matching their original
+  time. The timestamp is UTC-normalized before partitioning. It only maps
+  **new** sessions: if the session id is already indexed, it writes nothing and
+  returns `409 Conflict`. Optional `?file_name=` works as above.
+
+  ```bash
+  curl -X POST "http://localhost:3000/api/transcripts/migrate-upload-url/session-abc123?timestamp=2026-03-01T09:00:00Z"
+  # => {"url":"https://...","method":"PUT",
+  #     "key":"year=2026/month=03/day=01/hour=09/session_id=session-abc123/session-abc123.jsonl",
+  #     "session_id":"session-abc123","expires_in":900}
+  ```
+
+  Use UTC (`Z`); a `+hh:mm` offset must be URL-encoded since `+` decodes to a
+  space in query strings.
+
 - **Download**: `GET /api/transcript/session/{id}` resolves the S3 prefix
   from SQLite (returning `404` when a session is not mapped), then lists and
   merges the main transcript with any subagent files.

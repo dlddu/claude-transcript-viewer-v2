@@ -91,6 +91,9 @@ var (
 	ErrSessionIDInvalid         = errors.New("Session ID contains invalid characters")
 	ErrUploadNameInvalid        = errors.New("Upload file name must match [A-Za-z0-9._-]+.jsonl")
 	ErrNoSessionTranscriptFound = errors.New("No transcript found for session ID")
+	ErrTimestampRequired        = errors.New("Timestamp is required")
+	ErrTimestampInvalid         = errors.New("Timestamp must be RFC3339, e.g. 2026-05-24T15:04:05Z")
+	ErrSessionAlreadyMapped     = errors.New("Session is already mapped")
 )
 
 // UploadURLRequest selects which file of a session to issue an upload URL for.
@@ -99,6 +102,16 @@ var (
 type UploadURLRequest struct {
 	SessionID string
 	FileName  string
+}
+
+// MigrationUploadURLRequest is like UploadURLRequest, but the caller supplies
+// the partition Timestamp explicitly instead of letting the server use the
+// current time. It backs the migration endpoint, e.g. for importing historical
+// transcripts into the partition matching their original time.
+type MigrationUploadURLRequest struct {
+	SessionID string
+	FileName  string
+	Timestamp time.Time
 }
 
 // UploadURLResponse is returned to clients that will PUT a transcript to S3.
@@ -242,6 +255,73 @@ func (s *S3Service) CreateUploadURL(ctx context.Context, req UploadURLRequest) (
 	}
 	if err != nil {
 		return UploadURLResponse{}, err
+	}
+
+	key := prefix + fileName
+	presigned, err := s.presigner.PresignPutObject(ctx, &s3.PutObjectInput{
+		Bucket: aws.String(s.bucket),
+		Key:    aws.String(key),
+	}, func(o *s3.PresignOptions) {
+		o.Expires = s.uploadTTL
+	})
+	if err != nil {
+		return UploadURLResponse{}, fmt.Errorf("presign put object: %w", err)
+	}
+
+	return UploadURLResponse{
+		URL:       presigned.URL,
+		Method:    presigned.Method,
+		Key:       key,
+		SessionID: sessionID,
+		ExpiresIn: int(s.uploadTTL.Seconds()),
+	}, nil
+}
+
+// CreateMigrationUploadURL issues a presigned PUT URL like CreateUploadURL,
+// except the session's Hive partition is derived from the caller-supplied
+// Timestamp (UTC-normalized) rather than s.now(). It is intended for importing
+// historical transcripts into the partition matching their original time.
+//
+// Unlike CreateUploadURL, it refuses to touch a session that is already
+// indexed: if the session id already has a prefix, it returns
+// ErrSessionAlreadyMapped and writes nothing.
+func (s *S3Service) CreateMigrationUploadURL(ctx context.Context, req MigrationUploadURLRequest) (UploadURLResponse, error) {
+	sessionID, err := validateSessionID(req.SessionID)
+	if err != nil {
+		return UploadURLResponse{}, err
+	}
+
+	if req.Timestamp.IsZero() {
+		return UploadURLResponse{}, ErrTimestampRequired
+	}
+
+	fileName := strings.TrimSpace(req.FileName)
+	if fileName == "" {
+		fileName = mainTranscriptName(sessionID)
+	}
+	if !uploadNamePattern.MatchString(fileName) {
+		return UploadURLResponse{}, ErrUploadNameInvalid
+	}
+
+	// Migration only places sessions that are not already indexed.
+	if _, err := s.store.GetSessionPrefix(ctx, sessionID); err == nil {
+		return UploadURLResponse{}, ErrSessionAlreadyMapped
+	} else if !errors.Is(err, ErrSessionNotMapped) {
+		return UploadURLResponse{}, err
+	}
+
+	prefix := s.prefix + hiveSessionPrefix(sessionID, req.Timestamp)
+	if err := s.store.PutSession(ctx, sessionID, prefix); err != nil {
+		return UploadURLResponse{}, err
+	}
+	// PutSession is first-writer-wins; re-read to catch a concurrent writer that
+	// mapped this session between the check above and the insert.
+	stored, err := s.store.GetSessionPrefix(ctx, sessionID)
+	if err != nil {
+		return UploadURLResponse{}, err
+	}
+	if stored != prefix {
+		return UploadURLResponse{}, ErrSessionAlreadyMapped
 	}
 
 	key := prefix + fileName
@@ -464,6 +544,16 @@ func parseTimestamp(s string) time.Time {
 		return t
 	}
 	return time.Time{}
+}
+
+// parseTimestampStrict parses an RFC3339 / RFC3339Nano timestamp and, unlike
+// parseTimestamp, returns an error so callers can distinguish a missing or
+// malformed value from a valid one.
+func parseTimestampStrict(s string) (time.Time, error) {
+	if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
+		return t, nil
+	}
+	return time.Parse(time.RFC3339, s)
 }
 
 func isNoSuchBucketError(err error) bool {

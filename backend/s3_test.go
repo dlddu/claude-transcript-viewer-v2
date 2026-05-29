@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"os"
@@ -318,6 +319,119 @@ func TestCreateUploadURL_AcceptsSubagentsSubdir(t *testing.T) {
 	want := "year=2026/month=05/day=24/hour=15/session_id=session-x/subagents/agent-1.jsonl"
 	if resp.Key != want {
 		t.Errorf("key = %q, want %q", resp.Key, want)
+	}
+}
+
+// --- CreateMigrationUploadURL ----------------------------------------------
+
+func TestCreateMigrationUploadURL_UsesSuppliedTimestampNotClock(t *testing.T) {
+	svc, presigner, store := newServiceWithSessions(t, nil)
+	// A clock far from the supplied timestamp proves the timestamp wins.
+	svc.now = func() time.Time { return time.Date(2030, 12, 31, 23, 0, 0, 0, time.UTC) }
+
+	ts := time.Date(2026, 3, 1, 9, 0, 0, 0, time.UTC)
+	resp, err := svc.CreateMigrationUploadURL(context.Background(), MigrationUploadURLRequest{
+		SessionID: "session-old",
+		Timestamp: ts,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wantPrefix := "year=2026/month=03/day=01/hour=09/session_id=session-old/"
+	wantKey := wantPrefix + "session-old.jsonl"
+	if resp.Key != wantKey {
+		t.Errorf("key = %q, want %q", resp.Key, wantKey)
+	}
+	if presigner.lastKey != wantKey {
+		t.Errorf("presigned key = %q, want %q", presigner.lastKey, wantKey)
+	}
+	stored, err := store.GetSessionPrefix(context.Background(), "session-old")
+	if err != nil {
+		t.Fatalf("expected stored mapping: %v", err)
+	}
+	if stored != wantPrefix {
+		t.Errorf("stored prefix = %q, want %q", stored, wantPrefix)
+	}
+}
+
+func TestCreateMigrationUploadURL_RejectsAlreadyMappedSession(t *testing.T) {
+	svc, _, store := newServiceWithSessions(t, map[string]sessionFixture{
+		"session-abc123": xyzFixture(t),
+	})
+	before, err := store.GetSessionPrefix(context.Background(), "session-abc123")
+	if err != nil {
+		t.Fatalf("seed lookup: %v", err)
+	}
+
+	_, err = svc.CreateMigrationUploadURL(context.Background(), MigrationUploadURLRequest{
+		SessionID: "session-abc123",
+		Timestamp: time.Date(2026, 3, 1, 9, 0, 0, 0, time.UTC),
+	})
+	if !errors.Is(err, ErrSessionAlreadyMapped) {
+		t.Fatalf("err = %v, want ErrSessionAlreadyMapped", err)
+	}
+
+	// The existing mapping must be left untouched.
+	after, err := store.GetSessionPrefix(context.Background(), "session-abc123")
+	if err != nil {
+		t.Fatalf("post lookup: %v", err)
+	}
+	if after != before {
+		t.Errorf("prefix changed to %q, want unchanged %q", after, before)
+	}
+}
+
+func TestCreateMigrationUploadURL_RequiresTimestamp(t *testing.T) {
+	svc, _, _ := newServiceWithSessions(t, nil)
+	_, err := svc.CreateMigrationUploadURL(context.Background(), MigrationUploadURLRequest{
+		SessionID: "session-x",
+		// Timestamp left zero.
+	})
+	if !errors.Is(err, ErrTimestampRequired) {
+		t.Errorf("err = %v, want ErrTimestampRequired", err)
+	}
+}
+
+func TestCreateMigrationUploadURL_NormalizesToUTCAndAppliesPrefix(t *testing.T) {
+	store := newTestStore(t)
+	svc := NewS3ServiceWithClient(&mockS3Client{objects: map[string]string{}}, &fakePresigner{}, store, "test-transcripts", "tenants/acme/")
+
+	// 2026-03-01T09:30:00+09:00 == 2026-03-01T00:30:00Z -> hour=00.
+	loc := time.FixedZone("KST", 9*3600)
+	ts := time.Date(2026, 3, 1, 9, 30, 0, 0, loc)
+	resp, err := svc.CreateMigrationUploadURL(context.Background(), MigrationUploadURLRequest{
+		SessionID: "abc",
+		Timestamp: ts,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	want := "tenants/acme/year=2026/month=03/day=01/hour=00/session_id=abc/abc.jsonl"
+	if resp.Key != want {
+		t.Errorf("key = %q, want %q", resp.Key, want)
+	}
+}
+
+func TestCreateMigrationUploadURL_RejectsInvalidInput(t *testing.T) {
+	svc, _, _ := newServiceWithSessions(t, nil)
+	ts := time.Date(2026, 3, 1, 9, 0, 0, 0, time.UTC)
+
+	cases := []struct {
+		name string
+		req  MigrationUploadURLRequest
+	}{
+		{"empty session", MigrationUploadURLRequest{SessionID: "  ", Timestamp: ts}},
+		{"bad session chars", MigrationUploadURLRequest{SessionID: "a/b", Timestamp: ts}},
+		{"bad filename ext", MigrationUploadURLRequest{SessionID: "abc", FileName: "evil.txt", Timestamp: ts}},
+		{"filename traversal", MigrationUploadURLRequest{SessionID: "abc", FileName: "../escape.jsonl", Timestamp: ts}},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if _, err := svc.CreateMigrationUploadURL(context.Background(), c.req); err == nil {
+				t.Errorf("expected error for %+v", c.req)
+			}
+		})
 	}
 }
 

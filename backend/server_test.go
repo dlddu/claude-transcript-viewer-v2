@@ -9,14 +9,16 @@ import (
 	"net/url"
 	"strings"
 	"testing"
+	"time"
 )
 
 // fakeService implements TranscriptService for handler tests.
 type fakeService struct {
-	getTranscriptBySession func(ctx context.Context, sessionID string) (Transcript, error)
-	listTranscripts        func(ctx context.Context) ([]string, error)
-	createUploadURL        func(ctx context.Context, req UploadURLRequest) (UploadURLResponse, error)
-	lastSessionIDPassed    string
+	getTranscriptBySession   func(ctx context.Context, sessionID string) (Transcript, error)
+	listTranscripts          func(ctx context.Context) ([]string, error)
+	createUploadURL          func(ctx context.Context, req UploadURLRequest) (UploadURLResponse, error)
+	createMigrationUploadURL func(ctx context.Context, req MigrationUploadURLRequest) (UploadURLResponse, error)
+	lastSessionIDPassed      string
 }
 
 func (f *fakeService) GetTranscriptBySessionId(ctx context.Context, sessionID string) (Transcript, error) {
@@ -37,6 +39,13 @@ func (f *fakeService) ListTranscripts(ctx context.Context) ([]string, error) {
 func (f *fakeService) CreateUploadURL(ctx context.Context, req UploadURLRequest) (UploadURLResponse, error) {
 	if f.createUploadURL != nil {
 		return f.createUploadURL(ctx, req)
+	}
+	return UploadURLResponse{}, errors.New("not stubbed")
+}
+
+func (f *fakeService) CreateMigrationUploadURL(ctx context.Context, req MigrationUploadURLRequest) (UploadURLResponse, error) {
+	if f.createMigrationUploadURL != nil {
+		return f.createMigrationUploadURL(ctx, req)
 	}
 	return UploadURLResponse{}, errors.New("not stubbed")
 }
@@ -339,6 +348,130 @@ func TestHandleCreateUploadURL_InvalidSessionReturns400(t *testing.T) {
 	rec := doPost(t, server, "/api/transcripts/upload-url/bad-session", "")
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+// --- /api/transcript/migrate-upload-url -------------------------------------
+
+func TestHandleCreateMigrationUploadURL_ReturnsPresignedURL(t *testing.T) {
+	var gotReq MigrationUploadURLRequest
+	fake := &fakeService{
+		createMigrationUploadURL: func(_ context.Context, req MigrationUploadURLRequest) (UploadURLResponse, error) {
+			gotReq = req
+			return UploadURLResponse{
+				URL:       "https://s3.example.com/bucket/key?sig=x",
+				Method:    http.MethodPut,
+				Key:       "year=2026/month=03/day=01/hour=09/session_id=" + req.SessionID + "/" + req.SessionID + ".jsonl",
+				SessionID: req.SessionID,
+				ExpiresIn: 900,
+			}, nil
+		},
+	}
+	server := NewServer(fake)
+
+	rec := doPost(t, server, "/api/transcripts/migrate-upload-url/session-abc123?timestamp=2026-03-01T09:00:00Z", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	if gotReq.SessionID != "session-abc123" {
+		t.Errorf("session id = %q, want session-abc123", gotReq.SessionID)
+	}
+	want := time.Date(2026, 3, 1, 9, 0, 0, 0, time.UTC)
+	if !gotReq.Timestamp.Equal(want) {
+		t.Errorf("timestamp = %v, want %v", gotReq.Timestamp, want)
+	}
+	body := decodeResponse(t, rec.Body.Bytes())
+	if body["url"] == "" || body["url"] == nil {
+		t.Error("missing url")
+	}
+	if body["method"] != http.MethodPut {
+		t.Errorf("method = %v, want PUT", body["method"])
+	}
+}
+
+func TestHandleCreateMigrationUploadURL_PassesFileNameQueryParam(t *testing.T) {
+	var gotReq MigrationUploadURLRequest
+	fake := &fakeService{
+		createMigrationUploadURL: func(_ context.Context, req MigrationUploadURLRequest) (UploadURLResponse, error) {
+			gotReq = req
+			return UploadURLResponse{URL: "https://x", Method: http.MethodPut, SessionID: req.SessionID}, nil
+		},
+	}
+	server := NewServer(fake)
+
+	rec := doPost(t, server, "/api/transcripts/migrate-upload-url/session-abc123?timestamp=2026-03-01T09:00:00Z&file_name=subagents/agent-1.jsonl", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200", rec.Code)
+	}
+	if gotReq.FileName != "subagents/agent-1.jsonl" {
+		t.Errorf("file_name = %q, want subagents/agent-1.jsonl", gotReq.FileName)
+	}
+}
+
+func TestHandleCreateMigrationUploadURL_MissingTimestampReturns400(t *testing.T) {
+	called := false
+	fake := &fakeService{
+		createMigrationUploadURL: func(_ context.Context, _ MigrationUploadURLRequest) (UploadURLResponse, error) {
+			called = true
+			return UploadURLResponse{}, nil
+		},
+	}
+	server := NewServer(fake)
+
+	rec := doPost(t, server, "/api/transcripts/migrate-upload-url/session-abc123", "")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	if called {
+		t.Error("service should not be called when timestamp is missing")
+	}
+}
+
+func TestHandleCreateMigrationUploadURL_InvalidTimestampReturns400(t *testing.T) {
+	called := false
+	fake := &fakeService{
+		createMigrationUploadURL: func(_ context.Context, _ MigrationUploadURLRequest) (UploadURLResponse, error) {
+			called = true
+			return UploadURLResponse{}, nil
+		},
+	}
+	server := NewServer(fake)
+
+	rec := doPost(t, server, "/api/transcripts/migrate-upload-url/session-abc123?timestamp=not-a-time", "")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+	if called {
+		t.Error("service should not be called when timestamp is invalid")
+	}
+}
+
+func TestHandleCreateMigrationUploadURL_BothBasePrefixes(t *testing.T) {
+	fake := &fakeService{
+		createMigrationUploadURL: func(_ context.Context, req MigrationUploadURLRequest) (UploadURLResponse, error) {
+			return UploadURLResponse{URL: "https://x", Method: http.MethodPut, SessionID: req.SessionID}, nil
+		},
+	}
+	server := NewServer(fake)
+	for _, base := range []string{"/api/transcripts", "/api/transcript"} {
+		rec := doPost(t, server, base+"/migrate-upload-url/abc?timestamp=2026-03-01T09:00:00Z", "")
+		if rec.Code != http.StatusOK {
+			t.Errorf("%s: status = %d, want 200", base, rec.Code)
+		}
+	}
+}
+
+func TestHandleCreateMigrationUploadURL_AlreadyMappedReturns409(t *testing.T) {
+	fake := &fakeService{
+		createMigrationUploadURL: func(_ context.Context, _ MigrationUploadURLRequest) (UploadURLResponse, error) {
+			return UploadURLResponse{}, ErrSessionAlreadyMapped
+		},
+	}
+	server := NewServer(fake)
+
+	rec := doPost(t, server, "/api/transcripts/migrate-upload-url/session-abc123?timestamp=2026-03-01T09:00:00Z", "")
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("status = %d, want 409", rec.Code)
 	}
 }
 

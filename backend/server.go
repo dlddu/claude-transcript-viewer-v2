@@ -15,6 +15,7 @@ type TranscriptService interface {
 	GetTranscriptBySessionId(ctx context.Context, sessionID string) (Transcript, error)
 	ListTranscripts(ctx context.Context) ([]string, error)
 	CreateUploadURL(ctx context.Context, req UploadURLRequest) (UploadURLResponse, error)
+	CreateMigrationUploadURL(ctx context.Context, req MigrationUploadURLRequest) (UploadURLResponse, error)
 }
 
 type Server struct {
@@ -51,6 +52,7 @@ func (s *Server) registerRoutes() {
 		s.mux.HandleFunc("GET "+base+"/{$}", s.handleList)
 		s.mux.HandleFunc("GET "+base+"/session/{sessionId}", s.handleGetBySession)
 		s.mux.HandleFunc("POST "+base+"/upload-url/{sessionId}", s.handleCreateUploadURL)
+		s.mux.HandleFunc("POST "+base+"/migrate-upload-url/{sessionId}", s.handleCreateMigrationUploadURL)
 	}
 
 	s.mux.HandleFunc("/", s.handle404)
@@ -114,6 +116,52 @@ func (s *Server) handleCreateUploadURL(w http.ResponseWriter, r *http.Request) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": ErrUploadNameInvalid.Error()})
 		default:
 			log.Printf("Error creating upload URL: %v", err)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to create upload URL"})
+		}
+		return
+	}
+	writeJSON(w, http.StatusOK, resp)
+}
+
+// handleCreateMigrationUploadURL issues a presigned upload URL whose Hive
+// partition is derived from a caller-supplied timestamp rather than the
+// server clock. The timestamp is passed as the ?timestamp= query param in
+// RFC3339 form (UTC "Z" recommended; a "+hh:mm" offset must be URL-encoded).
+func (s *Server) handleCreateMigrationUploadURL(w http.ResponseWriter, r *http.Request) {
+	rawTS := strings.TrimSpace(r.URL.Query().Get("timestamp"))
+	if rawTS == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": ErrTimestampRequired.Error()})
+		return
+	}
+	ts, perr := parseTimestampStrict(rawTS)
+	if perr != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": ErrTimestampInvalid.Error()})
+		return
+	}
+
+	req := MigrationUploadURLRequest{
+		SessionID: strings.TrimSpace(r.PathValue("sessionId")),
+		FileName:  strings.TrimSpace(r.URL.Query().Get("file_name")),
+		Timestamp: ts,
+	}
+
+	resp, err := s.svc.CreateMigrationUploadURL(r.Context(), req)
+	if err != nil {
+		switch {
+		case errors.Is(err, ErrSessionIDRequired):
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Session ID is required"})
+		case errors.Is(err, ErrSessionIDInvalid):
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": ErrSessionIDInvalid.Error()})
+		case errors.Is(err, ErrUploadNameInvalid):
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": ErrUploadNameInvalid.Error()})
+		case errors.Is(err, ErrTimestampRequired):
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": ErrTimestampRequired.Error()})
+		case errors.Is(err, ErrTimestampInvalid):
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": ErrTimestampInvalid.Error()})
+		case errors.Is(err, ErrSessionAlreadyMapped):
+			writeJSON(w, http.StatusConflict, map[string]string{"error": ErrSessionAlreadyMapped.Error()})
+		default:
+			log.Printf("Error creating migration upload URL: %v", err)
 			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to create upload URL"})
 		}
 		return
