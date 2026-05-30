@@ -77,14 +77,21 @@ session directory or as any file under a `subagents/` subdirectory.
   behaves like the upload endpoint, except the partition timestamp comes from a
   required `?timestamp=` query param (RFC3339) instead of the server clock, so
   historical transcripts can be placed in the partition matching their original
-  time. The timestamp is UTC-normalized before partitioning. It only maps
-  **new** sessions: if the session id is already indexed, it writes nothing and
-  returns `409 Conflict`. Optional `?file_name=` works as above.
+  time. The timestamp is UTC-normalized before partitioning. The partition is
+  fixed on the first call for a session; later calls must pass a timestamp that
+  resolves to the **same** partition, which lets you issue URLs for the main
+  transcript and its `subagents/<name>.jsonl` files under one partition. A call
+  whose timestamp resolves to a **different** partition returns `409 Conflict`
+  and writes nothing, so a mapped session is never silently re-placed. Optional
+  `?file_name=` works as above.
 
   ```bash
+  # main transcript
   curl -X POST "http://localhost:3000/api/transcripts/migrate-upload-url/session-abc123?timestamp=2026-03-01T09:00:00Z"
+  # a subagent file in the same partition (same timestamp)
+  curl -X POST "http://localhost:3000/api/transcripts/migrate-upload-url/session-abc123?timestamp=2026-03-01T09:00:00Z&file_name=subagents/agent-xyz.jsonl"
   # => {"url":"https://...","method":"PUT",
-  #     "key":"year=2026/month=03/day=01/hour=09/session_id=session-abc123/session-abc123.jsonl",
+  #     "key":"year=2026/month=03/day=01/hour=09/session_id=session-abc123/...",
   #     "session_id":"session-abc123","expires_in":900}
   ```
 

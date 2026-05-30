@@ -355,7 +355,8 @@ func TestCreateMigrationUploadURL_UsesSuppliedTimestampNotClock(t *testing.T) {
 	}
 }
 
-func TestCreateMigrationUploadURL_RejectsAlreadyMappedSession(t *testing.T) {
+func TestCreateMigrationUploadURL_RejectsConflictingPartition(t *testing.T) {
+	// Session is already mapped (seeded at the hivePrefixFor partition).
 	svc, _, store := newServiceWithSessions(t, map[string]sessionFixture{
 		"session-abc123": xyzFixture(t),
 	})
@@ -364,6 +365,7 @@ func TestCreateMigrationUploadURL_RejectsAlreadyMappedSession(t *testing.T) {
 		t.Fatalf("seed lookup: %v", err)
 	}
 
+	// A timestamp that resolves to a *different* partition must be refused.
 	_, err = svc.CreateMigrationUploadURL(context.Background(), MigrationUploadURLRequest{
 		SessionID: "session-abc123",
 		Timestamp: time.Date(2026, 3, 1, 9, 0, 0, 0, time.UTC),
@@ -373,6 +375,45 @@ func TestCreateMigrationUploadURL_RejectsAlreadyMappedSession(t *testing.T) {
 	}
 
 	// The existing mapping must be left untouched.
+	after, err := store.GetSessionPrefix(context.Background(), "session-abc123")
+	if err != nil {
+		t.Fatalf("post lookup: %v", err)
+	}
+	if after != before {
+		t.Errorf("prefix changed to %q, want unchanged %q", after, before)
+	}
+}
+
+func TestCreateMigrationUploadURL_AllowsSamePartitionForSubagent(t *testing.T) {
+	// Session is already mapped at year=2026/month=05/day=24/hour=00.
+	svc, presigner, store := newServiceWithSessions(t, map[string]sessionFixture{
+		"session-abc123": xyzFixture(t),
+	})
+	before, err := store.GetSessionPrefix(context.Background(), "session-abc123")
+	if err != nil {
+		t.Fatalf("seed lookup: %v", err)
+	}
+
+	// A timestamp in the same hour resolves to the same partition, so a second
+	// call may issue an upload URL for a subagent file under that partition.
+	resp, err := svc.CreateMigrationUploadURL(context.Background(), MigrationUploadURLRequest{
+		SessionID: "session-abc123",
+		FileName:  "subagents/agent-1.jsonl",
+		Timestamp: time.Date(2026, 5, 24, 0, 30, 0, 0, time.UTC),
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	wantKey := before + "subagents/agent-1.jsonl"
+	if resp.Key != wantKey {
+		t.Errorf("key = %q, want %q", resp.Key, wantKey)
+	}
+	if presigner.lastKey != wantKey {
+		t.Errorf("presigned key = %q, want %q", presigner.lastKey, wantKey)
+	}
+
+	// Reusing the partition must not change the stored mapping.
 	after, err := store.GetSessionPrefix(context.Background(), "session-abc123")
 	if err != nil {
 		t.Fatalf("post lookup: %v", err)

@@ -282,9 +282,12 @@ func (s *S3Service) CreateUploadURL(ctx context.Context, req UploadURLRequest) (
 // Timestamp (UTC-normalized) rather than s.now(). It is intended for importing
 // historical transcripts into the partition matching their original time.
 //
-// Unlike CreateUploadURL, it refuses to touch a session that is already
-// indexed: if the session id already has a prefix, it returns
-// ErrSessionAlreadyMapped and writes nothing.
+// The partition is fixed on the first call for a session. Later calls are
+// allowed only when the supplied timestamp resolves to that same partition;
+// this lets a caller issue URLs for the main transcript and any subagent files
+// under one partition by passing the same timestamp. A call whose timestamp
+// resolves to a different partition returns ErrSessionAlreadyMapped and writes
+// nothing, so an already-mapped session is never silently re-placed.
 func (s *S3Service) CreateMigrationUploadURL(ctx context.Context, req MigrationUploadURLRequest) (UploadURLResponse, error) {
 	sessionID, err := validateSessionID(req.SessionID)
 	if err != nil {
@@ -303,24 +306,24 @@ func (s *S3Service) CreateMigrationUploadURL(ctx context.Context, req MigrationU
 		return UploadURLResponse{}, ErrUploadNameInvalid
 	}
 
-	// Migration only places sessions that are not already indexed.
-	if _, err := s.store.GetSessionPrefix(ctx, sessionID); err == nil {
-		return UploadURLResponse{}, ErrSessionAlreadyMapped
-	} else if !errors.Is(err, ErrSessionNotMapped) {
-		return UploadURLResponse{}, err
-	}
+	candidate := s.prefix + hiveSessionPrefix(sessionID, req.Timestamp)
 
-	prefix := s.prefix + hiveSessionPrefix(sessionID, req.Timestamp)
-	if err := s.store.PutSession(ctx, sessionID, prefix); err != nil {
-		return UploadURLResponse{}, err
+	prefix, err := s.store.GetSessionPrefix(ctx, sessionID)
+	if errors.Is(err, ErrSessionNotMapped) {
+		if err := s.store.PutSession(ctx, sessionID, candidate); err != nil {
+			return UploadURLResponse{}, err
+		}
+		// Re-read so a concurrent first-writer's value wins consistently.
+		prefix, err = s.store.GetSessionPrefix(ctx, sessionID)
 	}
-	// PutSession is first-writer-wins; re-read to catch a concurrent writer that
-	// mapped this session between the check above and the insert.
-	stored, err := s.store.GetSessionPrefix(ctx, sessionID)
 	if err != nil {
 		return UploadURLResponse{}, err
 	}
-	if stored != prefix {
+
+	// The session is mapped (just now, or previously). Reuse the stored prefix
+	// for additional files only when the timestamp agrees with it; otherwise
+	// refuse to re-place the session at a different partition.
+	if prefix != candidate {
 		return UploadURLResponse{}, ErrSessionAlreadyMapped
 	}
 
