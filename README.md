@@ -118,6 +118,18 @@ session directory or as any file under a `subagents/` subdirectory.
     `AWS_PUBLIC_ENDPOINT_URL` to the browser-reachable endpoint so presigned
     URLs are signed for the right host.
 
+- **Delete**: `DELETE /api/transcript/session/{id}` resolves the S3 prefix
+  from SQLite (returning `404` when a session is not mapped), deletes every
+  object under the session's Hive directory (the main transcript plus any
+  subagent files), then removes the `session_id → s3_prefix` mapping. The
+  mapping is dropped last so an interrupted delete leaves the session still
+  listable and the operation safely retryable.
+
+  ```bash
+  curl -X DELETE http://localhost:3000/api/transcript/session/session-abc123
+  # => {"status":"deleted","session_id":"session-abc123"}
+  ```
+
 - **Seeding / import**: `server seed --dir <fixtures>` uploads a directory of
   `*.jsonl` fixtures to their Hive keys and records the mappings, using the
   same code paths as the server. The `DB_PATH` and AWS env vars select the

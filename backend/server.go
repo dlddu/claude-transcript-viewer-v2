@@ -15,6 +15,7 @@ type TranscriptService interface {
 	GetTranscriptFiles(ctx context.Context, sessionID string) (TranscriptFilesResponse, error)
 	ListTranscripts(ctx context.Context) ([]string, error)
 	CreateUploadURL(ctx context.Context, req UploadURLRequest) (UploadURLResponse, error)
+	DeleteTranscriptBySessionId(ctx context.Context, sessionID string) error
 }
 
 type Server struct {
@@ -63,6 +64,7 @@ func (s *Server) registerRoutes() {
 		s.mux.HandleFunc("GET "+base, s.handleList)
 		s.mux.HandleFunc("GET "+base+"/{$}", s.handleList)
 		s.mux.HandleFunc("GET "+base+"/session/{sessionId}", s.handleGetBySession)
+		s.mux.HandleFunc("DELETE "+base+"/session/{sessionId}", s.handleDeleteBySession)
 		s.mux.HandleFunc("POST "+base+"/upload-url/{sessionId}", s.handleCreateUploadURL)
 	}
 
@@ -115,6 +117,29 @@ func (s *Server) handleGetBySession(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, files)
+}
+
+func (s *Server) handleDeleteBySession(w http.ResponseWriter, r *http.Request) {
+	sessionID := strings.TrimSpace(r.PathValue("sessionId"))
+	if sessionID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Session ID is required"})
+		return
+	}
+	if err := s.svc.DeleteTranscriptBySessionId(r.Context(), sessionID); err != nil {
+		switch {
+		case errors.Is(err, ErrNoSessionTranscriptFound):
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": "Transcript not found"})
+		case errors.Is(err, ErrSessionIDRequired):
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Session ID is required"})
+		case errors.Is(err, ErrSessionIDInvalid):
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": ErrSessionIDInvalid.Error()})
+		default:
+			log.Printf("Error deleting transcript by session ID: %v", err)
+			writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to delete transcript"})
+		}
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted", "session_id": sessionID})
 }
 
 func (s *Server) handleCreateUploadURL(w http.ResponseWriter, r *http.Request) {

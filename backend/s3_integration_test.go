@@ -4,6 +4,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/url"
@@ -293,6 +294,70 @@ func TestIntegration_UploadSubagentRoundTrip(t *testing.T) {
 	}
 	if body := getFromPresignedURL(t, sub.URL); body != subFixture {
 		t.Error("downloaded subagent body differs from uploaded fixture")
+	}
+}
+
+// TestIntegration_DeleteTranscriptRemovesAllFiles uploads a main transcript and
+// a subagent, deletes the session, and verifies both the S3 objects and the
+// SQLite mapping are gone.
+func TestIntegration_DeleteTranscriptRemovesAllFiles(t *testing.T) {
+	store := newIntegrationStore(t)
+	svc := newIntegrationService(t, store, "")
+
+	sessionID := "delete-roundtrip"
+	mainResp, err := svc.CreateUploadURL(context.Background(), UploadURLRequest{SessionID: sessionID})
+	if err != nil {
+		t.Fatalf("CreateUploadURL main: %v", err)
+	}
+	putToPresignedURL(t, mainResp.URL, readFixtureFile(t, "session-xyz789.jsonl"))
+
+	subResp, err := svc.CreateUploadURL(context.Background(), UploadURLRequest{
+		SessionID: sessionID,
+		FileName:  "subagents/agent-a1b2c3d.jsonl",
+	})
+	if err != nil {
+		t.Fatalf("CreateUploadURL subagent: %v", err)
+	}
+	putToPresignedURL(t, subResp.URL, readFixtureFile(t, "session-abc123/agent-a1b2c3d.jsonl"))
+
+	// It reads back before deletion.
+	if _, err := svc.GetTranscriptFiles(context.Background(), sessionID); err != nil {
+		t.Fatalf("GetTranscriptFiles before delete: %v", err)
+	}
+
+	if err := svc.DeleteTranscriptBySessionId(context.Background(), sessionID); err != nil {
+		t.Fatalf("DeleteTranscriptBySessionId: %v", err)
+	}
+
+	// Read reports not found, mapping is gone, and the session is no longer listed.
+	if _, err := svc.GetTranscriptFiles(context.Background(), sessionID); err != ErrNoSessionTranscriptFound {
+		t.Errorf("read after delete err = %v, want ErrNoSessionTranscriptFound", err)
+	}
+	if _, err := store.GetSessionPrefix(context.Background(), sessionID); !errors.Is(err, ErrSessionNotMapped) {
+		t.Errorf("store err = %v, want ErrSessionNotMapped", err)
+	}
+	ids, err := svc.ListTranscripts(context.Background())
+	if err != nil {
+		t.Fatalf("ListTranscripts: %v", err)
+	}
+	for _, id := range ids {
+		if id == sessionID {
+			t.Errorf("deleted session %q still listed", sessionID)
+		}
+	}
+
+	// And nothing remains in S3 under the session prefix.
+	client := newRealS3Client(t)
+	prefix := strings.TrimSuffix(mainResp.Key, mainTranscriptName(sessionID))
+	out, err := client.ListObjectsV2(context.Background(), &s3.ListObjectsV2Input{
+		Bucket: aws.String(testBucket),
+		Prefix: aws.String(prefix),
+	})
+	if err != nil {
+		t.Fatalf("ListObjectsV2: %v", err)
+	}
+	if len(out.Contents) != 0 {
+		t.Errorf("expected no objects under %q, got %d", prefix, len(out.Contents))
 	}
 }
 
