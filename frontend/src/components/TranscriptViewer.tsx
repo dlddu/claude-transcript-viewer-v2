@@ -75,7 +75,7 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
     // Fetch subagent data if not already loaded and has transcript_file
     if (!isExpanded && transcriptFile && !subagentData.has(subagentId)) {
       try {
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        const apiUrl = import.meta.env.VITE_API_URL ?? '';
         const response = await fetch(`${apiUrl}/api/transcript/session/${transcriptFile}`);
 
         if (response.ok) {

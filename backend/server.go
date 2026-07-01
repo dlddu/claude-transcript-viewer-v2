@@ -18,12 +18,25 @@ type TranscriptService interface {
 }
 
 type Server struct {
-	svc TranscriptService
-	mux *http.ServeMux
+	svc       TranscriptService
+	mux       *http.ServeMux
+	staticDir string
 }
 
-func NewServer(svc TranscriptService) *Server {
+// ServerOption configures optional Server behavior.
+type ServerOption func(*Server)
+
+// WithStaticDir serves the built frontend from dir on non-/api routes, with
+// an index.html fallback for client-side routing.
+func WithStaticDir(dir string) ServerOption {
+	return func(s *Server) { s.staticDir = dir }
+}
+
+func NewServer(svc TranscriptService, opts ...ServerOption) *Server {
 	s := &Server{svc: svc, mux: http.NewServeMux()}
+	for _, opt := range opts {
+		opt(s)
+	}
 	s.registerRoutes()
 	return s
 }
@@ -53,7 +66,14 @@ func (s *Server) registerRoutes() {
 		s.mux.HandleFunc("POST "+base+"/upload-url/{sessionId}", s.handleCreateUploadURL)
 	}
 
-	s.mux.HandleFunc("/", s.handle404)
+	// Unknown API paths always get a JSON 404, even when static serving is on.
+	s.mux.HandleFunc("/api/", s.handle404)
+
+	if s.staticDir != "" {
+		s.mux.Handle("/", newSPAHandler(s.staticDir))
+	} else {
+		s.mux.HandleFunc("/", s.handle404)
+	}
 }
 
 func (s *Server) handleHealth(w http.ResponseWriter, _ *http.Request) {

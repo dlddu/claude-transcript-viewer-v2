@@ -1,13 +1,14 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  # Keeps the name used before the single-workload migration so the existing
+  # volume (and its SQLite session index) is reused as-is.
   name: claude-transcript-viewer-data
   labels:
-    app: claude-transcript-viewer-backend
-    tier: backend
+    app: claude-transcript-viewer
 spec:
   # SQLite is a single-writer database, so the volume is mounted by exactly
-  # one backend pod (the Deployment runs 1 replica with maxSurge: 0).
+  # one pod (the Deployment runs 1 replica with maxSurge: 0).
   accessModes:
     - ReadWriteOnce
   resources:

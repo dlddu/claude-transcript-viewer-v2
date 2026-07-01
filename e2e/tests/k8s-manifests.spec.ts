@@ -11,9 +11,10 @@ const __dirname = dirname(__filename);
 /**
  * Kubernetes Manifests E2E Tests
  *
- * These tests verify that Kubernetes manifest files are properly structured
- * and can be validated by kubectl. Tests are initially skipped as manifests
- * are not yet implemented.
+ * These tests verify the single-workload application manifests in k8s/app:
+ * one Deployment whose Go server exposes the API under /api and serves the
+ * static frontend bundle on every other route, plus its Service, PVC,
+ * ConfigMap and Secret examples.
  *
  * To run these tests:
  * 1. Ensure kubectl is installed (optional for dry-run tests)
@@ -21,7 +22,7 @@ const __dirname = dirname(__filename);
  */
 
 const REPO_ROOT = resolve(__dirname, '../..');
-const K8S_DIR = resolve(REPO_ROOT, 'k8s/backend');
+const K8S_DIR = resolve(REPO_ROOT, 'k8s/app');
 
 const execCommand = (command: string, cwd?: string): string => {
   try {
@@ -103,12 +104,12 @@ const containsKey = (content: string, key: string): boolean => {
 };
 
 describe('K8s Manifests - File Structure', () => {
-  it('should have k8s/backend directory', () => {
+  it('should have k8s/app directory', () => {
     // Assert
     assert.strictEqual(
       existsSync(K8S_DIR),
       true,
-      'k8s/backend directory should exist'
+      'k8s/app directory should exist'
     );
   });
 
@@ -120,7 +121,7 @@ describe('K8s Manifests - File Structure', () => {
     assert.strictEqual(
       existsSync(deploymentPath),
       true,
-      'deployment.yaml should exist in k8s/backend directory'
+      'deployment.yaml should exist in k8s/app directory'
     );
   });
 
@@ -132,7 +133,7 @@ describe('K8s Manifests - File Structure', () => {
     assert.strictEqual(
       existsSync(servicePath),
       true,
-      'service.yaml should exist in k8s/backend directory'
+      'service.yaml should exist in k8s/app directory'
     );
   });
 
@@ -144,7 +145,7 @@ describe('K8s Manifests - File Structure', () => {
     assert.strictEqual(
       existsSync(configmapPath),
       true,
-      'configmap.example.yaml should exist in k8s/backend directory'
+      'configmap.example.yaml should exist in k8s/app directory'
     );
   });
 
@@ -156,7 +157,7 @@ describe('K8s Manifests - File Structure', () => {
     assert.strictEqual(
       existsSync(secretPath),
       true,
-      'secret.example.yaml should exist in k8s/backend directory'
+      'secret.example.yaml should exist in k8s/app directory'
     );
   });
 
@@ -168,7 +169,54 @@ describe('K8s Manifests - File Structure', () => {
     assert.strictEqual(
       existsSync(pvcPath),
       true,
-      'pvc.yaml should exist in k8s/backend directory'
+      'pvc.yaml should exist in k8s/app directory'
+    );
+  });
+});
+
+describe('K8s Manifests - Single Workload', () => {
+  it('should not have legacy per-tier manifest directories', () => {
+    // Assert - the app runs as one workload; the split frontend/backend
+    // manifests must not come back.
+    assert.strictEqual(
+      existsSync(resolve(REPO_ROOT, 'k8s/backend')),
+      false,
+      'k8s/backend should not exist (merged into k8s/app)'
+    );
+    assert.strictEqual(
+      existsSync(resolve(REPO_ROOT, 'k8s/frontend')),
+      false,
+      'k8s/frontend should not exist (merged into k8s/app)'
+    );
+  });
+
+  it('should use the unified application image (no per-service image)', () => {
+    // Arrange
+    const deploymentPath = resolve(K8S_DIR, 'deployment.yaml');
+    const content = readFileSync(deploymentPath, 'utf-8');
+    const imageMatch = content.match(/image:\s*(\S+)/);
+
+    // Assert
+    assert.ok(imageMatch, 'Deployment should specify an image');
+    const image = imageMatch![1];
+    assert.ok(
+      !image.includes('/frontend') && !image.includes('/backend'),
+      `Image ${image} should be the single application image, not a per-service one`
+    );
+  });
+
+  it('should reference the app kustomization resources', () => {
+    // Arrange
+    const kustomizationPath = resolve(REPO_ROOT, 'k8s/kustomization.yaml');
+    const content = readFileSync(kustomizationPath, 'utf-8');
+
+    // Assert
+    assert.ok(content.includes('app/deployment.yaml'), 'kustomization should apply app/deployment.yaml');
+    assert.ok(content.includes('app/service.yaml'), 'kustomization should apply app/service.yaml');
+    assert.ok(content.includes('app/pvc.yaml'), 'kustomization should apply app/pvc.yaml');
+    assert.ok(
+      !content.includes('backend/') && !content.includes('frontend/'),
+      'kustomization should not reference the removed per-tier manifests'
     );
   });
 });

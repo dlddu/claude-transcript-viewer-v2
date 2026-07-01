@@ -2,6 +2,10 @@
 
 A monorepo application for viewing Claude conversation transcripts with support for subagent visualization.
 
+The application deploys as a **single workload**: the frontend is built into
+static files and served by the Go backend, which also exposes the API under
+`/api`. One Docker image, one Kubernetes Deployment, one Service.
+
 ## Project Structure
 
 ```
@@ -12,9 +16,10 @@ claude-transcript-viewer-v2/
 │   │   ├── hooks/         # Custom React hooks
 │   │   └── test/          # Test utilities
 │   └── package.json
-├── backend/               # Go S3 proxy (net/http + AWS SDK for Go v2)
+├── backend/               # Go server (net/http + AWS SDK for Go v2)
 │   ├── main.go            # Entry point + `seed` subcommand dispatch
 │   ├── server.go          # HTTP routing
+│   ├── static.go          # Static frontend serving with SPA fallback
 │   ├── s3.go              # S3 service, Hive paths, presigned upload URLs
 │   ├── store.go           # SQLite session→S3-key mapping (modernc.org/sqlite)
 │   ├── seed.go            # `seed` subcommand: import fixtures to S3 + SQLite
@@ -23,6 +28,10 @@ claude-transcript-viewer-v2/
 │   ├── fixtures/          # Sample transcript fixtures
 │   ├── tests/             # E2E test specs
 │   └── package.json
+├── k8s/
+│   ├── app/               # Single-workload manifests (Deployment/Service/PVC)
+│   └── localstack/        # S3 emulation for local kind clusters
+├── Dockerfile             # Single image: frontend build → Go build → runtime
 ├── .github/
 │   └── workflows/
 │       └── test.yml       # CI/CD pipeline with LocalStack
@@ -83,10 +92,29 @@ session directory or as any file under a `subagents/` subdirectory.
   database and bucket. This is how CI populates MinIO/LocalStack.
 
 The SQLite database path is configured by `DB_PATH`. In Kubernetes it is
-backed by a `PersistentVolumeClaim` (`k8s/backend/pvc.yaml`) mounted at
-`/data`. Because SQLite allows only a single writer, the backend Deployment
+backed by a `PersistentVolumeClaim` (`k8s/app/pvc.yaml`) mounted at
+`/data`. Because SQLite allows only a single writer, the Deployment
 runs one replica with `maxSurge: 0` so the old pod releases the
 ReadWriteOnce volume before the new pod mounts it during a rollout.
+
+## Deployment Model
+
+The Go server is the only workload:
+
+- `/api/*` — JSON API backed by S3 + SQLite.
+- everything else — the static frontend bundle from `STATIC_DIR`
+  (`/app/static` in the image), with an `index.html` fallback for
+  client-side routes. Hashed `assets/*` are served with immutable cache
+  headers; `index.html` is served with `no-cache`.
+
+The frontend is built without `VITE_API_URL`, so the bundle calls the API on
+the same origin that served it. The root `Dockerfile` builds the frontend,
+compiles the Go server, and copies both into one image published as
+`ghcr.io/dlddu/claude-transcript-viewer-v2`. Kubernetes manifests live in
+`k8s/app/` (Deployment, Service on port 80 → 3000, PVC); anything that
+previously pointed at the `claude-transcript-viewer-frontend` /
+`claude-transcript-viewer-backend` Services (e.g. an Ingress) should target
+the `claude-transcript-viewer` Service instead.
 
 ## Prerequisites
 
@@ -167,6 +195,20 @@ pnpm dev
 ```
 
 Visit http://localhost:5173
+
+The Vite dev server proxies `/api` to `http://localhost:3000`, so the
+frontend needs no API URL configuration in development.
+
+To exercise the production single-workload setup locally (the Go server
+serving the built frontend), build the frontend and point the backend at the
+output:
+
+```bash
+pnpm --filter @claude-transcript-viewer/frontend build
+cd backend
+STATIC_DIR=../frontend/dist go run .
+# Visit http://localhost:3000
+```
 
 ## Testing
 
@@ -257,9 +299,10 @@ AWS_REGION=us-east-1
 S3_BUCKET=test-transcripts
 AWS_ENDPOINT_URL=http://localhost:9000  # For local MinIO
 # UPLOAD_URL_TTL_SECONDS=900            # Presigned upload URL lifetime
+# STATIC_DIR=../frontend/dist           # Serve the built frontend from Go
 
-# Frontend
-VITE_API_URL=http://localhost:3000/api
+# Frontend (optional — defaults to the same origin / Vite dev proxy)
+# VITE_API_URL=http://localhost:3000
 ```
 
 ## Scripts

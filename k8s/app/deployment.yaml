@@ -1,10 +1,9 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: claude-transcript-viewer-backend
+  name: claude-transcript-viewer
   labels:
-    app: claude-transcript-viewer-backend
-    tier: backend
+    app: claude-transcript-viewer
 spec:
   replicas: 1
   # Single-writer SQLite on a ReadWriteOnce PVC: maxSurge=0 keeps at most one
@@ -19,21 +18,21 @@ spec:
       maxUnavailable: 1
   selector:
     matchLabels:
-      app: claude-transcript-viewer-backend
-      tier: backend
+      app: claude-transcript-viewer
   template:
     metadata:
       labels:
-        app: claude-transcript-viewer-backend
-        tier: backend
+        app: claude-transcript-viewer
     spec:
       securityContext:
         runAsNonRoot: true
         runAsUser: 1000
         fsGroup: 1000
       containers:
-        - name: backend
-          image: ghcr.io/dlddu/claude-transcript-viewer-v2/backend:latest
+        - name: app
+          # Single image: the Go server serves the API under /api and the
+          # built frontend bundle (baked into the image) on all other routes.
+          image: ghcr.io/dlddu/claude-transcript-viewer-v2:latest
           imagePullPolicy: Always
           ports:
             - name: http

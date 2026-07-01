@@ -11,14 +11,17 @@ const __dirname = dirname(__filename);
 /**
  * Docker Build E2E Tests
  *
- * These tests verify Docker configuration files and build capabilities.
+ * The application ships as a single image: the frontend is built as static
+ * files and copied into the Go backend image, which serves them alongside
+ * the API. These tests verify the root Dockerfile and build capabilities.
  * Static tests (Dockerfile/dockerignore content checks) always run.
  * Runtime tests (build, run, inspect) are skipped when Docker is unavailable.
  */
 
 const REPO_ROOT = resolve(__dirname, '../..');
-const FRONTEND_DIR = resolve(REPO_ROOT, 'frontend');
-const BACKEND_DIR = resolve(REPO_ROOT, 'backend');
+const DOCKERFILE = resolve(REPO_ROOT, 'Dockerfile');
+const DOCKERIGNORE = resolve(REPO_ROOT, '.dockerignore');
+const IMAGE_NAME = 'claude-transcript-viewer:test';
 
 const execCommand = (command: string, cwd?: string): string => {
   try {
@@ -39,214 +42,86 @@ const dockerImageExists = (imageName: string): boolean => {
 
 const isDockerAvailable = (): boolean => {
   try {
-    execCommand('docker --version');
+    execCommand('docker info');
     return true;
   } catch {
     return false;
   }
 };
 
-describe('Docker Build - Frontend', () => {
-  it('should have a Dockerfile in frontend directory', () => {
-    // Arrange
-    const dockerfilePath = resolve(FRONTEND_DIR, 'Dockerfile');
-
+describe('Docker Build - Single Application Image', () => {
+  it('should have a Dockerfile at the repository root', () => {
     // Assert
-    assert.strictEqual(existsSync(dockerfilePath), true);
+    assert.strictEqual(existsSync(DOCKERFILE), true);
   });
 
-  it('should have a .dockerignore in frontend directory', () => {
-    // Arrange
-    const dockerignorePath = resolve(FRONTEND_DIR, '.dockerignore');
-
+  it('should have a .dockerignore at the repository root', () => {
     // Assert
-    assert.strictEqual(existsSync(dockerignorePath), true);
+    assert.strictEqual(existsSync(DOCKERIGNORE), true);
   });
 
-  it('should build frontend Docker image successfully', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
-    // Arrange
-    const imageName = 'claude-transcript-viewer-frontend:test';
-
-    // Act - Build from repo root with explicit Dockerfile path
-    execCommand(`docker build -t ${imageName} -f frontend/Dockerfile .`);
-
-    // Assert - Verify image was created
-    assert.strictEqual(dockerImageExists(imageName), true);
+  it('should not have per-service Dockerfiles anymore', () => {
+    // Assert - the frontend/backend split images were merged into one
+    assert.strictEqual(existsSync(resolve(REPO_ROOT, 'frontend/Dockerfile')), false,
+      'frontend/Dockerfile should not exist (merged into root Dockerfile)');
+    assert.strictEqual(existsSync(resolve(REPO_ROOT, 'backend/Dockerfile')), false,
+      'backend/Dockerfile should not exist (merged into root Dockerfile)');
+    assert.strictEqual(existsSync(resolve(REPO_ROOT, 'frontend/nginx.conf')), false,
+      'nginx is no longer used; the Go server serves the static frontend');
   });
 
-  it('should use multi-stage build with node and nginx', () => {
+  it('should use a multi-stage build with node, golang, and a slim runtime', () => {
     // Arrange
-    const dockerfilePath = resolve(FRONTEND_DIR, 'Dockerfile');
-    const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
+    const dockerfileContent = readFileSync(DOCKERFILE, 'utf-8');
 
     // Assert
     assert.ok(dockerfileContent.includes('FROM node:20-alpine'));
-    assert.ok(dockerfileContent.includes('FROM nginx:alpine'));
-    assert.ok(dockerfileContent.includes('AS build'));
-  });
-
-  it('should produce an optimized image size under 100MB', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
-    // Arrange
-    const imageName = 'claude-transcript-viewer-frontend:test';
-
-    // Act - Build from repo root with explicit Dockerfile path
-    execCommand(`docker build -t ${imageName} -f frontend/Dockerfile .`);
-
-    // Get image size
-    const inspectOutput = execCommand(
-      `docker inspect ${imageName} --format='{{.Size}}'`
-    );
-    const sizeInBytes = parseInt(inspectOutput.trim(), 10);
-    const sizeInMB = sizeInBytes / (1024 * 1024);
-
-    // Assert
-    assert.ok(sizeInMB < 100, `Frontend image size ${sizeInMB.toFixed(1)}MB exceeds 100MB`);
-  });
-
-  it('should run nginx on port 80 when container starts', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
-    // Arrange
-    const imageName = 'claude-transcript-viewer-frontend:test';
-    const containerName = 'claude-frontend-test';
-
-    // Act - Build from repo root and run
-    execCommand(`docker build -t ${imageName} -f frontend/Dockerfile .`);
-    execCommand(
-      `docker run -d --name ${containerName} -p 8080:80 ${imageName}`
-    );
-
-    // Wait for container to be ready
-    execCommand('sleep 3');
-
-    // Check if nginx is responding
-    const curlOutput = execCommand('curl -f http://localhost:8080');
-
-    // Assert
-    assert.ok(curlOutput.includes('<!DOCTYPE html>'));
-  });
-
-  it('should exclude node_modules from build context', () => {
-    // Arrange
-    const dockerignorePath = resolve(FRONTEND_DIR, '.dockerignore');
-    const dockerignoreContent = readFileSync(dockerignorePath, 'utf-8');
-
-    // Assert
-    assert.ok(dockerignoreContent.includes('node_modules'));
-  });
-
-  it('should use non-root user for security', () => {
-    // Arrange
-    const dockerfilePath = resolve(FRONTEND_DIR, 'Dockerfile');
-    const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
-
-    // Assert - nginx:alpine already runs as nginx user by default
-    // OR Dockerfile explicitly sets USER directive
-    const hasUserDirective = dockerfileContent.includes('USER');
-    const usesNginxAlpine = dockerfileContent.includes('nginx:alpine');
-
-    assert.strictEqual(hasUserDirective || usesNginxAlpine, true);
-  });
-});
-
-describe('Docker Build - Backend', () => {
-  it('should have a Dockerfile in backend directory', () => {
-    // Arrange
-    const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
-
-    // Assert
-    assert.strictEqual(existsSync(dockerfilePath), true);
-  });
-
-  it('should have a .dockerignore in backend directory', () => {
-    // Arrange
-    const dockerignorePath = resolve(BACKEND_DIR, '.dockerignore');
-
-    // Assert
-    assert.strictEqual(existsSync(dockerignorePath), true);
-  });
-
-  it('should build backend Docker image successfully', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
-    // Arrange
-    const imageName = 'claude-transcript-viewer-backend:test';
-
-    // Act - Build from repo root with explicit Dockerfile path
-    execCommand(`docker build -t ${imageName} -f backend/Dockerfile .`);
-
-    // Assert - Verify image was created
-    assert.strictEqual(dockerImageExists(imageName), true);
-  });
-
-  it('should use a golang alpine base image for the build stage', () => {
-    // Arrange
-    const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
-    const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
-
-    // Assert
     assert.ok(/FROM golang:\S+-alpine/i.test(dockerfileContent));
+    assert.ok(/FROM alpine:\S+\s*$/m.test(dockerfileContent), 'Runtime stage should be plain alpine');
   });
 
-  it('should produce an optimized image size under 300MB', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
+  it('should build the frontend without VITE_API_URL (same-origin API)', () => {
     // Arrange
-    const imageName = 'claude-transcript-viewer-backend:test';
+    const dockerfileContent = readFileSync(DOCKERFILE, 'utf-8');
 
-    // Act - Build from repo root with explicit Dockerfile path
-    execCommand(`docker build -t ${imageName} -f backend/Dockerfile .`);
+    // Assert - no build arg means the bundle calls the API relative to its
+    // own origin, which is this same container.
+    assert.ok(!dockerfileContent.includes('ARG VITE_API_URL'),
+      'VITE_API_URL must not be baked in; the API is same-origin');
+    assert.ok(dockerfileContent.includes('pnpm build'), 'Frontend should be built with pnpm');
+  });
 
-    // Get image size
-    const inspectOutput = execCommand(
-      `docker inspect ${imageName} --format='{{.Size}}'`
-    );
-    const sizeInBytes = parseInt(inspectOutput.trim(), 10);
-    const sizeInMB = sizeInBytes / (1024 * 1024);
+  it('should copy the built frontend into the runtime image and expose it via STATIC_DIR', () => {
+    // Arrange
+    const dockerfileContent = readFileSync(DOCKERFILE, 'utf-8');
 
     // Assert
-    assert.ok(sizeInMB < 300, `Backend image size ${sizeInMB.toFixed(1)}MB exceeds 300MB`);
+    assert.ok(/COPY --from=frontend-build .*dist/.test(dockerfileContent),
+      'Runtime stage should copy the frontend dist output');
+    assert.ok(/ENV STATIC_DIR=/.test(dockerfileContent),
+      'Runtime stage should set STATIC_DIR so the Go server serves the bundle');
   });
 
-  it('should expose port 3000', () => {
+  it('should produce a static Go build with CGO disabled', () => {
     // Arrange
-    const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
-    const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
-
-    // Assert
-    assert.ok(dockerfileContent.includes('EXPOSE 3000'));
-  });
-
-  it('should run the server and respond to health check', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
-    // Arrange
-    const imageName = 'claude-transcript-viewer-backend:test';
-    const containerName = 'claude-backend-test';
-
-    // Act - Build from repo root and run
-    execCommand(`docker build -t ${imageName} -f backend/Dockerfile .`);
-    execCommand(
-      `docker run -d --name ${containerName} -p 3001:3000 -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e S3_BUCKET=test-bucket ${imageName}`
-    );
-
-    // Wait for container to be ready
-    execCommand('sleep 5');
-
-    // Check if the server is responding
-    const curlOutput = execCommand('curl -f http://localhost:3001/api/health');
-
-    // Assert
-    assert.ok(curlOutput !== undefined);
-    assert.ok(curlOutput.length > 0);
-  });
-
-  it('should produce a static build with CGO disabled', () => {
-    // Arrange
-    const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
-    const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
+    const dockerfileContent = readFileSync(DOCKERFILE, 'utf-8');
 
     // Assert
     assert.ok(dockerfileContent.includes('CGO_ENABLED=0'));
     assert.ok(dockerfileContent.includes('go build'));
   });
 
+  it('should expose port 3000', () => {
+    // Arrange
+    const dockerfileContent = readFileSync(DOCKERFILE, 'utf-8');
+
+    // Assert
+    assert.ok(dockerfileContent.includes('EXPOSE 3000'));
+  });
+
   it('should use a non-root user for security', () => {
     // Arrange
-    const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
-    const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
+    const dockerfileContent = readFileSync(DOCKERFILE, 'utf-8');
 
     // Assert
     assert.ok(/^USER\s+(?!root\b)\S+/m.test(dockerfileContent));
@@ -254,37 +129,91 @@ describe('Docker Build - Backend', () => {
 
   it('should run the compiled server binary as entrypoint', () => {
     // Arrange
-    const dockerfilePath = resolve(BACKEND_DIR, 'Dockerfile');
-    const dockerfileContent = readFileSync(dockerfilePath, 'utf-8');
+    const dockerfileContent = readFileSync(DOCKERFILE, 'utf-8');
 
     // Assert
     assert.ok(/^(ENTRYPOINT|CMD)\s+\[.*server/m.test(dockerfileContent));
   });
+
+  it('should build the Docker image successfully', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
+    // Act - Build from repo root
+    execCommand(`docker build -t ${IMAGE_NAME} -f Dockerfile .`);
+
+    // Assert - Verify image was created
+    assert.strictEqual(dockerImageExists(IMAGE_NAME), true);
+  });
+
+  it('should produce an optimized image size under 300MB', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
+    // Act - Build from repo root
+    execCommand(`docker build -t ${IMAGE_NAME} -f Dockerfile .`);
+
+    // Get image size
+    const inspectOutput = execCommand(
+      `docker inspect ${IMAGE_NAME} --format='{{.Size}}'`
+    );
+    const sizeInBytes = parseInt(inspectOutput.replace(/'/g, '').trim(), 10);
+    const sizeInMB = sizeInBytes / (1024 * 1024);
+
+    // Assert
+    assert.ok(sizeInMB < 300, `Image size ${sizeInMB.toFixed(1)}MB exceeds 300MB`);
+  });
+
+  it('should serve the API health check and the static frontend', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
+    // Arrange
+    const containerName = 'claude-transcript-viewer-test';
+    execCommand(`docker rm -f ${containerName} || true`);
+
+    try {
+      // Act - Build from repo root and run
+      execCommand(`docker build -t ${IMAGE_NAME} -f Dockerfile .`);
+      execCommand(
+        `docker run -d --name ${containerName} -p 3101:3000 -e AWS_ACCESS_KEY_ID=test -e AWS_SECRET_ACCESS_KEY=test -e S3_BUCKET=test-bucket ${IMAGE_NAME}`
+      );
+
+      // Wait for container to be ready
+      execCommand('sleep 5');
+
+      // Assert - API responds
+      const healthOutput = execCommand('curl -f http://localhost:3101/api/health');
+      assert.ok(healthOutput.includes('healthy'));
+
+      // Assert - static frontend is served from the same container
+      const indexOutput = execCommand('curl -f http://localhost:3101/');
+      assert.ok(indexOutput.includes('<!DOCTYPE html>'));
+
+      // Assert - client-side routes fall back to index.html
+      const spaOutput = execCommand('curl -f http://localhost:3101/session/some-route');
+      assert.ok(spaOutput.includes('<!DOCTYPE html>'));
+
+      // Assert - unknown API paths still return JSON, not HTML
+      const apiNotFound = execCommand('curl -s http://localhost:3101/api/nope');
+      assert.ok(apiNotFound.includes('"error"'));
+    } finally {
+      execCommand(`docker rm -f ${containerName} || true`);
+    }
+  });
 });
 
 describe('Docker Build - .dockerignore Optimization', () => {
-  it('should exclude .git directory from frontend build', () => {
+  it('should exclude node_modules from the build context', () => {
     // Arrange
-    const dockerignorePath = resolve(FRONTEND_DIR, '.dockerignore');
-    const dockerignoreContent = readFileSync(dockerignorePath, 'utf-8');
+    const dockerignoreContent = readFileSync(DOCKERIGNORE, 'utf-8');
+
+    // Assert
+    assert.ok(dockerignoreContent.includes('node_modules'));
+  });
+
+  it('should exclude .git directory from the build context', () => {
+    // Arrange
+    const dockerignoreContent = readFileSync(DOCKERIGNORE, 'utf-8');
 
     // Assert
     assert.ok(dockerignoreContent.includes('.git'));
   });
 
-  it('should exclude .git directory from backend build', () => {
+  it('should exclude frontend test files from the build context', () => {
     // Arrange
-    const dockerignorePath = resolve(BACKEND_DIR, '.dockerignore');
-    const dockerignoreContent = readFileSync(dockerignorePath, 'utf-8');
-
-    // Assert
-    assert.ok(dockerignoreContent.includes('.git'));
-  });
-
-  it('should exclude test files from frontend build', () => {
-    // Arrange
-    const dockerignorePath = resolve(FRONTEND_DIR, '.dockerignore');
-    const dockerignoreContent = readFileSync(dockerignorePath, 'utf-8');
+    const dockerignoreContent = readFileSync(DOCKERIGNORE, 'utf-8');
 
     // Assert
     const excludesTests =
@@ -295,10 +224,9 @@ describe('Docker Build - .dockerignore Optimization', () => {
     assert.strictEqual(excludesTests, true);
   });
 
-  it('should exclude test files from backend build', () => {
+  it('should exclude Go test files from the build context', () => {
     // Arrange
-    const dockerignorePath = resolve(BACKEND_DIR, '.dockerignore');
-    const dockerignoreContent = readFileSync(dockerignorePath, 'utf-8');
+    const dockerignoreContent = readFileSync(DOCKERIGNORE, 'utf-8');
 
     // Assert
     const excludesTests =
@@ -308,19 +236,14 @@ describe('Docker Build - .dockerignore Optimization', () => {
     assert.strictEqual(excludesTests, true);
   });
 
-  it('should exclude README and documentation from builds', () => {
+  it('should exclude README and documentation from the build context', () => {
     // Arrange
-    const frontendDockerignorePath = resolve(FRONTEND_DIR, '.dockerignore');
-    const backendDockerignorePath = resolve(BACKEND_DIR, '.dockerignore');
-    const frontendContent = readFileSync(frontendDockerignorePath, 'utf-8');
-    const backendContent = readFileSync(backendDockerignorePath, 'utf-8');
+    const dockerignoreContent = readFileSync(DOCKERIGNORE, 'utf-8');
 
     // Assert
-    const frontendExcludesDocs =
-      frontendContent.includes('README') || frontendContent.includes('*.md');
-    const backendExcludesDocs =
-      backendContent.includes('README') || backendContent.includes('*.md');
+    const excludesDocs =
+      dockerignoreContent.includes('README') || dockerignoreContent.includes('*.md');
 
-    assert.strictEqual(frontendExcludesDocs || backendExcludesDocs, true);
+    assert.strictEqual(excludesDocs, true);
   });
 });

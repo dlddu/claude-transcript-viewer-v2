@@ -3,9 +3,10 @@ kind: Kustomization
 
 # Manifests applied by Flux for the production deployment. Local-dev
 # helpers (LocalStack, *.example.yaml) are intentionally excluded.
+#
+# The application runs as a single workload: the Go server serves the API
+# under /api and the built frontend bundle on every other route.
 resources:
-  - backend/pvc.yaml
-  - backend/deployment.yaml
-  - backend/service.yaml
-  - frontend/deployment.yaml
-  - frontend/service.yaml
+  - app/pvc.yaml
+  - app/deployment.yaml
+  - app/service.yaml

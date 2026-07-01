@@ -40,7 +40,7 @@ export function useTranscriptData(transcriptId: string): UseTranscriptDataResult
         setIsLoading(true);
         setError(null);
 
-        const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:3000';
+        const apiUrl = import.meta.env.VITE_API_URL ?? '';
         const response = await fetch(`${apiUrl}/api/transcript/session/${transcriptId}`);
 
         if (!response.ok) {
