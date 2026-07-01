@@ -12,7 +12,7 @@ import (
 // TranscriptService is the interface the HTTP layer needs from the
 // underlying storage. Tests use a fake; production wires in *S3Service.
 type TranscriptService interface {
-	GetTranscriptBySessionId(ctx context.Context, sessionID string) (Transcript, error)
+	GetTranscriptFiles(ctx context.Context, sessionID string) (TranscriptFilesResponse, error)
 	ListTranscripts(ctx context.Context) ([]string, error)
 	CreateUploadURL(ctx context.Context, req UploadURLRequest) (UploadURLResponse, error)
 }
@@ -100,21 +100,21 @@ func (s *Server) handleGetBySession(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Session ID is required"})
 		return
 	}
-	transcript, err := s.svc.GetTranscriptBySessionId(r.Context(), sessionID)
+	files, err := s.svc.GetTranscriptFiles(r.Context(), sessionID)
 	if err != nil {
 		if errors.Is(err, ErrNoSessionTranscriptFound) {
-			writeJSON(w, http.StatusNotFound, map[string]string{"error": "Transcript not found"})
+			writeJSON(w, http.StatusNotFound, map[string]string{"error": ErrNoSessionTranscriptFound.Error()})
 			return
 		}
 		if errors.Is(err, ErrSessionIDRequired) {
 			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "Session ID is required"})
 			return
 		}
-		log.Printf("Error fetching transcript by session ID: %v", err)
+		log.Printf("Error fetching transcript files by session ID: %v", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to fetch transcript"})
 		return
 	}
-	writeJSON(w, http.StatusOK, transcript)
+	writeJSON(w, http.StatusOK, files)
 }
 
 func (s *Server) handleCreateUploadURL(w http.ResponseWriter, r *http.Request) {

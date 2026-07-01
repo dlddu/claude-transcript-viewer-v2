@@ -4,9 +4,9 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"strings"
@@ -107,7 +107,7 @@ func newIntegrationService(t *testing.T, store SessionStore, prefix string) *S3S
 	return svc
 }
 
-func TestIntegration_GetTranscriptViaMapping(t *testing.T) {
+func TestIntegration_TranscriptFilesViaMapping(t *testing.T) {
 	client := newRealS3Client(t)
 	store := newIntegrationStore(t)
 	svc := newIntegrationService(t, store, "")
@@ -115,18 +115,29 @@ func TestIntegration_GetTranscriptViaMapping(t *testing.T) {
 	sessionID := "session-xyz789"
 	prefix := hiveSessionPrefix(sessionID, time.Now())
 	mainKey := prefix + mainTranscriptName(sessionID)
-	putObject(t, client, mainKey, readFixtureFile(t, "session-xyz789.jsonl"))
+	fixture := readFixtureFile(t, "session-xyz789.jsonl")
+	putObject(t, client, mainKey, fixture)
 	t.Cleanup(func() { deleteObject(t, client, mainKey) })
 	if err := store.PutSession(context.Background(), sessionID, prefix); err != nil {
 		t.Fatalf("put session: %v", err)
 	}
 
-	got, err := svc.GetTranscriptBySessionId(context.Background(), sessionID)
+	got, err := svc.GetTranscriptFiles(context.Background(), sessionID)
 	if err != nil {
-		t.Fatalf("GetTranscriptBySessionId: %v", err)
+		t.Fatalf("GetTranscriptFiles: %v", err)
 	}
-	if got.GetString("session_id") != sessionID {
-		t.Errorf("session_id = %q, want %q", got.GetString("session_id"), sessionID)
+	if got.SessionID != sessionID {
+		t.Errorf("session_id = %q, want %q", got.SessionID, sessionID)
+	}
+	if got.Main.Key != mainKey {
+		t.Errorf("main key = %q, want %q", got.Main.Key, mainKey)
+	}
+
+	// The presigned URL must be usable without credentials and return the
+	// exact bytes that were uploaded.
+	body := getFromPresignedURL(t, got.Main.URL)
+	if body != fixture {
+		t.Errorf("downloaded body differs from fixture (%d vs %d bytes)", len(body), len(fixture))
 	}
 
 	ids, err := svc.ListTranscripts(context.Background())
@@ -144,7 +155,7 @@ func TestIntegration_GetTranscriptViaMapping(t *testing.T) {
 	}
 }
 
-func TestIntegration_GetTranscriptWithConfiguredPrefix(t *testing.T) {
+func TestIntegration_TranscriptFilesWithConfiguredPrefix(t *testing.T) {
 	client := newRealS3Client(t)
 	store := newIntegrationStore(t)
 	const configuredPrefix = "tenants/acme/transcripts/"
@@ -159,17 +170,59 @@ func TestIntegration_GetTranscriptWithConfiguredPrefix(t *testing.T) {
 		t.Fatalf("put session: %v", err)
 	}
 
-	got, err := svc.GetTranscriptBySessionId(context.Background(), sessionID)
+	got, err := svc.GetTranscriptFiles(context.Background(), sessionID)
 	if err != nil {
-		t.Fatalf("GetTranscriptBySessionId: %v", err)
+		t.Fatalf("GetTranscriptFiles: %v", err)
 	}
-	if got.GetString("session_id") != sessionID {
-		t.Errorf("session_id = %q, want %q", got.GetString("session_id"), sessionID)
+	if !strings.HasPrefix(got.Main.Key, configuredPrefix) {
+		t.Errorf("main key = %q, want prefix %q", got.Main.Key, configuredPrefix)
+	}
+	if body := getFromPresignedURL(t, got.Main.URL); body == "" {
+		t.Error("expected non-empty body from presigned URL")
 	}
 }
 
-// TestIntegration_UploadURLRoundTrip exercises the full new feature: request a
-// presigned URL, PUT a transcript to it, then read it back via the mapping.
+func TestIntegration_DownloadURLHonorsConfiguredTTL(t *testing.T) {
+	client := newRealS3Client(t)
+	store := newIntegrationStore(t)
+	svc, err := NewS3Service(context.Background(), S3ServiceConfig{
+		Bucket:         testBucket,
+		Region:         "us-east-1",
+		Endpoint:       endpointFromEnv(),
+		DownloadURLTTL: 2 * time.Minute,
+	}, store)
+	if err != nil {
+		t.Fatalf("NewS3Service: %v", err)
+	}
+
+	sessionID := "ttl-session"
+	prefix := hiveSessionPrefix(sessionID, time.Now())
+	mainKey := prefix + mainTranscriptName(sessionID)
+	putObject(t, client, mainKey, readFixtureFile(t, "session-xyz789.jsonl"))
+	t.Cleanup(func() { deleteObject(t, client, mainKey) })
+	if err := store.PutSession(context.Background(), sessionID, prefix); err != nil {
+		t.Fatalf("put session: %v", err)
+	}
+
+	got, err := svc.GetTranscriptFiles(context.Background(), sessionID)
+	if err != nil {
+		t.Fatalf("GetTranscriptFiles: %v", err)
+	}
+	if got.ExpiresIn != 120 {
+		t.Errorf("expires_in = %d, want 120", got.ExpiresIn)
+	}
+	u, err := url.Parse(got.Main.URL)
+	if err != nil {
+		t.Fatalf("parse presigned URL: %v", err)
+	}
+	if exp := u.Query().Get("X-Amz-Expires"); exp != "120" {
+		t.Errorf("X-Amz-Expires = %q, want 120", exp)
+	}
+}
+
+// TestIntegration_UploadURLRoundTrip exercises the full flow: request a
+// presigned upload URL, PUT a transcript to it, then fetch the download
+// manifest and GET the file back through its presigned URL.
 func TestIntegration_UploadURLRoundTrip(t *testing.T) {
 	client := newRealS3Client(t)
 	store := newIntegrationStore(t)
@@ -182,23 +235,24 @@ func TestIntegration_UploadURLRoundTrip(t *testing.T) {
 	}
 	t.Cleanup(func() { deleteObject(t, client, resp.Key) })
 
-	putToPresignedURL(t, resp.URL, readFixtureFile(t, "session-xyz789.jsonl"))
+	fixture := readFixtureFile(t, "session-xyz789.jsonl")
+	putToPresignedURL(t, resp.URL, fixture)
 
-	got, err := svc.GetTranscriptBySessionId(context.Background(), sessionID)
+	got, err := svc.GetTranscriptFiles(context.Background(), sessionID)
 	if err != nil {
-		t.Fatalf("GetTranscriptBySessionId after upload: %v", err)
+		t.Fatalf("GetTranscriptFiles after upload: %v", err)
 	}
-	if got.GetString("session_id") != sessionID {
-		t.Errorf("session_id = %q, want %q", got.GetString("session_id"), sessionID)
+	if got.SessionID != sessionID {
+		t.Errorf("session_id = %q, want %q", got.SessionID, sessionID)
 	}
-	if len(decodeMessages(t, got)) == 0 {
-		t.Error("expected messages after round-trip upload")
+	if body := getFromPresignedURL(t, got.Main.URL); body != fixture {
+		t.Error("downloaded body differs from uploaded fixture")
 	}
 }
 
 // TestIntegration_UploadSubagentRoundTrip uploads a main transcript and a
 // subagent under subagents/ via presigned URLs, then verifies the subagent is
-// discovered and merged on read.
+// discovered and downloadable through the manifest.
 func TestIntegration_UploadSubagentRoundTrip(t *testing.T) {
 	client := newRealS3Client(t)
 	store := newIntegrationStore(t)
@@ -223,22 +277,22 @@ func TestIntegration_UploadSubagentRoundTrip(t *testing.T) {
 	if !strings.Contains(subResp.Key, "/subagents/agent-a1b2c3d.jsonl") {
 		t.Fatalf("subagent key %q not under subagents/", subResp.Key)
 	}
-	putToPresignedURL(t, subResp.URL, readFixtureFile(t, "session-abc123/agent-a1b2c3d.jsonl"))
+	subFixture := readFixtureFile(t, "session-abc123/agent-a1b2c3d.jsonl")
+	putToPresignedURL(t, subResp.URL, subFixture)
 
-	got, err := svc.GetTranscriptBySessionId(context.Background(), sessionID)
+	got, err := svc.GetTranscriptFiles(context.Background(), sessionID)
 	if err != nil {
-		t.Fatalf("GetTranscriptBySessionId: %v", err)
+		t.Fatalf("GetTranscriptFiles: %v", err)
 	}
-	raw, ok := got["subagents"]
-	if !ok {
-		t.Fatal("missing subagents after subagent upload")
+	if len(got.Subagents) != 1 {
+		t.Fatalf("expected 1 subagent, got %d", len(got.Subagents))
 	}
-	var subs []SubagentTranscript
-	if err := json.Unmarshal(raw, &subs); err != nil {
-		t.Fatalf("subagents not array: %v", err)
+	sub := got.Subagents[0]
+	if sub.ID != "agent-a1b2c3d" {
+		t.Errorf("subagent id = %q, want agent-a1b2c3d", sub.ID)
 	}
-	if len(subs) != 1 {
-		t.Fatalf("expected 1 subagent, got %d", len(subs))
+	if body := getFromPresignedURL(t, sub.URL); body != subFixture {
+		t.Error("downloaded subagent body differs from uploaded fixture")
 	}
 }
 
@@ -257,4 +311,21 @@ func putToPresignedURL(t *testing.T, url, body string) {
 		b, _ := io.ReadAll(resp.Body)
 		t.Fatalf("presigned PUT status = %d, body=%s", resp.StatusCode, string(b))
 	}
+}
+
+func getFromPresignedURL(t *testing.T, url string) string {
+	t.Helper()
+	resp, err := http.Get(url)
+	if err != nil {
+		t.Fatalf("GET presigned URL: %v", err)
+	}
+	defer resp.Body.Close()
+	b, err := io.ReadAll(resp.Body)
+	if err != nil {
+		t.Fatalf("read presigned GET body: %v", err)
+	}
+	if resp.StatusCode != http.StatusOK {
+		t.Fatalf("presigned GET status = %d, body=%s", resp.StatusCode, string(b))
+	}
+	return string(b)
 }

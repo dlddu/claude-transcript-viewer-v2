@@ -54,13 +54,32 @@ export interface TranscriptMessage {
 
 export interface Transcript {
   id: string;
-  content: string;
+  content?: string;
   timestamp?: string;
   session_id?: string;
   subagents?: Subagent[];
   metadata?: TranscriptMetadata;
   tools_used?: ToolUsage[];
   messages?: TranscriptMessage[];
+}
+
+// One transcript object in S3, addressed by a short-lived presigned GET URL.
+// `id` is the owning agent: the session id for the main transcript, the agent
+// id (file base name without ".jsonl") for subagents.
+export interface TranscriptFileRef {
+  id: string;
+  name: string;
+  key: string;
+  url: string;
+}
+
+// Response of GET /api/transcript/session/:sessionId. The backend only lists
+// S3 keys and signs URLs; the browser downloads and parses the files itself.
+export interface TranscriptFilesResponse {
+  session_id: string;
+  expires_in: number;
+  main: TranscriptFileRef;
+  subagents: TranscriptFileRef[];
 }
 
 export interface EnrichedToolUse {

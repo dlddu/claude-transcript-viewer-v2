@@ -8,3 +8,8 @@ data:
   PORT: "3000"
   AWS_REGION: "us-east-1"
   S3_BUCKET: "your-s3-bucket-name"
+  # Lifetime of presigned download URLs handed to browsers (default 300).
+  # DOWNLOAD_URL_TTL_SECONDS: "300"
+  # Endpoint used only for presigning browser-facing URLs, when the backend
+  # reaches S3 through an internal endpoint browsers cannot resolve.
+  # AWS_PUBLIC_ENDPOINT_URL: "http://localhost:4566"

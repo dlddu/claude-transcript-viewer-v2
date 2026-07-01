@@ -62,6 +62,7 @@ func loadConfigFromEnv() S3ServiceConfig {
 		Bucket:                envOr("S3_BUCKET", "test-transcripts"),
 		Region:                envOr("AWS_REGION", "us-east-1"),
 		Endpoint:              os.Getenv("AWS_ENDPOINT_URL"),
+		PublicEndpoint:        os.Getenv("AWS_PUBLIC_ENDPOINT_URL"),
 		Prefix:                os.Getenv("S3_PREFIX"),
 		AssumeRoleARN:         os.Getenv("AWS_ASSUME_ROLE_ARN"),
 		AssumeRoleSessionName: os.Getenv("AWS_ASSUME_ROLE_SESSION_NAME"),
@@ -75,6 +76,11 @@ func loadConfigFromEnv() S3ServiceConfig {
 	if v := os.Getenv("UPLOAD_URL_TTL_SECONDS"); v != "" {
 		if n, err := strconv.Atoi(v); err == nil && n > 0 {
 			cfg.UploadURLTTL = time.Duration(n) * time.Second
+		}
+	}
+	if v := os.Getenv("DOWNLOAD_URL_TTL_SECONDS"); v != "" {
+		if n, err := strconv.Atoi(v); err == nil && n > 0 {
+			cfg.DownloadURLTTL = time.Duration(n) * time.Second
 		}
 	}
 	return cfg

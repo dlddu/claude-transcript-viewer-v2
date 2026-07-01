@@ -1,45 +1,22 @@
 package main
 
-import "encoding/json"
-
-// RawObject is a JSON object that preserves every field of its source.
-// We use it for transcripts and messages so that fields not modeled
-// explicitly (custom metadata, content blocks, etc.) survive a round trip.
-type RawObject map[string]json.RawMessage
-
-func (m RawObject) GetString(key string) string {
-	raw, ok := m[key]
-	if !ok {
-		return ""
-	}
-	var s string
-	if err := json.Unmarshal(raw, &s); err != nil {
-		return ""
-	}
-	return s
+// TranscriptFileRef points a client at one transcript object in S3 via a
+// short-lived presigned GET URL. ID identifies the owning agent: the session
+// id for the main transcript, the agent id (file base name without ".jsonl")
+// for subagents.
+type TranscriptFileRef struct {
+	ID   string `json:"id"`
+	Name string `json:"name"`
+	Key  string `json:"key"`
+	URL  string `json:"url"`
 }
 
-func (m RawObject) SetString(key, value string) {
-	b, _ := json.Marshal(value)
-	m[key] = b
-}
-
-func (m RawObject) SetAny(key string, value any) {
-	b, _ := json.Marshal(value)
-	m[key] = b
-}
-
-// TranscriptMessage is a single JSONL line from a transcript file.
-type TranscriptMessage = RawObject
-
-// Transcript is the top-level transcript object returned to clients.
-type Transcript = RawObject
-
-// SubagentTranscript describes a subagent file attached to a session.
-type SubagentTranscript struct {
-	ID             string              `json:"id"`
-	Name           string              `json:"name"`
-	TranscriptFile string              `json:"transcript_file,omitempty"`
-	Content        string              `json:"content,omitempty"`
-	Messages       []TranscriptMessage `json:"messages,omitempty"`
+// TranscriptFilesResponse is returned for a session lookup. Clients download
+// the referenced files directly from S3 and parse/render them locally; the
+// backend never proxies transcript bytes.
+type TranscriptFilesResponse struct {
+	SessionID string              `json:"session_id"`
+	ExpiresIn int                 `json:"expires_in"`
+	Main      TranscriptFileRef   `json:"main"`
+	Subagents []TranscriptFileRef `json:"subagents"`
 }

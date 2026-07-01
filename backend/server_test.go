@@ -13,18 +13,18 @@ import (
 
 // fakeService implements TranscriptService for handler tests.
 type fakeService struct {
-	getTranscriptBySession func(ctx context.Context, sessionID string) (Transcript, error)
-	listTranscripts        func(ctx context.Context) ([]string, error)
-	createUploadURL        func(ctx context.Context, req UploadURLRequest) (UploadURLResponse, error)
-	lastSessionIDPassed    string
+	getTranscriptFiles  func(ctx context.Context, sessionID string) (TranscriptFilesResponse, error)
+	listTranscripts     func(ctx context.Context) ([]string, error)
+	createUploadURL     func(ctx context.Context, req UploadURLRequest) (UploadURLResponse, error)
+	lastSessionIDPassed string
 }
 
-func (f *fakeService) GetTranscriptBySessionId(ctx context.Context, sessionID string) (Transcript, error) {
+func (f *fakeService) GetTranscriptFiles(ctx context.Context, sessionID string) (TranscriptFilesResponse, error) {
 	f.lastSessionIDPassed = sessionID
-	if f.getTranscriptBySession != nil {
-		return f.getTranscriptBySession(ctx, sessionID)
+	if f.getTranscriptFiles != nil {
+		return f.getTranscriptFiles(ctx, sessionID)
 	}
-	return nil, errors.New("not stubbed")
+	return TranscriptFilesResponse{}, errors.New("not stubbed")
 }
 
 func (f *fakeService) ListTranscripts(ctx context.Context) ([]string, error) {
@@ -41,17 +41,18 @@ func (f *fakeService) CreateUploadURL(ctx context.Context, req UploadURLRequest)
 	return UploadURLResponse{}, errors.New("not stubbed")
 }
 
-func newTranscript(t *testing.T, fields map[string]any) Transcript {
-	t.Helper()
-	out := Transcript{}
-	for k, v := range fields {
-		b, err := json.Marshal(v)
-		if err != nil {
-			t.Fatalf("marshal field %q: %v", k, err)
-		}
-		out[k] = b
+func manifestFor(sessionID string) TranscriptFilesResponse {
+	return TranscriptFilesResponse{
+		SessionID: sessionID,
+		ExpiresIn: 300,
+		Main: TranscriptFileRef{
+			ID:   sessionID,
+			Name: sessionID + ".jsonl",
+			Key:  "year=2026/month=05/day=24/hour=00/session_id=" + sessionID + "/" + sessionID + ".jsonl",
+			URL:  "https://s3.example.com/bucket/" + sessionID + ".jsonl?X-Amz-Signature=fake",
+		},
+		Subagents: []TranscriptFileRef{},
 	}
-	return out
 }
 
 func decodeResponse(t *testing.T, body []byte) map[string]any {
@@ -82,25 +83,18 @@ func doPost(t *testing.T, server http.Handler, path, body string) *httptest.Resp
 
 // --- /api/transcript/session/:sessionId -------------------------------------
 
-func TestHandleGetBySession_ReturnsTranscript(t *testing.T) {
+func TestHandleGetBySession_ReturnsFileManifest(t *testing.T) {
 	sessionID := "session-abc123"
 	fake := &fakeService{
-		getTranscriptBySession: func(_ context.Context, _ string) (Transcript, error) {
-			return newTranscript(t, map[string]any{
-				"id":         sessionID,
-				"session_id": sessionID,
-				"content":    "{}",
-				"messages": []any{
-					map[string]any{
-						"type":       "user",
-						"sessionId":  sessionID,
-						"uuid":       "msg-001",
-						"timestamp":  "2026-02-01T05:00:00Z",
-						"parentUuid": nil,
-					},
-				},
-				"subagents": []any{},
-			}), nil
+		getTranscriptFiles: func(_ context.Context, _ string) (TranscriptFilesResponse, error) {
+			m := manifestFor(sessionID)
+			m.Subagents = []TranscriptFileRef{{
+				ID:   "agent-a1b2c3d",
+				Name: "agent-a1b2c3d.jsonl",
+				Key:  "year=2026/month=05/day=24/hour=00/session_id=" + sessionID + "/agent-a1b2c3d.jsonl",
+				URL:  "https://s3.example.com/bucket/agent-a1b2c3d.jsonl?X-Amz-Signature=fake",
+			}}
+			return m, nil
 		},
 	}
 	server := NewServer(fake)
@@ -113,21 +107,35 @@ func TestHandleGetBySession_ReturnsTranscript(t *testing.T) {
 	if body["session_id"] != sessionID {
 		t.Errorf("session_id = %v, want %q", body["session_id"], sessionID)
 	}
-	if _, ok := body["id"]; !ok {
-		t.Error("missing id")
+	if _, ok := body["expires_in"].(float64); !ok {
+		t.Error("missing expires_in")
 	}
-	if _, ok := body["content"]; !ok {
-		t.Error("missing content")
+	main, ok := body["main"].(map[string]any)
+	if !ok {
+		t.Fatal("main not an object")
 	}
-	if _, ok := body["messages"].([]any); !ok {
-		t.Error("messages not an array")
+	if u, _ := main["url"].(string); !strings.Contains(u, "X-Amz-Signature") {
+		t.Errorf("main.url = %v, want presigned URL", main["url"])
+	}
+	subs, ok := body["subagents"].([]any)
+	if !ok {
+		t.Fatal("subagents not an array")
+	}
+	if len(subs) != 1 {
+		t.Fatalf("expected 1 subagent, got %d", len(subs))
+	}
+	sub, _ := subs[0].(map[string]any)
+	for _, k := range []string{"id", "name", "key", "url"} {
+		if _, ok := sub[k]; !ok {
+			t.Errorf("subagent missing %q", k)
+		}
 	}
 }
 
 func TestHandleGetBySession_NotFound(t *testing.T) {
 	fake := &fakeService{
-		getTranscriptBySession: func(_ context.Context, _ string) (Transcript, error) {
-			return nil, ErrNoSessionTranscriptFound
+		getTranscriptFiles: func(_ context.Context, _ string) (TranscriptFilesResponse, error) {
+			return TranscriptFilesResponse{}, ErrNoSessionTranscriptFound
 		},
 	}
 	server := NewServer(fake)
@@ -138,22 +146,19 @@ func TestHandleGetBySession_NotFound(t *testing.T) {
 	}
 	body := decodeResponse(t, rec.Body.Bytes())
 	errStr, _ := body["error"].(string)
-	if !strings.Contains(strings.ToLower(errStr), "not found") {
-		t.Errorf("error message should mention 'not found', got %q", errStr)
+	// The message must satisfy both e2e error matchers:
+	// /session.*not.*found|no.*transcript.*found/i and /not found|error/i.
+	if !strings.Contains(strings.ToLower(errStr), "not found") ||
+		!strings.Contains(strings.ToLower(errStr), "session") {
+		t.Errorf("error message should mention the session not being found, got %q", errStr)
 	}
 }
 
-func TestHandleGetBySession_IncludesSubagentsArray(t *testing.T) {
+func TestHandleGetBySession_EmptySubagentsStaysArray(t *testing.T) {
 	sessionID := "session-abc123"
 	fake := &fakeService{
-		getTranscriptBySession: func(_ context.Context, _ string) (Transcript, error) {
-			return newTranscript(t, map[string]any{
-				"id":         sessionID,
-				"session_id": sessionID,
-				"content":    "{}",
-				"messages":   []any{},
-				"subagents":  []any{},
-			}), nil
+		getTranscriptFiles: func(_ context.Context, _ string) (TranscriptFilesResponse, error) {
+			return manifestFor(sessionID), nil
 		},
 	}
 	server := NewServer(fake)
@@ -168,50 +173,10 @@ func TestHandleGetBySession_IncludesSubagentsArray(t *testing.T) {
 	}
 }
 
-func TestHandleGetBySession_MessageStructure(t *testing.T) {
-	sessionID := "session-abc123"
-	fake := &fakeService{
-		getTranscriptBySession: func(_ context.Context, _ string) (Transcript, error) {
-			return newTranscript(t, map[string]any{
-				"id":         sessionID,
-				"session_id": sessionID,
-				"content":    "{}",
-				"messages": []any{
-					map[string]any{
-						"type":       "user",
-						"sessionId":  sessionID,
-						"uuid":       "msg-001",
-						"timestamp":  "2026-02-01T05:00:00Z",
-						"parentUuid": nil,
-					},
-				},
-				"subagents": []any{},
-			}), nil
-		},
-	}
-	server := NewServer(fake)
-
-	rec := doRequest(t, server, "/api/transcript/session/"+sessionID)
-	if rec.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200", rec.Code)
-	}
-	body := decodeResponse(t, rec.Body.Bytes())
-	msgs, _ := body["messages"].([]any)
-	if len(msgs) == 0 {
-		t.Fatal("expected at least one message")
-	}
-	first, _ := msgs[0].(map[string]any)
-	for _, k := range []string{"type", "sessionId", "uuid"} {
-		if _, ok := first[k]; !ok {
-			t.Errorf("first message missing %q", k)
-		}
-	}
-}
-
 func TestHandleGetBySession_S3ErrorReturns500(t *testing.T) {
 	fake := &fakeService{
-		getTranscriptBySession: func(_ context.Context, _ string) (Transcript, error) {
-			return nil, errors.New("S3 connection failed")
+		getTranscriptFiles: func(_ context.Context, _ string) (TranscriptFilesResponse, error) {
+			return TranscriptFilesResponse{}, errors.New("S3 connection failed")
 		},
 	}
 	server := NewServer(fake)
@@ -229,17 +194,11 @@ func TestHandleGetBySession_S3ErrorReturns500(t *testing.T) {
 func TestHandleGetBySession_TrimsWhitespace(t *testing.T) {
 	sessionID := "session-abc123"
 	fake := &fakeService{
-		getTranscriptBySession: func(_ context.Context, got string) (Transcript, error) {
+		getTranscriptFiles: func(_ context.Context, got string) (TranscriptFilesResponse, error) {
 			if got != sessionID {
 				t.Errorf("service got %q, want %q (whitespace not trimmed)", got, sessionID)
 			}
-			return newTranscript(t, map[string]any{
-				"id":         sessionID,
-				"session_id": sessionID,
-				"content":    "{}",
-				"messages":   []any{},
-				"subagents":  []any{},
-			}), nil
+			return manifestFor(sessionID), nil
 		},
 	}
 	server := NewServer(fake)
@@ -361,14 +320,8 @@ func TestHandleHealth_ReturnsHealthy(t *testing.T) {
 func TestBothBasePrefixes_Work(t *testing.T) {
 	sessionID := "session-abc123"
 	fake := &fakeService{
-		getTranscriptBySession: func(_ context.Context, _ string) (Transcript, error) {
-			return newTranscript(t, map[string]any{
-				"id":         sessionID,
-				"session_id": sessionID,
-				"content":    "{}",
-				"messages":   []any{},
-				"subagents":  []any{},
-			}), nil
+		getTranscriptFiles: func(_ context.Context, _ string) (TranscriptFilesResponse, error) {
+			return manifestFor(sessionID), nil
 		},
 	}
 	server := NewServer(fake)

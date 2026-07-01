@@ -1,5 +1,6 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import type { Transcript } from '../types/transcript';
+import { loadTranscript } from '../utils/loadTranscript';
 
 interface UseTranscriptDataResult {
   data: Transcript | null;
@@ -8,12 +9,35 @@ interface UseTranscriptDataResult {
 }
 
 const cache = new Map<string, Transcript>();
+const inflight = new Map<string, Promise<Transcript>>();
+
+// Loads via the shared cache, deduplicating concurrent requests for the same
+// session (e.g. StrictMode double-mounting) into one manifest+download run.
+function getTranscript(transcriptId: string): Promise<Transcript> {
+  const cached = cache.get(transcriptId);
+  if (cached) {
+    return Promise.resolve(cached);
+  }
+
+  let pending = inflight.get(transcriptId);
+  if (!pending) {
+    pending = loadTranscript(transcriptId)
+      .then((transcript) => {
+        cache.set(transcriptId, transcript);
+        return transcript;
+      })
+      .finally(() => {
+        inflight.delete(transcriptId);
+      });
+    inflight.set(transcriptId, pending);
+  }
+  return pending;
+}
 
 export function useTranscriptData(transcriptId: string): UseTranscriptDataResult {
   const [data, setData] = useState<Transcript | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<Error | null>(null);
-  const hasFetched = useRef(false);
 
   useEffect(() => {
     if (!transcriptId) {
@@ -21,55 +45,30 @@ export function useTranscriptData(transcriptId: string): UseTranscriptDataResult
       return;
     }
 
-    // Check cache first
-    if (cache.has(transcriptId)) {
-      setData(cache.get(transcriptId)!);
-      setIsLoading(false);
-      return;
-    }
+    let cancelled = false;
+    setIsLoading(true);
+    setError(null);
 
-    // Prevent duplicate fetches
-    if (hasFetched.current) {
-      return;
-    }
-
-    hasFetched.current = true;
-
-    const fetchTranscript = async () => {
-      try {
-        setIsLoading(true);
-        setError(null);
-
-        const apiUrl = import.meta.env.VITE_API_URL ?? '';
-        const response = await fetch(`${apiUrl}/api/transcript/session/${transcriptId}`);
-
-        if (!response.ok) {
-          let errorMessage = `Failed to fetch transcript: ${response.statusText}`;
-          try {
-            const errorData = await response.json();
-            if (errorData.error) {
-              errorMessage = errorData.error;
-            }
-          } catch {
-            // Use default error message if response body is not JSON
-          }
-          throw new Error(errorMessage);
+    getTranscript(transcriptId)
+      .then((transcript) => {
+        if (!cancelled) {
+          setData(transcript);
         }
+      })
+      .catch((err) => {
+        if (!cancelled) {
+          setError(err instanceof Error ? err : new Error('Unknown error'));
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoading(false);
+        }
+      });
 
-        const transcript = await response.json();
-
-        // Cache the result
-        cache.set(transcriptId, transcript);
-
-        setData(transcript);
-      } catch (err) {
-        setError(err instanceof Error ? err : new Error('Unknown error'));
-      } finally {
-        setIsLoading(false);
-      }
+    return () => {
+      cancelled = true;
     };
-
-    fetchTranscript();
   }, [transcriptId]);
 
   return { data, isLoading, error };
