@@ -149,9 +149,9 @@ jobs:
         run: |
           aws --endpoint-url "$AWS_ENDPOINT_URL" s3 mb s3://test-transcripts
 
+      # No VITE_API_URL: the bundle calls the API on the same origin, and the
+      # Go server below serves both the API and these static files.
       - name: Build frontend
-        env:
-          VITE_API_URL: http://localhost:3000
         run: pnpm --filter @claude-transcript-viewer/frontend build
 
       - name: Build backend
@@ -170,25 +170,22 @@ jobs:
           DB_PATH: ${{ github.workspace }}/backend-e2e.db
         run: ./backend/server seed --dir e2e/fixtures
 
-      - name: Start backend server
+      - name: Start server (API + static frontend)
         env:
           AWS_ENDPOINT_URL: http://localhost:9000
           AWS_ACCESS_KEY_ID: minioadmin
           AWS_SECRET_ACCESS_KEY: minioadmin
           S3_BUCKET: test-transcripts
           DB_PATH: ${{ github.workspace }}/backend-e2e.db
+          STATIC_DIR: ${{ github.workspace }}/frontend/dist
         run: |
           ./backend/server &
           timeout 30 bash -c 'until curl -f http://localhost:3000/api/health; do sleep 2; done'
-
-      - name: Start frontend server
-        run: |
-          pnpm --filter @claude-transcript-viewer/frontend preview &
-          timeout 30 bash -c 'until curl -f http://localhost:5173; do sleep 2; done'
+          curl -fs http://localhost:3000/ | grep -q '<!DOCTYPE html>'
 
       - name: Run E2E tests
         env:
-          BASE_URL: http://localhost:5173
+          BASE_URL: http://localhost:3000
         run: pnpm --filter @claude-transcript-viewer/e2e test
 
       - name: Upload Playwright report
@@ -235,60 +232,37 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build frontend Docker image
+      - name: Build application Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./frontend/Dockerfile
+          file: ./Dockerfile
           load: true
-          tags: claude-transcript-viewer-frontend:test
-          build-args: VITE_API_URL=http://localhost:3000
-          cache-from: type=gha,scope=docker-e2e-frontend
-          cache-to: type=gha,scope=docker-e2e-frontend,mode=max
+          tags: claude-transcript-viewer:test
+          cache-from: type=gha,scope=docker-e2e-app
+          cache-to: type=gha,scope=docker-e2e-app,mode=max
 
-      - name: Build backend Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./backend/Dockerfile
-          load: true
-          tags: claude-transcript-viewer-backend:test
-          cache-from: type=gha,scope=docker-e2e-backend
-          cache-to: type=gha,scope=docker-e2e-backend,mode=max
-
-      - name: Test frontend container
+      - name: Test application container
         run: |
-          docker run -d --name frontend-test -p 8080:80 claude-transcript-viewer-frontend:test
-          sleep 3
-          curl -f http://localhost:8080 || exit 1
-          docker stop frontend-test
-          docker rm frontend-test
-
-      - name: Test backend container
-        run: |
-          docker run -d --name backend-test -p 3001:3000 \
+          docker run -d --name app-test -p 3001:3000 \
             -e AWS_ACCESS_KEY_ID=test \
             -e AWS_SECRET_ACCESS_KEY=test \
             -e S3_BUCKET=test-bucket \
-            claude-transcript-viewer-backend:test
+            claude-transcript-viewer:test
           sleep 5
           curl -f http://localhost:3001/api/health || exit 1
-          docker stop backend-test
-          docker rm backend-test
+          curl -fs http://localhost:3001/ | grep -q '<!DOCTYPE html>' || exit 1
+          curl -fs http://localhost:3001/session/some-client-route | grep -q '<!DOCTYPE html>' || exit 1
+          docker stop app-test
+          docker rm app-test
 
-      - name: Check image sizes
+      - name: Check image size
         run: |
-          frontend_size=$(docker inspect claude-transcript-viewer-frontend:test --format='{{.Size}}')
-          backend_size=$(docker inspect claude-transcript-viewer-backend:test --format='{{.Size}}')
-          frontend_mb=$((frontend_size / 1024 / 1024))
-          backend_mb=$((backend_size / 1024 / 1024))
-          echo "Frontend image size: ${frontend_mb}MB"
-          echo "Backend image size: ${backend_mb}MB"
-          if [ $frontend_mb -gt 100 ]; then
-            echo "Warning: Frontend image size exceeds 100MB"
-          fi
-          if [ $backend_mb -gt 300 ]; then
-            echo "Warning: Backend image size exceeds 300MB"
+          app_size=$(docker inspect claude-transcript-viewer:test --format='{{.Size}}')
+          app_mb=$((app_size / 1024 / 1024))
+          echo "Application image size: ${app_mb}MB"
+          if [ $app_mb -gt 300 ]; then
+            echo "Warning: Application image size exceeds 300MB"
           fi
 
       - name: Run Docker build tests
@@ -316,11 +290,8 @@ jobs:
       - name: Install kubectl
         uses: azure/setup-kubectl@v4
 
-      - name: Run K8s backend manifest validation tests
+      - name: Run K8s app manifest validation tests
         run: pnpm tsx --test e2e/tests/k8s-manifests.spec.ts
-
-      - name: Run K8s frontend manifest validation tests
-        run: pnpm tsx --test e2e/tests/k8s-frontend-manifests.spec.ts
 
       - name: Run K8s LocalStack manifest validation tests
         run: pnpm tsx --test e2e/tests/k8s-localstack-manifests.spec.ts
@@ -372,26 +343,15 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build frontend Docker image
+      - name: Build application Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./frontend/Dockerfile
+          file: ./Dockerfile
           load: true
-          tags: claude-transcript-viewer-frontend:test
-          build-args: VITE_API_URL=http://localhost:3000
-          cache-from: type=gha,scope=kind-frontend
-          cache-to: type=gha,scope=kind-frontend,mode=max
-
-      - name: Build backend Docker image
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./backend/Dockerfile
-          load: true
-          tags: claude-transcript-viewer-backend:test
-          cache-from: type=gha,scope=kind-backend
-          cache-to: type=gha,scope=kind-backend,mode=max
+          tags: claude-transcript-viewer:test
+          cache-from: type=gha,scope=kind-app
+          cache-to: type=gha,scope=kind-app,mode=max
 
       - name: Create kind cluster
         uses: helm/kind-action@v1
@@ -401,21 +361,19 @@ jobs:
 
       - name: Load Docker images into kind
         run: |
-          kind load docker-image claude-transcript-viewer-frontend:test --name test-cluster
-          kind load docker-image claude-transcript-viewer-backend:test --name test-cluster
+          kind load docker-image claude-transcript-viewer:test --name test-cluster
           docker pull --platform linux/arm64 localstack/localstack:3.0
           kind load docker-image localstack/localstack:3.0 --name test-cluster
 
-      - name: Create test ConfigMaps and Secrets
+      - name: Create test ConfigMap and Secret
         run: |
-          # Backend ConfigMap
           kubectl create configmap claude-transcript-viewer-config \
             --from-literal=PORT=3000 \
             --from-literal=AWS_REGION=us-east-1 \
             --from-literal=S3_BUCKET=test-transcripts \
             --from-literal=AWS_ENDPOINT_URL=http://localstack:4566
 
-          # Backend Secret (consumed via envFrom in the Deployment)
+          # Secret (consumed via envFrom in the Deployment)
           kubectl create secret generic claude-transcript-viewer-secrets \
             --from-literal=AWS_ACCESS_KEY_ID=test \
             --from-literal=AWS_SECRET_ACCESS_KEY=test \
@@ -423,58 +381,43 @@ jobs:
             --from-literal=S3_BUCKET=test-transcripts \
             --from-literal=AWS_ENDPOINT_URL=http://localstack:4566
 
-          # Frontend ConfigMap
-          kubectl create configmap claude-transcript-viewer-frontend-config \
-            --from-literal=VITE_API_URL=http://claude-transcript-viewer-backend
-
       - name: Deploy LocalStack to kind cluster
         run: kubectl apply -f k8s/localstack/
 
-      - name: Deploy backend to kind cluster
+      - name: Deploy application to kind cluster
         run: |
-          kubectl apply -f k8s/backend/pvc.yaml
-          kubectl apply -f k8s/backend/deployment.yaml
-          kubectl apply -f k8s/backend/service.yaml
-          kubectl set image deployment/claude-transcript-viewer-backend \
-            backend=claude-transcript-viewer-backend:test
-          kubectl set env deployment/claude-transcript-viewer-backend \
+          kubectl apply -f k8s/app/pvc.yaml
+          kubectl apply -f k8s/app/deployment.yaml
+          kubectl apply -f k8s/app/service.yaml
+          kubectl set image deployment/claude-transcript-viewer \
+            app=claude-transcript-viewer:test
+          kubectl set env deployment/claude-transcript-viewer \
             AWS_ENDPOINT_URL=http://localstack:4566
-          kubectl patch deployment claude-transcript-viewer-backend --type=json \
-            -p='[{"op": "replace", "path": "/spec/replicas", "value": 1}, {"op": "replace", "path": "/spec/template/spec/containers/0/imagePullPolicy", "value": "IfNotPresent"}]'
-
-      - name: Deploy frontend to kind cluster
-        run: |
-          kubectl apply -f k8s/frontend/deployment.yaml
-          kubectl apply -f k8s/frontend/service.yaml
-          kubectl set image deployment/claude-transcript-viewer-frontend \
-            frontend=claude-transcript-viewer-frontend:test
-          kubectl patch deployment claude-transcript-viewer-frontend --type=json \
+          kubectl patch deployment claude-transcript-viewer --type=json \
             -p='[{"op": "replace", "path": "/spec/replicas", "value": 1}, {"op": "replace", "path": "/spec/template/spec/containers/0/imagePullPolicy", "value": "IfNotPresent"}]'
 
       - name: Wait for all deployments to be ready
         run: |
           kubectl rollout status deployment/localstack --timeout=120s
-          kubectl rollout status deployment/claude-transcript-viewer-backend --timeout=120s
-          kubectl rollout status deployment/claude-transcript-viewer-frontend --timeout=120s
+          kubectl rollout status deployment/claude-transcript-viewer --timeout=120s
 
-      # Seed by running the backend's own `seed` subcommand inside the backend
-      # pod: it uploads fixtures to their Hive-partitioned keys (in-cluster
-      # LocalStack endpoint) and writes the session→prefix mapping to the
-      # SQLite DB on the PVC. Restart afterwards so the serving pod reads the
-      # freshly seeded database.
+      # Seed by running the app's own `seed` subcommand inside the pod: it
+      # uploads fixtures to their Hive-partitioned keys (in-cluster LocalStack
+      # endpoint) and writes the session→prefix mapping to the SQLite DB on
+      # the PVC. Restart afterwards so the serving pod reads the freshly
+      # seeded database.
       - name: Seed transcripts into LocalStack and SQLite (Hive layout)
         run: |
           kubectl exec deploy/localstack -- awslocal s3 mb s3://test-transcripts
-          backend_pod=$(kubectl get pod -l app=claude-transcript-viewer-backend -o jsonpath='{.items[0].metadata.name}')
-          kubectl cp e2e/fixtures "$backend_pod:/tmp/fixtures"
-          kubectl exec "$backend_pod" -- /usr/local/bin/server seed --dir /tmp/fixtures
-          kubectl rollout restart deployment/claude-transcript-viewer-backend
-          kubectl rollout status deployment/claude-transcript-viewer-backend --timeout=120s
+          app_pod=$(kubectl get pod -l app=claude-transcript-viewer -o jsonpath='{.items[0].metadata.name}')
+          kubectl cp e2e/fixtures "$app_pod:/tmp/fixtures"
+          kubectl exec "$app_pod" -- /usr/local/bin/server seed --dir /tmp/fixtures
+          kubectl rollout restart deployment/claude-transcript-viewer
+          kubectl rollout status deployment/claude-transcript-viewer --timeout=120s
 
       - name: Port forward services
         run: |
-          kubectl port-forward svc/claude-transcript-viewer-frontend 8080:80 &
-          kubectl port-forward svc/claude-transcript-viewer-backend 3000:80 &
+          kubectl port-forward svc/claude-transcript-viewer 8080:80 &
           kubectl port-forward svc/localstack 4566:4566 &
           sleep 5
 
@@ -496,7 +439,6 @@ jobs:
       - name: Run E2E tests against kind cluster
         env:
           BASE_URL: http://localhost:8080
-          API_URL: http://localhost:3000
         run: pnpm --filter @claude-transcript-viewer/e2e test
 
       - name: Debug on failure
@@ -505,8 +447,7 @@ jobs:
           kubectl get pods -A
           kubectl describe pods -A
           kubectl logs -l app=localstack --tail=100
-          kubectl logs -l app=claude-transcript-viewer-backend --tail=100
-          kubectl logs -l app=claude-transcript-viewer-frontend --tail=100
+          kubectl logs -l app=claude-transcript-viewer --tail=100
 
       - name: Upload Playwright report
         uses: actions/upload-artifact@v4

@@ -254,21 +254,43 @@ describe('Docker Publish Workflow - Image Tags', () => {
 });
 
 describe('Docker Publish Workflow - Image Builds', () => {
-  it('should build frontend image', () => {
+  it('should build a single application image (no per-service matrix)', () => {
     const content = readFileSync(WORKFLOW_FILE, 'utf-8');
 
     assert.ok(
-      content.includes('frontend'),
-      'Workflow should reference frontend'
+      !/matrix:\s*\n\s*service:/.test(content),
+      'Workflow should not build per-service images via a matrix'
+    );
+    assert.ok(
+      !content.includes('frontend/Dockerfile') && !content.includes('backend/Dockerfile'),
+      'Workflow should not reference the removed per-service Dockerfiles'
     );
   });
 
-  it('should build backend image', () => {
+  it('should build from the root Dockerfile', () => {
     const content = readFileSync(WORKFLOW_FILE, 'utf-8');
 
     assert.ok(
-      content.includes('backend'),
-      'Workflow should reference backend'
+      content.includes('file: ./Dockerfile'),
+      'Workflow should build the root Dockerfile'
+    );
+  });
+
+  it('should name the image after the repository', () => {
+    const content = readFileSync(WORKFLOW_FILE, 'utf-8');
+
+    assert.ok(
+      content.includes('ghcr.io/${{ github.repository }}'),
+      'Workflow should publish the single image under the repository name'
+    );
+  });
+
+  it('should not bake an API URL into the frontend build', () => {
+    const content = readFileSync(WORKFLOW_FILE, 'utf-8');
+
+    assert.ok(
+      !content.includes('VITE_API_URL'),
+      'The bundle calls the API on its own origin; no VITE_API_URL build-arg'
     );
   });
 

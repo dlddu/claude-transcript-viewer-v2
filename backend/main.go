@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -35,7 +36,16 @@ func main() {
 		log.Fatalf("failed to initialize S3 service: %v", err)
 	}
 
-	server := NewServer(svc)
+	var opts []ServerOption
+	if dir := os.Getenv("STATIC_DIR"); dir != "" {
+		if _, err := os.Stat(filepath.Join(dir, "index.html")); err != nil {
+			log.Fatalf("STATIC_DIR %q has no index.html: %v", dir, err)
+		}
+		opts = append(opts, WithStaticDir(dir))
+		log.Printf("Serving static frontend from %s", dir)
+	}
+
+	server := NewServer(svc, opts...)
 	addr := ":" + port
 	log.Printf("Server running on port %s", port)
 	if err := http.ListenAndServe(addr, server); err != nil {

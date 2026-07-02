@@ -12,12 +12,8 @@ permissions:
 
 jobs:
   build-and-push:
-    name: Build and Push Docker Images
+    name: Build and Push Docker Image
     runs-on: ubuntu-24.04-arm
-
-    strategy:
-      matrix:
-        service: [frontend, backend]
 
     steps:
       - name: Checkout code
@@ -37,21 +33,21 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ghcr.io/${{ github.repository }}/${{ matrix.service }}
+          images: ghcr.io/${{ github.repository }}
           tags: |
             type=raw,value=latest
             type=sha,prefix=
 
+      # Single application image: the frontend is built as static files and
+      # served by the Go backend, so there is no per-service matrix.
       - name: Build and push Docker image
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: ./${{ matrix.service }}/Dockerfile
+          file: ./Dockerfile
           platforms: linux/arm64
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          build-args: |
-            ${{ matrix.service == 'frontend' && format('VITE_API_URL={0}', vars.VITE_API_URL || '') || '' }}
           cache-from: type=gha
           cache-to: type=gha,mode=max

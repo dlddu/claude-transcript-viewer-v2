@@ -1,26 +1,39 @@
 # Dependencies
 node_modules
+**/node_modules
 
-# Build output
-dist
+# Build artifacts
+frontend/dist
+backend/server
+backend/*.db
 
 # Git
 .git
 .gitignore
+.github
 
-# Test files
+# Test files and tooling not needed in the image
 **/*.test.*
 **/*.spec.*
-coverage
-src/test
+**/*_test.go
+frontend/src/test
+frontend/coverage
+e2e/tests
+e2e/fixtures
+e2e/playwright-report
+e2e/test-results
+scripts
+k8s
 
 # Documentation
 README.md
-*.md
+**/*.md
 
 # Environment files
 .env
 .env.*
+**/.env
+**/.env.*
 
 # IDE
 .vscode

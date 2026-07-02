@@ -3,8 +3,7 @@ kind: ConfigMap
 metadata:
   name: claude-transcript-viewer-config
   labels:
-    app: claude-transcript-viewer-backend
-    tier: backend
+    app: claude-transcript-viewer
 data:
   PORT: "3000"
   AWS_REGION: "us-east-1"

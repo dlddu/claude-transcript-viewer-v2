@@ -262,25 +262,27 @@ describe('Kind Cluster Workflow - LocalStack Integration', () => {
 });
 
 describe('Kind Cluster Workflow - Docker Build Integration', () => {
-  it('should build frontend Docker image', () => {
+  it('should build the single application Docker image', () => {
     // Arrange
     const content = readFileSync(WORKFLOW_FILE, 'utf-8');
 
     // Assert
     assert.ok(
-      (content.includes('docker build') || content.includes('docker/build-push-action')) && content.includes('frontend'),
-      'Kind E2E job should build frontend Docker image'
+      (content.includes('docker build') || content.includes('docker/build-push-action')) &&
+        content.includes('claude-transcript-viewer:test'),
+      'Kind E2E job should build the unified application image'
     );
   });
 
-  it('should build backend Docker image', () => {
+  it('should not build separate frontend/backend images', () => {
     // Arrange
     const content = readFileSync(WORKFLOW_FILE, 'utf-8');
 
     // Assert
     assert.ok(
-      (content.includes('docker build') || content.includes('docker/build-push-action')) && content.includes('backend'),
-      'Kind E2E job should build backend Docker image'
+      !content.includes('claude-transcript-viewer-frontend:test') &&
+        !content.includes('claude-transcript-viewer-backend:test'),
+      'Kind E2E job should deploy a single workload, not per-service images'
     );
   });
 
