@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -87,6 +88,11 @@ func (m *mockS3Client) PutObject(_ context.Context, in *s3.PutObjectInput, _ ...
 	}
 	m.objects[aws.ToString(in.Key)] = string(body)
 	return &s3.PutObjectOutput{}, nil
+}
+
+func (m *mockS3Client) DeleteObject(_ context.Context, in *s3.DeleteObjectInput, _ ...func(*s3.Options)) (*s3.DeleteObjectOutput, error) {
+	delete(m.objects, aws.ToString(in.Key))
+	return &s3.DeleteObjectOutput{}, nil
 }
 
 // fakePresigner records the keys it was asked to sign and returns
@@ -565,6 +571,89 @@ func TestGetTranscriptFiles_FollowsListPagination(t *testing.T) {
 	}
 	if len(got.Subagents) != 7 {
 		t.Errorf("expected 7 subagents across pages, got %d", len(got.Subagents))
+	}
+}
+
+// --- DeleteTranscriptBySessionId -------------------------------------------
+
+func TestDeleteTranscriptBySessionId_RemovesObjectsAndMapping(t *testing.T) {
+	svc, _, store := newServiceWithSessions(t, map[string]sessionFixture{
+		"session-abc123": abcFixture(t),
+	})
+	mock := svc.client.(*mockS3Client)
+	prefix := hivePrefixFor("session-abc123")
+
+	// Sanity: the main transcript and both subagents are seeded.
+	if len(mock.objects) < 3 {
+		t.Fatalf("expected at least 3 seeded objects, got %d", len(mock.objects))
+	}
+
+	if err := svc.DeleteTranscriptBySessionId(context.Background(), "session-abc123"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	for k := range mock.objects {
+		if strings.HasPrefix(k, prefix) {
+			t.Errorf("object %q under session prefix should have been deleted", k)
+		}
+	}
+	if _, err := store.GetSessionPrefix(context.Background(), "session-abc123"); !errors.Is(err, ErrSessionNotMapped) {
+		t.Errorf("store err = %v, want ErrSessionNotMapped", err)
+	}
+	if _, err := svc.GetTranscriptFiles(context.Background(), "session-abc123"); err != ErrNoSessionTranscriptFound {
+		t.Errorf("read after delete err = %v, want ErrNoSessionTranscriptFound", err)
+	}
+}
+
+func TestDeleteTranscriptBySessionId_NotMappedReturnsNotFound(t *testing.T) {
+	svc, _, _ := newServiceWithSessions(t, map[string]sessionFixture{
+		"session-abc123": abcFixture(t),
+	})
+	mock := svc.client.(*mockS3Client)
+	before := len(mock.objects)
+
+	if err := svc.DeleteTranscriptBySessionId(context.Background(), "session-unmapped"); err != ErrNoSessionTranscriptFound {
+		t.Errorf("err = %v, want ErrNoSessionTranscriptFound", err)
+	}
+	if len(mock.objects) != before {
+		t.Errorf("objects changed %d -> %d; deleting an unmapped session must not touch storage", before, len(mock.objects))
+	}
+}
+
+func TestDeleteTranscriptBySessionId_LeavesOtherSessionsIntact(t *testing.T) {
+	svc, _, store := newServiceWithSessions(t, map[string]sessionFixture{
+		"session-abc123": abcFixture(t),
+		"session-xyz789": xyzFixture(t),
+	})
+	mock := svc.client.(*mockS3Client)
+
+	if err := svc.DeleteTranscriptBySessionId(context.Background(), "session-abc123"); err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+
+	if _, err := store.GetSessionPrefix(context.Background(), "session-xyz789"); err != nil {
+		t.Errorf("other session mapping should remain: %v", err)
+	}
+	otherPrefix := hivePrefixFor("session-xyz789")
+	found := false
+	for k := range mock.objects {
+		if strings.HasPrefix(k, otherPrefix) {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("expected the other session's objects to remain")
+	}
+}
+
+func TestDeleteTranscriptBySessionId_RejectsInvalidInput(t *testing.T) {
+	svc, _, _ := newServiceWithSessions(t, nil)
+
+	if err := svc.DeleteTranscriptBySessionId(context.Background(), "  "); !errors.Is(err, ErrSessionIDRequired) {
+		t.Errorf("err = %v, want ErrSessionIDRequired", err)
+	}
+	if err := svc.DeleteTranscriptBySessionId(context.Background(), "a/b"); !errors.Is(err, ErrSessionIDInvalid) {
+		t.Errorf("err = %v, want ErrSessionIDInvalid", err)
 	}
 }
 

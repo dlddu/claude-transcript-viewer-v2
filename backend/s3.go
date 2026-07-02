@@ -26,6 +26,7 @@ type S3API interface {
 	GetObject(ctx context.Context, in *s3.GetObjectInput, opts ...func(*s3.Options)) (*s3.GetObjectOutput, error)
 	ListObjectsV2(ctx context.Context, in *s3.ListObjectsV2Input, opts ...func(*s3.Options)) (*s3.ListObjectsV2Output, error)
 	PutObject(ctx context.Context, in *s3.PutObjectInput, opts ...func(*s3.Options)) (*s3.PutObjectOutput, error)
+	DeleteObject(ctx context.Context, in *s3.DeleteObjectInput, opts ...func(*s3.Options)) (*s3.DeleteObjectOutput, error)
 }
 
 // Presigner produces presigned S3 requests. *s3.PresignClient satisfies it;
@@ -41,6 +42,7 @@ type SessionStore interface {
 	GetSessionPrefix(ctx context.Context, sessionID string) (string, error)
 	PutSession(ctx context.Context, sessionID, s3Prefix string) error
 	ListSessionIDs(ctx context.Context) ([]string, error)
+	DeleteSession(ctx context.Context, sessionID string) error
 }
 
 // defaultUploadTTL is the lifetime of an issued presigned upload URL.
@@ -403,6 +405,49 @@ func (s *S3Service) listKeys(ctx context.Context, prefix string) ([]string, erro
 		}
 		token = out.NextContinuationToken
 	}
+}
+
+// DeleteTranscriptBySessionId removes every object stored under a session's
+// Hive-partitioned directory (the main transcript plus any subagent files) and
+// then drops the session→prefix mapping. It returns ErrNoSessionTranscriptFound
+// when the session is not mapped so the HTTP layer can answer 404. The mapping
+// is removed last so a mid-delete failure leaves the session still listable and
+// the operation safely retryable.
+func (s *S3Service) DeleteTranscriptBySessionId(ctx context.Context, sessionID string) error {
+	trimmed, err := validateSessionID(sessionID)
+	if err != nil {
+		return err
+	}
+
+	keyPrefix, err := s.store.GetSessionPrefix(ctx, trimmed)
+	if errors.Is(err, ErrSessionNotMapped) {
+		return ErrNoSessionTranscriptFound
+	}
+	if err != nil {
+		return err
+	}
+
+	keys, err := s.listKeys(ctx, keyPrefix)
+	if err != nil {
+		if isNoSuchBucketError(err) {
+			return ErrNoSessionTranscriptFound
+		}
+		return err
+	}
+
+	for _, key := range keys {
+		if _, err := s.client.DeleteObject(ctx, &s3.DeleteObjectInput{
+			Bucket: aws.String(s.bucket),
+			Key:    aws.String(key),
+		}); err != nil {
+			return fmt.Errorf("delete object %q: %w", key, err)
+		}
+	}
+
+	if err := s.store.DeleteSession(ctx, trimmed); err != nil {
+		return fmt.Errorf("delete session mapping %q: %w", trimmed, err)
+	}
+	return nil
 }
 
 func (s *S3Service) presignDownload(ctx context.Context, agentID, key string) (TranscriptFileRef, error) {

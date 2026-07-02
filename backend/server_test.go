@@ -13,10 +13,11 @@ import (
 
 // fakeService implements TranscriptService for handler tests.
 type fakeService struct {
-	getTranscriptFiles  func(ctx context.Context, sessionID string) (TranscriptFilesResponse, error)
-	listTranscripts     func(ctx context.Context) ([]string, error)
-	createUploadURL     func(ctx context.Context, req UploadURLRequest) (UploadURLResponse, error)
-	lastSessionIDPassed string
+	getTranscriptFiles        func(ctx context.Context, sessionID string) (TranscriptFilesResponse, error)
+	listTranscripts           func(ctx context.Context) ([]string, error)
+	createUploadURL           func(ctx context.Context, req UploadURLRequest) (UploadURLResponse, error)
+	deleteTranscriptBySession func(ctx context.Context, sessionID string) error
+	lastSessionIDPassed       string
 }
 
 func (f *fakeService) GetTranscriptFiles(ctx context.Context, sessionID string) (TranscriptFilesResponse, error) {
@@ -39,6 +40,14 @@ func (f *fakeService) CreateUploadURL(ctx context.Context, req UploadURLRequest)
 		return f.createUploadURL(ctx, req)
 	}
 	return UploadURLResponse{}, errors.New("not stubbed")
+}
+
+func (f *fakeService) DeleteTranscriptBySessionId(ctx context.Context, sessionID string) error {
+	f.lastSessionIDPassed = sessionID
+	if f.deleteTranscriptBySession != nil {
+		return f.deleteTranscriptBySession(ctx, sessionID)
+	}
+	return errors.New("not stubbed")
 }
 
 func manifestFor(sessionID string) TranscriptFilesResponse {
@@ -76,6 +85,14 @@ func doPost(t *testing.T, server http.Handler, path, body string) *httptest.Resp
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
 	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	server.ServeHTTP(rec, req)
+	return rec
+}
+
+func doDelete(t *testing.T, server http.Handler, path string) *httptest.ResponseRecorder {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodDelete, path, nil)
 	rec := httptest.NewRecorder()
 	server.ServeHTTP(rec, req)
 	return rec
@@ -211,6 +228,83 @@ func TestHandleGetBySession_TrimsWhitespace(t *testing.T) {
 	body := decodeResponse(t, rec.Body.Bytes())
 	if body["session_id"] != sessionID {
 		t.Errorf("session_id = %v, want %q", body["session_id"], sessionID)
+	}
+}
+
+// --- DELETE /api/transcript/session/:sessionId ------------------------------
+
+func TestHandleDeleteBySession_Success(t *testing.T) {
+	var gotID string
+	fake := &fakeService{
+		deleteTranscriptBySession: func(_ context.Context, sessionID string) error {
+			gotID = sessionID
+			return nil
+		},
+	}
+	server := NewServer(fake)
+
+	rec := doDelete(t, server, "/api/transcript/session/session-abc123")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body=%s", rec.Code, rec.Body.String())
+	}
+	if gotID != "session-abc123" {
+		t.Errorf("service got %q, want session-abc123", gotID)
+	}
+	body := decodeResponse(t, rec.Body.Bytes())
+	if body["status"] != "deleted" {
+		t.Errorf("status = %v, want deleted", body["status"])
+	}
+	if body["session_id"] != "session-abc123" {
+		t.Errorf("session_id = %v, want session-abc123", body["session_id"])
+	}
+}
+
+func TestHandleDeleteBySession_NotFound(t *testing.T) {
+	fake := &fakeService{
+		deleteTranscriptBySession: func(_ context.Context, _ string) error {
+			return ErrNoSessionTranscriptFound
+		},
+	}
+	server := NewServer(fake)
+
+	rec := doDelete(t, server, "/api/transcript/session/session-nonexistent-999")
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404", rec.Code)
+	}
+	body := decodeResponse(t, rec.Body.Bytes())
+	errStr, _ := body["error"].(string)
+	if !strings.Contains(strings.ToLower(errStr), "not found") {
+		t.Errorf("error should mention 'not found', got %q", errStr)
+	}
+}
+
+func TestHandleDeleteBySession_ServiceErrorReturns500(t *testing.T) {
+	fake := &fakeService{
+		deleteTranscriptBySession: func(_ context.Context, _ string) error {
+			return errors.New("S3 connection failed")
+		},
+	}
+	server := NewServer(fake)
+
+	rec := doDelete(t, server, "/api/transcript/session/session-trigger-error")
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+	if _, ok := decodeResponse(t, rec.Body.Bytes())["error"]; !ok {
+		t.Error("expected error field")
+	}
+}
+
+func TestHandleDeleteBySession_BothBasePrefixes(t *testing.T) {
+	fake := &fakeService{
+		deleteTranscriptBySession: func(_ context.Context, _ string) error { return nil },
+	}
+	server := NewServer(fake)
+	for _, base := range []string{"/api/transcripts", "/api/transcript"} {
+		rec := doDelete(t, server, base+"/session/abc")
+		if rec.Code != http.StatusOK {
+			t.Errorf("%s: status = %d, want 200", base, rec.Code)
+		}
 	}
 }
 

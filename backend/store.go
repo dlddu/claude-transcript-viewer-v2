@@ -102,6 +102,20 @@ func (s *Store) PutSession(ctx context.Context, sessionID, s3Prefix string) erro
 	return nil
 }
 
+// DeleteSession removes the mapping for sessionID. Deleting a session that is
+// not mapped is a no-op and not an error, so callers can converge on a clean
+// state without first checking for existence.
+func (s *Store) DeleteSession(ctx context.Context, sessionID string) error {
+	_, err := s.db.ExecContext(ctx,
+		"DELETE FROM transcript_sessions WHERE session_id = ?",
+		sessionID,
+	)
+	if err != nil {
+		return fmt.Errorf("delete session %q: %w", sessionID, err)
+	}
+	return nil
+}
+
 // ListSessionIDs returns every mapped session id, ordered for stable output.
 func (s *Store) ListSessionIDs(ctx context.Context) ([]string, error) {
 	rows, err := s.db.QueryContext(ctx,
