@@ -391,8 +391,11 @@ jobs:
           kubectl apply -f k8s/app/service.yaml
           kubectl set image deployment/claude-transcript-viewer \
             app=claude-transcript-viewer:test
+          # AWS_PUBLIC_ENDPOINT_URL: presigned URLs must point at the
+          # port-forwarded LocalStack the Playwright browser can reach.
           kubectl set env deployment/claude-transcript-viewer \
-            AWS_ENDPOINT_URL=http://localstack:4566
+            AWS_ENDPOINT_URL=http://localstack:4566 \
+            AWS_PUBLIC_ENDPOINT_URL=http://localhost:4566
           kubectl patch deployment claude-transcript-viewer --type=json \
             -p='[{"op": "replace", "path": "/spec/replicas", "value": 1}, {"op": "replace", "path": "/spec/template/spec/containers/0/imagePullPolicy", "value": "IfNotPresent"}]'
 

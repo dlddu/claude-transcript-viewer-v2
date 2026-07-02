@@ -109,14 +109,18 @@ kubectl create configmap claude-transcript-viewer-config \
   --from-literal=AWS_REGION=us-east-1 \
   --from-literal=S3_BUCKET=test-transcripts \
   --from-literal=AWS_ENDPOINT_URL=http://localstack:4566 \
+  --from-literal=AWS_PUBLIC_ENDPOINT_URL=http://localhost:4566 \
   --dry-run=client -o yaml | kubectl apply -f -
 
+# AWS_PUBLIC_ENDPOINT_URL makes presigned URLs resolve for the browser via
+# the port-forwarded LocalStack (kubectl port-forward svc/localstack 4566:4566).
 kubectl create secret generic claude-transcript-viewer-secrets \
   --from-literal=AWS_ACCESS_KEY_ID=test \
   --from-literal=AWS_SECRET_ACCESS_KEY=test \
   --from-literal=AWS_REGION=us-east-1 \
   --from-literal=S3_BUCKET=test-transcripts \
   --from-literal=AWS_ENDPOINT_URL=http://localstack:4566 \
+  --from-literal=AWS_PUBLIC_ENDPOINT_URL=http://localhost:4566 \
   --dry-run=client -o yaml | kubectl apply -f -
 
 # Deploy the application (single workload)
@@ -180,6 +184,8 @@ echo "  The backend API is served from the same origin at http://localhost:8080/
 echo ""
 echo "  LocalStack: kubectl port-forward svc/localstack 4566:4566"
 echo "              AWS_ENDPOINT_URL=http://localhost:4566"
+echo "              Keep this port-forward running while browsing transcripts:"
+echo "              the browser downloads them from presigned localhost:4566 URLs"
 echo ""
 echo "To seed test transcripts (fixtures) into LocalStack + SQLite:"
 echo "  pod=\$(kubectl get pod -l app=claude-transcript-viewer -o jsonpath='{.items[0].metadata.name}')"

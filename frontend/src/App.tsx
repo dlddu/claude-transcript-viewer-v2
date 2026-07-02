@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { TranscriptViewer, TranscriptViewerWithData } from './components/TranscriptViewer';
 import { LookupTabs } from './components/LookupTabs.js';
+import { loadTranscript } from './utils/loadTranscript';
 import type { Transcript } from './types/transcript';
 import './App.css';
 
@@ -31,23 +32,9 @@ function App() {
       setError(undefined);
       setTranscript(null);
 
-      const apiUrl = import.meta.env.VITE_API_URL ?? '';
-      const response = await fetch(`${apiUrl}/api/transcript/session/${sessionId}`);
-
-      if (!response.ok) {
-        let errorMessage = `Transcript not found for session: ${sessionId}`;
-        try {
-          const errorData = await response.json();
-          if (errorData.error) {
-            errorMessage = errorData.error;
-          }
-        } catch {
-          // JSON parsing failed, use default error message
-        }
-        throw new Error(errorMessage);
-      }
-
-      const data = await response.json();
+      // Fetches the presigned-URL manifest, then downloads and parses the
+      // transcript files directly from S3 in the browser.
+      const data = await loadTranscript(sessionId);
       setTranscript(data);
 
       // Do not navigate to avoid re-fetching - display transcript on current page

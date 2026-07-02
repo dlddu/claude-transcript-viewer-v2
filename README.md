@@ -83,8 +83,40 @@ session directory or as any file under a `subagents/` subdirectory.
   (e.g. `?file_name=subagents/agent-xyz.jsonl`) for subagent uploads.
 
 - **Download**: `GET /api/transcript/session/{id}` resolves the S3 prefix
-  from SQLite (returning `404` when a session is not mapped), then lists and
-  merges the main transcript with any subagent files.
+  from SQLite (returning `404` when a session is not mapped), lists the
+  session's objects, and returns a small manifest of **short-lived presigned
+  `GET` URLs** (default 5 minutes, `DOWNLOAD_URL_TTL_SECONDS`) for the main
+  transcript and each subagent file:
+
+  ```json
+  {
+    "session_id": "session-abc123",
+    "expires_in": 300,
+    "main":      {"id": "session-abc123", "name": "session-abc123.jsonl", "key": "year=.../session-abc123.jsonl", "url": "https://..."},
+    "subagents": [{"id": "agent-xyz", "name": "agent-xyz.jsonl", "key": "year=.../agent-xyz.jsonl", "url": "https://..."}]
+  }
+  ```
+
+  The browser downloads the JSONL files directly from S3 and parses, merges,
+  and renders them locally (`frontend/src/utils/loadTranscript.ts`).
+  Transcript bytes never flow through the backend pod, so its memory and
+  bandwidth stay flat regardless of transcript size.
+
+  Two deployment requirements follow from this design:
+
+  - **S3 CORS**: the bucket must allow cross-origin `GET` from the frontend
+    origin, e.g.
+
+    ```json
+    [{"AllowedMethods": ["GET"], "AllowedOrigins": ["https://your-frontend.example.com"], "AllowedHeaders": ["*"], "MaxAgeSeconds": 300}]
+    ```
+
+    (MinIO allows all origins by default; the bundled LocalStack manifest
+    sets `EXTRA_CORS_ALLOWED_ORIGINS` for local dev origins.)
+  - **Public endpoint**: when the backend reaches S3 through an endpoint
+    browsers cannot resolve (e.g. `http://localstack:4566` in-cluster), set
+    `AWS_PUBLIC_ENDPOINT_URL` to the browser-reachable endpoint so presigned
+    URLs are signed for the right host.
 
 - **Seeding / import**: `server seed --dir <fixtures>` uploads a directory of
   `*.jsonl` fixtures to their Hive keys and records the mappings, using the
@@ -298,7 +330,9 @@ DB_PATH=transcripts.db                  # SQLite session index
 AWS_REGION=us-east-1
 S3_BUCKET=test-transcripts
 AWS_ENDPOINT_URL=http://localhost:9000  # For local MinIO
+# AWS_PUBLIC_ENDPOINT_URL=              # Browser-reachable endpoint for presigned URLs
 # UPLOAD_URL_TTL_SECONDS=900            # Presigned upload URL lifetime
+# DOWNLOAD_URL_TTL_SECONDS=300          # Presigned download URL lifetime
 # STATIC_DIR=../frontend/dist           # Serve the built frontend from Go
 
 # Frontend (optional — defaults to the same origin / Vite dev proxy)

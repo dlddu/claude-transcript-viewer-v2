@@ -1,13 +1,10 @@
 package main
 
 import (
-	"bufio"
 	"bytes"
 	"context"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"io"
 	"regexp"
 	"sort"
 	"strings"
@@ -35,6 +32,7 @@ type S3API interface {
 // tests substitute a fake.
 type Presigner interface {
 	PresignPutObject(ctx context.Context, in *s3.PutObjectInput, opts ...func(*s3.PresignOptions)) (*v4.PresignedHTTPRequest, error)
+	PresignGetObject(ctx context.Context, in *s3.GetObjectInput, opts ...func(*s3.PresignOptions)) (*v4.PresignedHTTPRequest, error)
 }
 
 // SessionStore maps a session id to the S3 key prefix holding its transcript
@@ -47,6 +45,11 @@ type SessionStore interface {
 
 // defaultUploadTTL is the lifetime of an issued presigned upload URL.
 const defaultUploadTTL = 15 * time.Minute
+
+// defaultDownloadTTL is the lifetime of an issued presigned download URL.
+// Deliberately short: the browser fetches the files immediately after
+// receiving the manifest, so the URLs only need to survive that round trip.
+const defaultDownloadTTL = 5 * time.Minute
 
 // mainTranscriptName is the object name of a session's primary transcript
 // within its Hive-partitioned directory: the session id plus ".jsonl".
@@ -65,32 +68,39 @@ var (
 )
 
 type S3ServiceConfig struct {
-	Bucket                string
-	Region                string
-	Endpoint              string
+	Bucket   string
+	Region   string
+	Endpoint string
+	// PublicEndpoint, when set, is used only for presigning URLs handed to
+	// browsers. It covers deployments where the backend reaches S3 through an
+	// internal endpoint (e.g. http://localstack:4566 inside a cluster) that
+	// clients outside the cluster cannot resolve.
+	PublicEndpoint        string
 	Prefix                string
 	AssumeRoleARN         string
 	AssumeRoleSessionName string
 	AssumeRoleExternalID  string
 	AssumeRoleDuration    time.Duration
 	UploadURLTTL          time.Duration
+	DownloadURLTTL        time.Duration
 }
 
 type S3Service struct {
-	client    S3API
-	presigner Presigner
-	store     SessionStore
-	bucket    string
-	prefix    string
-	uploadTTL time.Duration
-	now       func() time.Time
+	client      S3API
+	presigner   Presigner
+	store       SessionStore
+	bucket      string
+	prefix      string
+	uploadTTL   time.Duration
+	downloadTTL time.Duration
+	now         func() time.Time
 }
 
 var (
 	ErrSessionIDRequired        = errors.New("Session ID is required")
 	ErrSessionIDInvalid         = errors.New("Session ID contains invalid characters")
 	ErrUploadNameInvalid        = errors.New("Upload file name must match [A-Za-z0-9._-]+.jsonl")
-	ErrNoSessionTranscriptFound = errors.New("No transcript found for session ID")
+	ErrNoSessionTranscriptFound = errors.New("Session transcript not found")
 )
 
 // UploadURLRequest selects which file of a session to issue an upload URL for.
@@ -116,17 +126,21 @@ func NewS3Service(ctx context.Context, cfg S3ServiceConfig, store SessionStore) 
 		return nil, fmt.Errorf("load aws config: %w", err)
 	}
 
-	var clientOpts []func(*s3.Options)
+	endpointOpts := func(endpoint string) []func(*s3.Options) {
+		if endpoint == "" {
+			return nil
+		}
+		return []func(*s3.Options){func(o *s3.Options) {
+			o.BaseEndpoint = aws.String(endpoint)
+			o.UsePathStyle = true
+		}}
+	}
 
 	switch {
 	case cfg.Endpoint != "":
 		ak := envOr("AWS_ACCESS_KEY_ID", "minioadmin")
 		sk := envOr("AWS_SECRET_ACCESS_KEY", "minioadmin")
 		awsCfg.Credentials = credentials.NewStaticCredentialsProvider(ak, sk, "")
-		clientOpts = append(clientOpts, func(o *s3.Options) {
-			o.BaseEndpoint = aws.String(cfg.Endpoint)
-			o.UsePathStyle = true
-		})
 	case cfg.AssumeRoleARN != "":
 		stsClient := sts.NewFromConfig(awsCfg)
 		provider := stscreds.NewAssumeRoleProvider(stsClient, cfg.AssumeRoleARN, func(o *stscreds.AssumeRoleOptions) {
@@ -145,19 +159,33 @@ func NewS3Service(ctx context.Context, cfg S3ServiceConfig, store SessionStore) 
 		awsCfg.Credentials = aws.NewCredentialsCache(provider)
 	}
 
-	client := s3.NewFromConfig(awsCfg, clientOpts...)
-	ttl := cfg.UploadURLTTL
-	if ttl <= 0 {
-		ttl = defaultUploadTTL
+	client := s3.NewFromConfig(awsCfg, endpointOpts(cfg.Endpoint)...)
+
+	// Presign against the public endpoint when it differs from the one the
+	// backend itself uses; SigV4 signs the Host header, so the URL must be
+	// built for the host the browser will actually contact.
+	presignTarget := client
+	if cfg.PublicEndpoint != "" && cfg.PublicEndpoint != cfg.Endpoint {
+		presignTarget = s3.NewFromConfig(awsCfg, endpointOpts(cfg.PublicEndpoint)...)
+	}
+
+	uploadTTL := cfg.UploadURLTTL
+	if uploadTTL <= 0 {
+		uploadTTL = defaultUploadTTL
+	}
+	downloadTTL := cfg.DownloadURLTTL
+	if downloadTTL <= 0 {
+		downloadTTL = defaultDownloadTTL
 	}
 	return &S3Service{
-		client:    client,
-		presigner: s3.NewPresignClient(client),
-		store:     store,
-		bucket:    cfg.Bucket,
-		prefix:    normalizePrefix(cfg.Prefix),
-		uploadTTL: ttl,
-		now:       time.Now,
+		client:      client,
+		presigner:   s3.NewPresignClient(presignTarget),
+		store:       store,
+		bucket:      cfg.Bucket,
+		prefix:      normalizePrefix(cfg.Prefix),
+		uploadTTL:   uploadTTL,
+		downloadTTL: downloadTTL,
+		now:         time.Now,
 	}, nil
 }
 
@@ -166,13 +194,14 @@ func NewS3Service(ctx context.Context, cfg S3ServiceConfig, store SessionStore) 
 // AWS clients.
 func NewS3ServiceWithClient(client S3API, presigner Presigner, store SessionStore, bucket, prefix string) *S3Service {
 	return &S3Service{
-		client:    client,
-		presigner: presigner,
-		store:     store,
-		bucket:    bucket,
-		prefix:    normalizePrefix(prefix),
-		uploadTTL: defaultUploadTTL,
-		now:       time.Now,
+		client:      client,
+		presigner:   presigner,
+		store:       store,
+		bucket:      bucket,
+		prefix:      normalizePrefix(prefix),
+		uploadTTL:   defaultUploadTTL,
+		downloadTTL: defaultDownloadTTL,
+		now:         time.Now,
 	}
 }
 
@@ -284,40 +313,37 @@ func (s *S3Service) ListTranscripts(ctx context.Context) ([]string, error) {
 	return s.store.ListSessionIDs(ctx)
 }
 
-func (s *S3Service) GetTranscriptBySessionId(ctx context.Context, sessionID string) (Transcript, error) {
+// GetTranscriptFiles resolves a session to its transcript objects and returns
+// short-lived presigned GET URLs for each. Clients download the files directly
+// from S3; the backend only lists keys and signs URLs, so its memory and
+// bandwidth cost stays flat regardless of transcript size.
+func (s *S3Service) GetTranscriptFiles(ctx context.Context, sessionID string) (TranscriptFilesResponse, error) {
 	trimmed := strings.TrimSpace(sessionID)
 	if trimmed == "" {
-		return nil, ErrSessionIDRequired
+		return TranscriptFilesResponse{}, ErrSessionIDRequired
 	}
 
 	keyPrefix, err := s.store.GetSessionPrefix(ctx, trimmed)
 	if errors.Is(err, ErrSessionNotMapped) {
-		return nil, ErrNoSessionTranscriptFound
+		return TranscriptFilesResponse{}, ErrNoSessionTranscriptFound
 	}
 	if err != nil {
-		return nil, err
+		return TranscriptFilesResponse{}, err
 	}
 
-	listOut, err := s.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
-		Bucket: aws.String(s.bucket),
-		Prefix: aws.String(keyPrefix),
-	})
+	keys, err := s.listKeys(ctx, keyPrefix)
 	if err != nil {
 		if isNoSuchBucketError(err) {
-			return nil, ErrNoSessionTranscriptFound
+			return TranscriptFilesResponse{}, ErrNoSessionTranscriptFound
 		}
-		return nil, err
-	}
-	if len(listOut.Contents) == 0 {
-		return nil, ErrNoSessionTranscriptFound
+		return TranscriptFilesResponse{}, err
 	}
 
 	mainKey := keyPrefix + mainTranscriptName(trimmed)
 	subagentsPrefix := keyPrefix + subagentsDir
 	var subagentKeys []string
 	hasMain := false
-	for _, item := range listOut.Contents {
-		k := aws.ToString(item.Key)
+	for _, k := range keys {
 		switch {
 		case k == mainKey:
 			hasMain = true
@@ -330,102 +356,77 @@ func (s *S3Service) GetTranscriptBySessionId(ctx context.Context, sessionID stri
 		}
 	}
 	if !hasMain {
-		return nil, ErrNoSessionTranscriptFound
+		return TranscriptFilesResponse{}, ErrNoSessionTranscriptFound
 	}
-
-	mainOut, err := s.client.GetObject(ctx, &s3.GetObjectInput{
-		Bucket: aws.String(s.bucket),
-		Key:    aws.String(mainKey),
-	})
-	if err != nil {
-		return nil, err
-	}
-	defer mainOut.Body.Close()
-
-	body, err := io.ReadAll(mainOut.Body)
-	if err != nil {
-		return nil, err
-	}
-	bodyStr := string(body)
-
-	mainMessages, err := parseJSONLines(body)
-	if err != nil {
-		return nil, fmt.Errorf("parse main jsonl: %w", err)
-	}
-
-	transcript := Transcript{}
-	transcript.SetString("id", trimmed)
-	transcript.SetString("session_id", trimmed)
-	transcript.SetString("content", bodyStr)
-
-	for _, msg := range mainMessages {
-		if msg.GetString("agentId") == "" {
-			msg.SetString("agentId", trimmed)
-		}
-	}
-
-	allMessages := append([]TranscriptMessage{}, mainMessages...)
-
 	sort.Strings(subagentKeys)
-	subagents := make([]SubagentTranscript, 0, len(subagentKeys))
+
+	main, err := s.presignDownload(ctx, trimmed, mainKey)
+	if err != nil {
+		return TranscriptFilesResponse{}, err
+	}
+	subagents := make([]TranscriptFileRef, 0, len(subagentKeys))
 	for _, k := range subagentKeys {
-		sub, msgs, err := s.fetchSubagent(ctx, k)
+		ref, err := s.presignDownload(ctx, agentIDFromKey(k), k)
 		if err != nil {
-			continue
+			return TranscriptFilesResponse{}, err
 		}
-		subagents = append(subagents, sub)
-		allMessages = append(allMessages, msgs...)
+		subagents = append(subagents, ref)
 	}
 
-	if len(subagents) > 0 {
-		transcript.SetAny("subagents", subagents)
-	}
-
-	sort.SliceStable(allMessages, func(i, j int) bool {
-		ti := parseTimestamp(allMessages[i].GetString("timestamp"))
-		tj := parseTimestamp(allMessages[j].GetString("timestamp"))
-		return ti.Before(tj)
-	})
-
-	transcript.SetAny("messages", allMessages)
-	return transcript, nil
+	return TranscriptFilesResponse{
+		SessionID: trimmed,
+		ExpiresIn: int(s.downloadTTL.Seconds()),
+		Main:      main,
+		Subagents: subagents,
+	}, nil
 }
 
-func (s *S3Service) fetchSubagent(ctx context.Context, key string) (SubagentTranscript, []TranscriptMessage, error) {
-	out, err := s.client.GetObject(ctx, &s3.GetObjectInput{
+// listKeys returns every object key under prefix, following continuation
+// tokens so sessions with more than one page of objects are fully listed.
+func (s *S3Service) listKeys(ctx context.Context, prefix string) ([]string, error) {
+	var keys []string
+	var token *string
+	for {
+		out, err := s.client.ListObjectsV2(ctx, &s3.ListObjectsV2Input{
+			Bucket:            aws.String(s.bucket),
+			Prefix:            aws.String(prefix),
+			ContinuationToken: token,
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, item := range out.Contents {
+			keys = append(keys, aws.ToString(item.Key))
+		}
+		if !aws.ToBool(out.IsTruncated) || out.NextContinuationToken == nil {
+			return keys, nil
+		}
+		token = out.NextContinuationToken
+	}
+}
+
+func (s *S3Service) presignDownload(ctx context.Context, agentID, key string) (TranscriptFileRef, error) {
+	presigned, err := s.presigner.PresignGetObject(ctx, &s3.GetObjectInput{
 		Bucket: aws.String(s.bucket),
 		Key:    aws.String(key),
+	}, func(o *s3.PresignOptions) {
+		o.Expires = s.downloadTTL
 	})
 	if err != nil {
-		return SubagentTranscript{}, nil, err
+		return TranscriptFileRef{}, fmt.Errorf("presign get object %q: %w", key, err)
 	}
-	defer out.Body.Close()
+	return TranscriptFileRef{
+		ID:   agentID,
+		Name: baseName(key),
+		Key:  key,
+		URL:  presigned.URL,
+	}, nil
+}
 
-	body, err := io.ReadAll(out.Body)
-	if err != nil {
-		return SubagentTranscript{}, nil, err
-	}
-
-	agentID := strings.TrimSuffix(baseName(key), ".jsonl")
-
-	messages, err := parseJSONLines(body)
-	if err != nil {
-		return SubagentTranscript{}, nil, err
-	}
-
-	for _, msg := range messages {
-		if msg.GetString("agentId") == "" {
-			msg.SetString("agentId", agentID)
-		}
-	}
-
-	return SubagentTranscript{
-		ID:             agentID,
-		Name:           agentID,
-		TranscriptFile: key,
-		Content:        string(body),
-		Messages:       messages,
-	}, messages, nil
+// agentIDFromKey derives a subagent's id from its object key: the file base
+// name without the ".jsonl" extension (matching how transcripts are uploaded).
+func agentIDFromKey(key string) string {
+	return strings.TrimSuffix(baseName(key), ".jsonl")
 }
 
 func baseName(key string) string {
@@ -433,37 +434,6 @@ func baseName(key string) string {
 		return key[i+1:]
 	}
 	return key
-}
-
-func parseJSONLines(body []byte) ([]TranscriptMessage, error) {
-	var out []TranscriptMessage
-	scanner := bufio.NewScanner(bytes.NewReader(body))
-	scanner.Buffer(make([]byte, 64*1024), 4*1024*1024)
-	for scanner.Scan() {
-		line := bytes.TrimSpace(scanner.Bytes())
-		if len(line) == 0 {
-			continue
-		}
-		var msg TranscriptMessage
-		if err := json.Unmarshal(line, &msg); err != nil {
-			return nil, err
-		}
-		out = append(out, msg)
-	}
-	if err := scanner.Err(); err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-func parseTimestamp(s string) time.Time {
-	if t, err := time.Parse(time.RFC3339Nano, s); err == nil {
-		return t
-	}
-	if t, err := time.Parse(time.RFC3339, s); err == nil {
-		return t
-	}
-	return time.Time{}
 }
 
 func isNoSuchBucketError(err error) bool {

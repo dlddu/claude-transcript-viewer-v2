@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"os"
@@ -19,8 +19,11 @@ import (
 )
 
 // mockS3Client implements S3API backed by an in-memory map keyed by S3 key.
+// pageSize, when > 0, paginates ListObjectsV2 responses to exercise
+// continuation-token handling.
 type mockS3Client struct {
-	objects map[string]string
+	objects  map[string]string
+	pageSize int
 }
 
 func (m *mockS3Client) GetObject(_ context.Context, in *s3.GetObjectInput, _ ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
@@ -43,15 +46,35 @@ func (m *mockS3Client) ListObjectsV2(_ context.Context, in *s3.ListObjectsV2Inpu
 		}
 	}
 	sort.Strings(keys)
-	if len(keys) == 0 {
-		return &s3.ListObjectsV2Output{}, nil
+
+	// Resume after the continuation token (the last key of the prior page).
+	if token := aws.ToString(in.ContinuationToken); token != "" {
+		start := 0
+		for i, k := range keys {
+			if k > token {
+				start = i
+				break
+			}
+			start = i + 1
+		}
+		keys = keys[start:]
 	}
-	contents := make([]s3types.Object, 0, len(keys))
+
+	truncated := false
+	if m.pageSize > 0 && len(keys) > m.pageSize {
+		keys = keys[:m.pageSize]
+		truncated = true
+	}
+
+	out := &s3.ListObjectsV2Output{IsTruncated: aws.Bool(truncated)}
+	if truncated {
+		out.NextContinuationToken = aws.String(keys[len(keys)-1])
+	}
 	for _, k := range keys {
 		k := k
-		contents = append(contents, s3types.Object{Key: &k})
+		out.Contents = append(out.Contents, s3types.Object{Key: &k})
 	}
-	return &s3.ListObjectsV2Output{Contents: contents}, nil
+	return out, nil
 }
 
 func (m *mockS3Client) PutObject(_ context.Context, in *s3.PutObjectInput, _ ...func(*s3.Options)) (*s3.PutObjectOutput, error) {
@@ -66,10 +89,12 @@ func (m *mockS3Client) PutObject(_ context.Context, in *s3.PutObjectInput, _ ...
 	return &s3.PutObjectOutput{}, nil
 }
 
-// fakePresigner records the last key it was asked to sign and returns a
-// deterministic URL.
+// fakePresigner records the keys it was asked to sign and returns
+// deterministic URLs.
 type fakePresigner struct {
-	lastKey string
+	lastKey        string
+	getKeys        []string
+	lastGetExpires time.Duration
 }
 
 func (f *fakePresigner) PresignPutObject(_ context.Context, in *s3.PutObjectInput, _ ...func(*s3.PresignOptions)) (*v4.PresignedHTTPRequest, error) {
@@ -77,6 +102,22 @@ func (f *fakePresigner) PresignPutObject(_ context.Context, in *s3.PutObjectInpu
 	return &v4.PresignedHTTPRequest{
 		URL:          "https://s3.example.com/" + aws.ToString(in.Bucket) + "/" + aws.ToString(in.Key) + "?X-Amz-Signature=fake",
 		Method:       http.MethodPut,
+		SignedHeader: http.Header{},
+	}, nil
+}
+
+func (f *fakePresigner) PresignGetObject(_ context.Context, in *s3.GetObjectInput, opts ...func(*s3.PresignOptions)) (*v4.PresignedHTTPRequest, error) {
+	key := aws.ToString(in.Key)
+	f.getKeys = append(f.getKeys, key)
+	var po s3.PresignOptions
+	for _, o := range opts {
+		o(&po)
+	}
+	f.lastGetExpires = po.Expires
+	return &v4.PresignedHTTPRequest{
+		URL: fmt.Sprintf("https://s3.example.com/%s/%s?X-Amz-Expires=%d&X-Amz-Signature=fake",
+			aws.ToString(in.Bucket), key, int(po.Expires.Seconds())),
+		Method:       http.MethodGet,
 		SignedHeader: http.Header{},
 	}, nil
 }
@@ -321,138 +362,136 @@ func TestCreateUploadURL_AcceptsSubagentsSubdir(t *testing.T) {
 	}
 }
 
-// --- GetTranscriptBySessionId ----------------------------------------------
+// --- GetTranscriptFiles ------------------------------------------------------
 
-func TestGetTranscriptBySessionId_NotMappedReturnsNotFound(t *testing.T) {
+func TestGetTranscriptFiles_NotMappedReturnsNotFound(t *testing.T) {
 	svc := abcService(t)
-	_, err := svc.GetTranscriptBySessionId(context.Background(), "session-unmapped")
+	_, err := svc.GetTranscriptFiles(context.Background(), "session-unmapped")
 	if err != ErrNoSessionTranscriptFound {
 		t.Errorf("err = %v, want ErrNoSessionTranscriptFound", err)
 	}
 }
 
-func TestGetTranscriptBySessionId_MergesMainAndSubagentTimeline(t *testing.T) {
+func TestGetTranscriptFiles_EmptySessionIDRequired(t *testing.T) {
 	svc := abcService(t)
-	sessionID := "session-abc123"
-
-	got, err := svc.GetTranscriptBySessionId(context.Background(), sessionID)
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	if got.GetString("session_id") != sessionID {
-		t.Errorf("session_id = %q, want %q", got.GetString("session_id"), sessionID)
-	}
-	msgs := decodeMessages(t, got)
-	if len(msgs) <= 2 {
-		t.Errorf("expected > 2 merged messages, got %d", len(msgs))
-	}
-	var main, sub int
-	for _, m := range msgs {
-		if m.GetString("sessionId") == sessionID {
-			main++
-		} else {
-			sub++
-		}
-	}
-	if main == 0 {
-		t.Error("expected at least one main message")
-	}
-	if sub == 0 {
-		t.Error("expected at least one subagent message")
+	_, err := svc.GetTranscriptFiles(context.Background(), "   ")
+	if err != ErrSessionIDRequired {
+		t.Errorf("err = %v, want ErrSessionIDRequired", err)
 	}
 }
 
-func TestGetTranscriptBySessionId_SortsByTimestamp(t *testing.T) {
-	svc := abcService(t)
-	got, err := svc.GetTranscriptBySessionId(context.Background(), "session-abc123")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
+func TestGetTranscriptFiles_MissingMainReturnsNotFound(t *testing.T) {
+	// Session mapped and subagent present, but no "<session>.jsonl" main file.
+	store := newTestStore(t)
+	prefix := hivePrefixFor("session-nomain")
+	if err := store.PutSession(context.Background(), "session-nomain", prefix); err != nil {
+		t.Fatalf("put session: %v", err)
 	}
-	msgs := decodeMessages(t, got)
-	if len(msgs) <= 1 {
-		t.Fatalf("not enough messages to test ordering: %d", len(msgs))
-	}
-	for i := 1; i < len(msgs); i++ {
-		prev := parseTimestamp(msgs[i-1].GetString("timestamp"))
-		curr := parseTimestamp(msgs[i].GetString("timestamp"))
-		if curr.Before(prev) {
-			t.Errorf("messages out of order at %d: %v before %v", i, curr, prev)
-		}
+	client := &mockS3Client{objects: map[string]string{
+		prefix + "agent-only.jsonl": "{}",
+	}}
+	svc := NewS3ServiceWithClient(client, &fakePresigner{}, store, "test-transcripts", "")
+
+	_, err := svc.GetTranscriptFiles(context.Background(), "session-nomain")
+	if err != ErrNoSessionTranscriptFound {
+		t.Errorf("err = %v, want ErrNoSessionTranscriptFound", err)
 	}
 }
 
-func TestGetTranscriptBySessionId_AddsAgentIdToAllMessages(t *testing.T) {
-	svc := abcService(t)
-	got, err := svc.GetTranscriptBySessionId(context.Background(), "session-abc123")
+func TestGetTranscriptFiles_ReturnsPresignedMain(t *testing.T) {
+	svc, presigner, _ := newServiceWithSessions(t, map[string]sessionFixture{
+		"session-xyz789": xyzFixture(t),
+	})
+
+	got, err := svc.GetTranscriptFiles(context.Background(), "session-xyz789")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	for _, m := range decodeMessages(t, got) {
-		if m.GetString("agentId") == "" {
-			t.Errorf("message missing agentId: %v", m)
-		}
+	if got.SessionID != "session-xyz789" {
+		t.Errorf("session_id = %q, want session-xyz789", got.SessionID)
+	}
+	wantKey := hivePrefixFor("session-xyz789") + "session-xyz789.jsonl"
+	if got.Main.Key != wantKey {
+		t.Errorf("main key = %q, want %q", got.Main.Key, wantKey)
+	}
+	if got.Main.ID != "session-xyz789" {
+		t.Errorf("main id = %q, want session id", got.Main.ID)
+	}
+	if got.Main.Name != "session-xyz789.jsonl" {
+		t.Errorf("main name = %q, want session-xyz789.jsonl", got.Main.Name)
+	}
+	if !strings.Contains(got.Main.URL, wantKey) || !strings.Contains(got.Main.URL, "X-Amz-Signature") {
+		t.Errorf("main url %q should be a presigned URL for %q", got.Main.URL, wantKey)
+	}
+	if len(presigner.getKeys) != 1 || presigner.getKeys[0] != wantKey {
+		t.Errorf("presigned keys = %v, want [%q]", presigner.getKeys, wantKey)
+	}
+	if len(got.Subagents) != 0 {
+		t.Errorf("expected no subagents, got %d", len(got.Subagents))
 	}
 }
 
-func TestGetTranscriptBySessionId_MainMessagesUseSessionIdAsAgentId(t *testing.T) {
-	svc := abcService(t)
-	sessionID := "session-abc123"
-	got, err := svc.GetTranscriptBySessionId(context.Background(), sessionID)
+func TestGetTranscriptFiles_UsesShortDownloadTTL(t *testing.T) {
+	svc, presigner, _ := newServiceWithSessions(t, map[string]sessionFixture{
+		"session-xyz789": xyzFixture(t),
+	})
+
+	got, err := svc.GetTranscriptFiles(context.Background(), "session-xyz789")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	for _, m := range decodeMessages(t, got) {
-		if m.GetString("sessionId") == sessionID && m.GetString("agentId") != sessionID {
-			t.Errorf("main message agentId = %q, want %q", m.GetString("agentId"), sessionID)
-		}
+	if got.ExpiresIn != int(defaultDownloadTTL.Seconds()) {
+		t.Errorf("expires_in = %d, want %d", got.ExpiresIn, int(defaultDownloadTTL.Seconds()))
 	}
-}
+	if presigner.lastGetExpires != defaultDownloadTTL {
+		t.Errorf("presign expires = %v, want %v", presigner.lastGetExpires, defaultDownloadTTL)
+	}
 
-func TestGetTranscriptBySessionId_SubagentMessagesUseTheirOwnSessionId(t *testing.T) {
-	svc := abcService(t)
-	sessionID := "session-abc123"
-	got, err := svc.GetTranscriptBySessionId(context.Background(), sessionID)
+	svc.downloadTTL = 90 * time.Second
+	got, err = svc.GetTranscriptFiles(context.Background(), "session-xyz789")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	for _, m := range decodeMessages(t, got) {
-		if m.GetString("sessionId") == sessionID {
-			continue
-		}
-		if m.GetString("agentId") != m.GetString("sessionId") {
-			t.Errorf("subagent message agentId = %q, want %q", m.GetString("agentId"), m.GetString("sessionId"))
-		}
-		if m.GetString("agentId") == sessionID {
-			t.Errorf("subagent message agentId should differ from main session id")
-		}
+	if got.ExpiresIn != 90 {
+		t.Errorf("expires_in = %d, want 90", got.ExpiresIn)
+	}
+	if presigner.lastGetExpires != 90*time.Second {
+		t.Errorf("presign expires = %v, want 90s", presigner.lastGetExpires)
 	}
 }
 
-func TestGetTranscriptBySessionId_AttachesSubagents(t *testing.T) {
-	svc := abcService(t)
-	got, err := svc.GetTranscriptBySessionId(context.Background(), "session-abc123")
+func TestGetTranscriptFiles_DiscoversSubagentsInSessionDir(t *testing.T) {
+	svc, presigner, _ := newServiceWithSessions(t, map[string]sessionFixture{
+		"session-abc123": abcFixture(t),
+	})
+
+	got, err := svc.GetTranscriptFiles(context.Background(), "session-abc123")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	raw, ok := got["subagents"]
-	if !ok {
-		t.Fatal("missing subagents field")
+	if len(got.Subagents) != 2 {
+		t.Fatalf("expected 2 subagents, got %d", len(got.Subagents))
 	}
-	var subs []SubagentTranscript
-	if err := json.Unmarshal(raw, &subs); err != nil {
-		t.Fatalf("subagents not array: %v", err)
-	}
-	if len(subs) == 0 {
-		t.Fatal("expected subagents")
-	}
-	for _, s := range subs {
-		if len(s.Messages) == 0 {
-			t.Errorf("subagent %q missing messages", s.ID)
+	// sort.Strings on keys makes the order deterministic.
+	wantIDs := []string{"agent-a1b2c3d", "agent-xyz789"}
+	for i, sub := range got.Subagents {
+		if sub.ID != wantIDs[i] {
+			t.Errorf("subagent[%d].id = %q, want %q", i, sub.ID, wantIDs[i])
 		}
+		if sub.Name != wantIDs[i]+".jsonl" {
+			t.Errorf("subagent[%d].name = %q, want %q", i, sub.Name, wantIDs[i]+".jsonl")
+		}
+		if !strings.Contains(sub.URL, sub.Key) || !strings.Contains(sub.URL, "X-Amz-Signature") {
+			t.Errorf("subagent url %q should be presigned for %q", sub.URL, sub.Key)
+		}
+	}
+	// Main + 2 subagents signed.
+	if len(presigner.getKeys) != 3 {
+		t.Errorf("expected 3 presigned keys, got %v", presigner.getKeys)
 	}
 }
 
-func TestGetTranscriptBySessionId_DiscoversSubagentsSubdir(t *testing.T) {
+func TestGetTranscriptFiles_DiscoversSubagentsSubdir(t *testing.T) {
 	svc, _, _ := newServiceWithSessions(t, map[string]sessionFixture{
 		"session-abc123": {
 			main: readFixture(t, "session-abc123.jsonl"),
@@ -463,234 +502,69 @@ func TestGetTranscriptBySessionId_DiscoversSubagentsSubdir(t *testing.T) {
 		},
 	})
 
-	got, err := svc.GetTranscriptBySessionId(context.Background(), "session-abc123")
+	got, err := svc.GetTranscriptFiles(context.Background(), "session-abc123")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-
-	var subs []SubagentTranscript
-	if raw, ok := got["subagents"]; ok {
-		if err := json.Unmarshal(raw, &subs); err != nil {
-			t.Fatalf("subagents not array: %v", err)
+	if len(got.Subagents) != 2 {
+		t.Fatalf("expected 2 subagents from subagents/ subdir, got %d", len(got.Subagents))
+	}
+	for _, sub := range got.Subagents {
+		if !strings.HasPrefix(sub.Key, "year=2026/") || !strings.Contains(sub.Key, "/subagents/") {
+			t.Errorf("subagent key %q should live under subagents/", sub.Key)
 		}
-	}
-	if len(subs) != 2 {
-		t.Fatalf("expected 2 subagents from subagents/ subdir, got %d", len(subs))
-	}
-	for _, s := range subs {
-		if !strings.HasPrefix(s.TranscriptFile, "year=2026/") || !strings.Contains(s.TranscriptFile, "/subagents/") {
-			t.Errorf("subagent file %q should live under subagents/", s.TranscriptFile)
-		}
-		if len(s.Messages) == 0 {
-			t.Errorf("subagent %q missing messages", s.ID)
-		}
-	}
-
-	// Subagent messages must still merge into the unified timeline.
-	sub := 0
-	for _, m := range decodeMessages(t, got) {
-		if m.GetString("sessionId") != "session-abc123" {
-			sub++
-		}
-	}
-	if sub == 0 {
-		t.Error("expected subagent messages merged into the timeline")
-	}
-}
-
-func TestGetTranscriptBySessionId_ParsesJSONLLineStructure(t *testing.T) {
-	svc := abcService(t)
-	got, err := svc.GetTranscriptBySessionId(context.Background(), "session-abc123")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	for _, m := range decodeMessages(t, got) {
-		for _, k := range []string{"type", "sessionId", "timestamp", "uuid", "parentUuid"} {
-			if _, ok := m[k]; !ok {
-				t.Errorf("message missing required field %q", k)
-			}
+		if strings.Contains(sub.ID, "/") {
+			t.Errorf("subagent id %q should be a bare agent id", sub.ID)
 		}
 	}
 }
 
-func TestGetTranscriptBySessionId_HandlesSessionWithoutSubagents(t *testing.T) {
-	svc, _, _ := newServiceWithSessions(t, map[string]sessionFixture{
-		"session-xyz789": xyzFixture(t),
-	})
-	sessionID := "session-xyz789"
-	got, err := svc.GetTranscriptBySessionId(context.Background(), sessionID)
+func TestGetTranscriptFiles_IgnoresUnrelatedObjects(t *testing.T) {
+	store := newTestStore(t)
+	prefix := hivePrefixFor("session-x")
+	if err := store.PutSession(context.Background(), "session-x", prefix); err != nil {
+		t.Fatalf("put session: %v", err)
+	}
+	client := &mockS3Client{objects: map[string]string{
+		prefix + "session-x.jsonl": "{}",
+		prefix + "notes.txt":       "not a transcript",
+		prefix + "other.jsonl":     "{}",
+	}}
+	svc := NewS3ServiceWithClient(client, &fakePresigner{}, store, "test-transcripts", "")
+
+	got, err := svc.GetTranscriptFiles(context.Background(), "session-x")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	if got.GetString("session_id") != sessionID {
-		t.Errorf("session_id = %q, want %q", got.GetString("session_id"), sessionID)
-	}
-	for _, m := range decodeMessages(t, got) {
-		if m.GetString("sessionId") != sessionID {
-			t.Errorf("sessionId = %q, want %q", m.GetString("sessionId"), sessionID)
-		}
-		if m.GetString("agentId") != sessionID {
-			t.Errorf("agentId = %q, want %q", m.GetString("agentId"), sessionID)
-		}
-	}
-	if raw, ok := got["subagents"]; ok {
-		var subs []SubagentTranscript
-		_ = json.Unmarshal(raw, &subs)
-		if len(subs) != 0 {
-			t.Errorf("expected no subagents, got %d", len(subs))
-		}
+	if len(got.Subagents) != 0 {
+		t.Errorf("expected unrelated files to be ignored, got %v", got.Subagents)
 	}
 }
 
-func TestGetTranscriptBySessionId_PreservesMessageMetadata(t *testing.T) {
-	svc := abcService(t)
-	got, err := svc.GetTranscriptBySessionId(context.Background(), "session-abc123")
+func TestGetTranscriptFiles_FollowsListPagination(t *testing.T) {
+	// More objects than one page: the main file sorts after the subagent
+	// files, so missing pagination would lose it (or the trailing subagents).
+	store := newTestStore(t)
+	prefix := hivePrefixFor("session-big")
+	if err := store.PutSession(context.Background(), "session-big", prefix); err != nil {
+		t.Fatalf("put session: %v", err)
+	}
+	objects := map[string]string{prefix + "session-big.jsonl": "{}"}
+	for i := 0; i < 7; i++ {
+		objects[fmt.Sprintf("%sagent-%02d.jsonl", prefix, i)] = "{}"
+	}
+	client := &mockS3Client{objects: objects, pageSize: 2}
+	svc := NewS3ServiceWithClient(client, &fakePresigner{}, store, "test-transcripts", "")
+
+	got, err := svc.GetTranscriptFiles(context.Background(), "session-big")
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	for _, m := range decodeMessages(t, got) {
-		if rawMsg, ok := m["message"]; ok {
-			var inner map[string]json.RawMessage
-			if err := json.Unmarshal(rawMsg, &inner); err != nil {
-				t.Fatalf("message field not object: %v", err)
-			}
-			if _, ok := inner["role"]; !ok {
-				t.Error("message.role missing")
-			}
-			if _, ok := inner["content"]; !ok {
-				t.Error("message.content missing")
-			}
-		}
+	if got.Main.Key != prefix+"session-big.jsonl" {
+		t.Errorf("main key = %q, want %q", got.Main.Key, prefix+"session-big.jsonl")
 	}
-}
-
-func TestGetTranscriptBySessionId_PreservesContentBlockShape(t *testing.T) {
-	svc := abcService(t)
-	got, err := svc.GetTranscriptBySessionId(context.Background(), "session-abc123")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	for _, m := range decodeMessages(t, got) {
-		inner := decodeInnerMessage(t, m)
-		if inner == nil {
-			continue
-		}
-		content, ok := inner["content"]
-		if !ok {
-			continue
-		}
-		var arr []map[string]json.RawMessage
-		if err := json.Unmarshal(content, &arr); err != nil {
-			continue // string content is fine too
-		}
-		for _, block := range arr {
-			if _, ok := block["type"]; !ok {
-				t.Error("content block missing type field")
-			}
-		}
-	}
-}
-
-// --- Tool use / tool result matching ---------------------------------------
-
-func TestToolUseBlocks_HaveRequiredFields(t *testing.T) {
-	svc := abcService(t)
-	got, err := svc.GetTranscriptBySessionId(context.Background(), "session-abc123")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	found := 0
-	for _, m := range decodeMessages(t, got) {
-		for _, block := range decodeContentBlocks(t, m) {
-			if blockType(block) != "tool_use" {
-				continue
-			}
-			found++
-			for _, k := range []string{"id", "name", "input"} {
-				if _, ok := block[k]; !ok {
-					t.Errorf("tool_use block missing %q", k)
-				}
-			}
-		}
-	}
-	if found == 0 {
-		t.Error("expected at least one tool_use block in fixtures")
-	}
-}
-
-func TestToolResultBlocks_HaveRequiredFields(t *testing.T) {
-	svc := abcService(t)
-	got, err := svc.GetTranscriptBySessionId(context.Background(), "session-abc123")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	found := 0
-	for _, m := range decodeMessages(t, got) {
-		for _, block := range decodeContentBlocks(t, m) {
-			if blockType(block) != "tool_result" {
-				continue
-			}
-			found++
-			for _, k := range []string{"tool_use_id", "content"} {
-				if _, ok := block[k]; !ok {
-					t.Errorf("tool_result block missing %q", k)
-				}
-			}
-		}
-	}
-	if found == 0 {
-		t.Error("expected at least one tool_result block in fixtures")
-	}
-}
-
-func TestToolUseMatchesToolResultByID(t *testing.T) {
-	svc := abcService(t)
-	got, err := svc.GetTranscriptBySessionId(context.Background(), "session-abc123")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-
-	uses := map[string]bool{}
-	for _, m := range decodeMessages(t, got) {
-		for _, block := range decodeContentBlocks(t, m) {
-			if blockType(block) == "tool_use" {
-				uses[rawString(block["id"])] = true
-			}
-		}
-	}
-	for _, m := range decodeMessages(t, got) {
-		for _, block := range decodeContentBlocks(t, m) {
-			if blockType(block) != "tool_result" {
-				continue
-			}
-			id := rawString(block["tool_use_id"])
-			if !uses[id] {
-				t.Errorf("tool_result references unknown tool_use_id %q", id)
-			}
-		}
-	}
-}
-
-func TestToolResultArrivesAfterToolUse(t *testing.T) {
-	svc := abcService(t)
-	got, err := svc.GetTranscriptBySessionId(context.Background(), "session-abc123")
-	if err != nil {
-		t.Fatalf("unexpected error: %v", err)
-	}
-	useTime := map[string]time.Time{}
-	for _, m := range decodeMessages(t, got) {
-		ts := parseTimestamp(m.GetString("timestamp"))
-		for _, block := range decodeContentBlocks(t, m) {
-			switch blockType(block) {
-			case "tool_use":
-				useTime[rawString(block["id"])] = ts
-			case "tool_result":
-				id := rawString(block["tool_use_id"])
-				if prev, ok := useTime[id]; ok && ts.Before(prev) {
-					t.Errorf("tool_result before tool_use for id %q", id)
-				}
-			}
-		}
+	if len(got.Subagents) != 7 {
+		t.Errorf("expected 7 subagents across pages, got %d", len(got.Subagents))
 	}
 }
 
@@ -782,65 +656,14 @@ func TestNewS3Service_EndpointTakesPrecedenceOverAssumeRole(t *testing.T) {
 	}
 }
 
-// --- helpers ---------------------------------------------------------------
-
-func decodeMessages(t *testing.T, transcript Transcript) []TranscriptMessage {
-	t.Helper()
-	raw, ok := transcript["messages"]
-	if !ok {
-		return nil
+func TestNewS3Service_AcceptsPublicEndpoint(t *testing.T) {
+	_, err := NewS3Service(context.Background(), S3ServiceConfig{
+		Bucket:         "test-bucket",
+		Region:         "us-east-1",
+		Endpoint:       "http://localstack:4566",
+		PublicEndpoint: "http://localhost:4566",
+	}, newTestStore(t))
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
 	}
-	var msgs []TranscriptMessage
-	if err := json.Unmarshal(raw, &msgs); err != nil {
-		t.Fatalf("decode messages: %v", err)
-	}
-	return msgs
-}
-
-func decodeInnerMessage(t *testing.T, m TranscriptMessage) map[string]json.RawMessage {
-	t.Helper()
-	raw, ok := m["message"]
-	if !ok {
-		return nil
-	}
-	var inner map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &inner); err != nil {
-		return nil
-	}
-	return inner
-}
-
-func decodeContentBlocks(t *testing.T, m TranscriptMessage) []map[string]json.RawMessage {
-	t.Helper()
-	inner := decodeInnerMessage(t, m)
-	if inner == nil {
-		return nil
-	}
-	raw, ok := inner["content"]
-	if !ok {
-		return nil
-	}
-	var arr []map[string]json.RawMessage
-	if err := json.Unmarshal(raw, &arr); err != nil {
-		return nil
-	}
-	return arr
-}
-
-func blockType(block map[string]json.RawMessage) string {
-	raw, ok := block["type"]
-	if !ok {
-		return ""
-	}
-	var s string
-	if err := json.Unmarshal(raw, &s); err != nil {
-		return ""
-	}
-	return s
-}
-
-func rawString(raw json.RawMessage) string {
-	var s string
-	_ = json.Unmarshal(raw, &s)
-	return s
 }

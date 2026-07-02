@@ -40,7 +40,6 @@ interface TranscriptViewerProps {
 
 export function TranscriptViewer({ transcript: propTranscript, error: propError }: TranscriptViewerProps = {}) {
   const [expandedSubagents, setExpandedSubagents] = useState<Set<string>>(new Set());
-  const [subagentData, setSubagentData] = useState<Map<string, Transcript>>(new Map());
   const [expandedTools, setExpandedTools] = useState<Set<string>>(new Set());
   const [expandedSubagentGroups, setExpandedSubagentGroups] = useState<Set<string>>(new Set());
   const [debugMode, setDebugMode] = useState(true);
@@ -59,33 +58,18 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
 
   const messageGroups = useMemo(() => groupMessages(enrichedMessages), [enrichedMessages]);
 
-  const toggleSubagent = async (subagentId: string, transcriptFile?: string) => {
-    const isExpanded = expandedSubagents.has(subagentId);
-
+  // Subagent transcripts arrive fully parsed with the main transcript, so
+  // expanding a subagent is a pure UI toggle — no extra fetch.
+  const toggleSubagent = (subagentId: string) => {
     setExpandedSubagents(prev => {
       const next = new Set(prev);
-      if (isExpanded) {
+      if (next.has(subagentId)) {
         next.delete(subagentId);
       } else {
         next.add(subagentId);
       }
       return next;
     });
-
-    // Fetch subagent data if not already loaded and has transcript_file
-    if (!isExpanded && transcriptFile && !subagentData.has(subagentId)) {
-      try {
-        const apiUrl = import.meta.env.VITE_API_URL ?? '';
-        const response = await fetch(`${apiUrl}/api/transcript/session/${transcriptFile}`);
-
-        if (response.ok) {
-          const data = await response.json();
-          setSubagentData(prev => new Map(prev).set(subagentId, data));
-        }
-      } catch (error) {
-        console.error('Failed to fetch subagent transcript:', error);
-      }
-    }
   };
 
   const toggleToolDetail = (messageUuid: string) => {
@@ -375,35 +359,18 @@ export function TranscriptViewer({ transcript: propTranscript, error: propError 
           <h3>Subagents:</h3>
           {transcript!.subagents.map((subagent) => {
             const isExpanded = expandedSubagents.has(subagent.id);
-            const loadedData = subagentData.get(subagent.id);
-            const contentToShow = loadedData?.content || subagent.content;
-            const metadataToShow = loadedData?.metadata || undefined;
 
             return (
               <div key={subagent.id} className="subagent">
                 <button
                   className="subagent-header"
-                  onClick={() => toggleSubagent(subagent.id, subagent.transcript_file)}
+                  onClick={() => toggleSubagent(subagent.id)}
                 >
                   {subagent.name}
                 </button>
-                {isExpanded && contentToShow && (
+                {isExpanded && subagent.content && (
                   <div className="subagent-expanded">
-                    <div className="subagent-content">{contentToShow}</div>
-                    {metadataToShow && (
-                      <div className="metadata">
-                        {metadataToShow.total_tokens && (
-                          <span className="metadata-item">
-                            {metadataToShow.total_tokens} tokens
-                          </span>
-                        )}
-                        {metadataToShow.duration_ms && (
-                          <span className="metadata-item">
-                            {metadataToShow.duration_ms} ms
-                          </span>
-                        )}
-                      </div>
-                    )}
+                    <div className="subagent-content">{subagent.content}</div>
                   </div>
                 )}
               </div>
