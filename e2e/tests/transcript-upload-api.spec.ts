@@ -103,8 +103,11 @@ test.describe('Transcript Upload API E2E', () => {
       );
       expect(String(body.key)).toMatch(hivePattern);
 
-      // The presigned URL targets that same key.
-      expect(new URL(body.url).pathname).toContain(`session_id=${sessionId}/${sessionId}.jsonl`);
+      // The presigned URL targets that same key (its path is URL-encoded,
+      // so "=" appears as "%3D" — decode before comparing).
+      expect(decodeURIComponent(new URL(body.url).pathname)).toContain(
+        `session_id=${sessionId}/${sessionId}.jsonl`
+      );
     } finally {
       await cleanup(request, sessionId);
     }
