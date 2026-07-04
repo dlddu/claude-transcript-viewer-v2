@@ -1,14 +1,32 @@
 # 테스트 문서: 트랜스크립트 라이프사이클
 
 ## 검증 대상 AC
+- LC-AC1: presigned PUT URL 업로드 (PRD: 트랜스크립트 라이프사이클)
+- LC-AC2: 세션 파일의 단일 디렉토리 공유 (PRD: 트랜스크립트 라이프사이클)
 - LC-AC3: 단기 presigned GET 매니페스트 다운로드 (PRD: 트랜스크립트 라이프사이클)
 - LC-AC4: 미등록 세션 404 (PRD: 트랜스크립트 라이프사이클)
 - LC-AC5: 재시도 안전 삭제 (PRD: 트랜스크립트 라이프사이클)
 
-> ⚠️ LC-AC1(업로드 URL 발급), LC-AC2(단일 디렉토리 공유)는 현재 직접 E2E가 없다.
-> seed 서브커맨드가 동일 코드 경로를 사용하므로 간접 검증만 존재한다. (상태 추적 문서의 미검증 AC 참조)
-
 ## 테스트 시나리오
+
+### 시나리오 0-A: 업로드 URL 발급 계약
+- **사전 조건**: 실행 중인 백엔드 + S3
+- **실행 단계**: `POST /api/transcripts/upload-url/{sessionId}` 호출 → presigned URL로 PUT
+- **기대 결과**: 응답에 `url`(presigned)·`method: PUT`·`key`·`session_id`·`expires_in` 포함,
+  key가 Hive 규칙(`year=/month=/day=/hour=/session_id=<id>/<id>.jsonl`) 준수,
+  객체가 반환된 key 그대로 버킷에 저장, 매니페스트가 SQLite 매핑으로 동일 key 해석,
+  잘못된 `file_name`·세션 ID는 400
+- **검증 AC**: LC-AC1
+- **구현**: `e2e/tests/transcript-upload-api.spec.ts`
+
+### 시나리오 0-B: 세션 파일 프리픽스 공유
+- **사전 조건**: 시나리오 0-A와 동일
+- **실행 단계**: 메인 업로드 후 `?file_name=subagents/<name>.jsonl`, `?file_name=agent-<name>.jsonl`,
+  메인 URL 재발급 각각 호출
+- **기대 결과**: 모든 key가 동일 Hive 디렉토리 공유, 재발급 key는 최초와 동일(시계가 아닌
+  영속 매핑에서 프리픽스 재사용), 매니페스트에 서브에이전트 파일 전부 노출
+- **검증 AC**: LC-AC2
+- **구현**: `e2e/tests/transcript-upload-api.spec.ts`
 
 ### 시나리오 1: 삭제 API 전체 플로우
 - **사전 조건**: seed로 메인 + 서브에이전트 파일이 적재된 세션 존재
