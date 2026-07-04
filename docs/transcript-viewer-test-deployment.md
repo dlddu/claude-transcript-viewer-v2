@@ -13,11 +13,11 @@
 - **구현**: `e2e/tests/docker-build.spec.ts`, `e2e/tests/docker-publish-workflow.spec.mjs`
 
 ### 시나리오 2: 캐시 헤더 정책
-- **사전 조건**: 빌드된 이미지 컨테이너 기동
-- **실행 단계**: `assets/*`와 `index.html` 요청 후 응답 헤더 확인
-- **기대 결과**: 해시 자산은 immutable, `index.html`은 no-cache
+- **사전 조건**: 정적 파일 서빙 핸들러(`backend/static.go`)
+- **실행 단계**: 해시된 `assets/*`와 `index.html` 요청 후 `Cache-Control` 응답 헤더 확인
+- **기대 결과**: 해시 자산은 `public, max-age=31536000, immutable`, `index.html`은 `no-cache`
 - **검증 AC**: DP-AC2
-- **구현**: `e2e/tests/docker-build.spec.ts` (정적 서빙 검증 범위)
+- **구현**: `backend/static_test.go` (`TestStatic_ServesIndexAtRoot`가 `index.html`의 no-cache를, `TestStatic_HashedAssetsAreImmutable`가 해시 자산의 immutable을 검증; CI의 `go test ./...`로 실행)
 
 ### 시나리오 3: k8s 매니페스트 검증
 - **사전 조건**: `k8s/app/`, `k8s/localstack/` 매니페스트
