@@ -38,9 +38,12 @@
 ### 시나리오 5: 절단과 타임스탬프
 - **사전 조건**: 장문 메시지 포함 픽스처
 - **실행 단계**: 타임라인 렌더링 확인
-- **기대 결과**: 긴 텍스트 절단 표시, 메시지별 타임스탬프 렌더링
+- **기대 결과**: 긴 텍스트 절단 표시(툴 입력의 파일 경로가 디렉토리 없이 파일명으로, 긴 툴 ID가 8자 프리픽스+생략부호로 절단), 메시지별 타임스탬프 렌더링
 - **검증 AC**: VW-AC5
-- **구현**: `e2e/tests/text-truncation.spec.ts`, `e2e/tests/message-timestamps.spec.ts`
+- **구현**:
+  - E2E: `e2e/tests/text-truncation.spec.ts`(툴 입력 파일 경로 절단 — 원본 디렉토리 미노출까지 단정), `e2e/tests/message-timestamps.spec.ts`(타임스탬프)
+  - 컴포넌트/유닛: `frontend/src/components/TranscriptViewer.truncation.test.tsx`(긴 툴 ID 생략부호 절단·깊은/얕은 경로 절단을 타임라인 렌더로 단정), `frontend/src/utils/truncate.test.ts`, `frontend/src/components/TruncatedText.test.tsx`
+  - 비고: seed 픽스처(session-abc123)의 툴 ID는 모두 8자 이하라 E2E에서는 생략부호 절단이 발생하지 않아 툴 ID 절단은 컴포넌트/유닛 테스트로 검증한다. 과거 `text-truncation.spec.ts`는 미구현 UI를 가정한 채 전부 `test.skip` 이어서 절단이 실측 검증되지 않았다.
 
 ### 시나리오 6: 모바일/데스크톱 레이아웃
 - **사전 조건**: 툴 블록 다수 포함 픽스처
