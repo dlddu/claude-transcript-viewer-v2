@@ -257,4 +257,109 @@ describe('loadTranscript', () => {
     expect(transcript.subagents?.[0].id).toBe('agent-xyz789');
     expect(warn).toHaveBeenCalled();
   });
+
+  // --- LC-AC3: browser-direct download, transcript bytes never transit the backend ---
+  //
+  // LC-AC3's headline guarantee is that the browser downloads each transcript
+  // file DIRECTLY from S3 via its presigned GET URL, and that transcript bytes
+  // never flow through the backend pod (only the small manifest does). That is
+  // what keeps the backend's memory/bandwidth flat regardless of transcript
+  // size (product value V3, "크기 무관한 가벼움"). The other loadTranscript tests
+  // above exercise the happy path (files load and parse) but do not assert this
+  // routing property; these two tests close that gap.
+  //
+  // Request classification for the assertions below:
+  //   - backend request  : same-origin "/api/*" (apiBaseUrl() === '' in tests)
+  //   - direct-S3 request: an absolute presigned URL carrying "X-Amz-Signature"
+  // The two classes are mutually exclusive for the URLs this loader issues.
+  const isBackendRequest = (url: string) => url.includes('/api/');
+  const isPresignedS3Request = (url: string) => url.includes('X-Amz-Signature');
+
+  it('downloads every transcript file from its presigned S3 URL and never routes transcript bytes through the backend', async () => {
+    const m = manifest();
+    const mockFetch = mockRoutes({
+      '/api/transcript/session/session-abc123': { body: JSON.stringify(m) },
+      'main.jsonl': { body: readFixture('session-abc123.jsonl') },
+      'agent-a1b2c3d.jsonl': { body: readFixture('session-abc123/agent-a1b2c3d.jsonl') },
+      'agent-xyz789.jsonl': { body: readFixture('session-abc123/agent-xyz789.jsonl') },
+    });
+
+    const transcript = await loadTranscript(SESSION_ID);
+
+    const requestedUrls = mockFetch.mock.calls.map((call) => String(call[0]));
+    const backendRequests = requestedUrls.filter(isBackendRequest);
+    const s3Requests = requestedUrls.filter(isPresignedS3Request);
+
+    // Every request is exactly one of the two kinds — no third origin, and no
+    // request is both (which would mean a transcript file served off "/api/").
+    expect(backendRequests.length + s3Requests.length).toBe(requestedUrls.length);
+
+    // The backend is contacted exactly once, and only for the manifest — never
+    // for transcript content.
+    expect(backendRequests).toEqual(['/api/transcript/session/session-abc123']);
+    expect(backendRequests.some((url) => url.endsWith('.jsonl'))).toBe(false);
+    expect(backendRequests.some(isPresignedS3Request)).toBe(false);
+
+    // Each transcript file (main + every subagent) is downloaded from the exact
+    // presigned S3 URL in the manifest, not from the backend origin.
+    const contentUrls = [m.main.url, ...m.subagents.map((ref) => ref.url)];
+    for (const url of contentUrls) {
+      expect(requestedUrls).toContain(url);
+      expect(isPresignedS3Request(url)).toBe(true);
+      expect(isBackendRequest(url)).toBe(false);
+    }
+
+    // Exactly one direct-S3 download per transcript file (1 main + 2 subagents),
+    // so all bytes came from S3 and the assembled transcript reflects them.
+    expect(s3Requests).toHaveLength(contentUrls.length);
+    expect(new Set(s3Requests)).toEqual(new Set(contentUrls));
+    expect(transcript.subagents).toHaveLength(2);
+    expect(transcript.messages?.length).toBeGreaterThan(8);
+  });
+
+  it('keeps backend requests at one (the manifest) as the number of transcript files grows', async () => {
+    // A session with more subagent files means more direct-to-S3 downloads, but
+    // the backend is still hit exactly once for the manifest — backend cost does
+    // not scale with transcript size. Build a larger manifest and confirm the
+    // backend request count stays flat while S3 downloads track the file count.
+    const subagentIds = ['agent-a', 'agent-b', 'agent-c', 'agent-d', 'agent-e'];
+    const largeManifest: TranscriptFilesResponse = {
+      session_id: SESSION_ID,
+      expires_in: 300,
+      main: {
+        id: SESSION_ID,
+        name: `${SESSION_ID}.jsonl`,
+        key: `year=2026/month=05/day=24/hour=00/session_id=${SESSION_ID}/${SESSION_ID}.jsonl`,
+        url: 'https://s3.example.com/test-transcripts/big-main.jsonl?X-Amz-Signature=fake',
+      },
+      subagents: subagentIds.map((id) => ({
+        id,
+        name: `${id}.jsonl`,
+        key: `year=2026/month=05/day=24/hour=00/session_id=${SESSION_ID}/subagents/${id}.jsonl`,
+        url: `https://s3.example.com/test-transcripts/${id}.jsonl?X-Amz-Signature=fake`,
+      })),
+    };
+
+    const subagentBody = readFixture('session-abc123/agent-a1b2c3d.jsonl');
+    const routes: Record<string, { status?: number; body: string }> = {
+      '/api/transcript/session/session-abc123': { body: JSON.stringify(largeManifest) },
+      'big-main.jsonl': { body: readFixture('session-abc123.jsonl') },
+    };
+    for (const id of subagentIds) {
+      routes[`${id}.jsonl`] = { body: subagentBody };
+    }
+    const mockFetch = mockRoutes(routes);
+
+    await loadTranscript(SESSION_ID);
+
+    const requestedUrls = mockFetch.mock.calls.map((call) => String(call[0]));
+    const backendRequests = requestedUrls.filter(isBackendRequest);
+    const s3Requests = requestedUrls.filter(isPresignedS3Request);
+
+    // One manifest call to the backend, no matter how many files there are.
+    expect(backendRequests).toEqual(['/api/transcript/session/session-abc123']);
+    // One direct-S3 download per file: 1 main + 5 subagents.
+    expect(s3Requests).toHaveLength(1 + subagentIds.length);
+    expect(backendRequests.some(isPresignedS3Request)).toBe(false);
+  });
 });
