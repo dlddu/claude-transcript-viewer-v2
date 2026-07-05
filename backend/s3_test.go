@@ -25,6 +25,14 @@ import (
 type mockS3Client struct {
 	objects  map[string]string
 	pageSize int
+	// deleteObjectErr, when non-nil, is consulted before each DeleteObject.
+	// If it returns a non-nil error for the given key the delete fails and the
+	// object is left in place, letting tests simulate an interrupted delete.
+	deleteObjectErr func(key string) error
+	// deletedKeys records, in invocation order, every key DeleteObject was
+	// asked to remove (including ones whose delete was made to fail), so tests
+	// can assert the order in which objects are swept.
+	deletedKeys []string
 }
 
 func (m *mockS3Client) GetObject(_ context.Context, in *s3.GetObjectInput, _ ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
@@ -91,7 +99,14 @@ func (m *mockS3Client) PutObject(_ context.Context, in *s3.PutObjectInput, _ ...
 }
 
 func (m *mockS3Client) DeleteObject(_ context.Context, in *s3.DeleteObjectInput, _ ...func(*s3.Options)) (*s3.DeleteObjectOutput, error) {
-	delete(m.objects, aws.ToString(in.Key))
+	key := aws.ToString(in.Key)
+	m.deletedKeys = append(m.deletedKeys, key)
+	if m.deleteObjectErr != nil {
+		if err := m.deleteObjectErr(key); err != nil {
+			return nil, err
+		}
+	}
+	delete(m.objects, key)
 	return &s3.DeleteObjectOutput{}, nil
 }
 
@@ -643,6 +658,116 @@ func TestDeleteTranscriptBySessionId_LeavesOtherSessionsIntact(t *testing.T) {
 	}
 	if !found {
 		t.Error("expected the other session's objects to remain")
+	}
+}
+
+// TestDeleteTranscriptBySessionId_DeletesObjectsBeforeMapping locks in LC-AC5's
+// ordering guarantee: every object under the session's Hive directory is swept
+// before the SQLite mapping is dropped, so the mapping is removed strictly last.
+// It fails the main transcript's delete (swept last, since agent-* keys sort
+// ahead of session-abc123.jsonl) and asserts that the earlier subagent objects
+// were already gone while the mapping — and thus the session — survives.
+func TestDeleteTranscriptBySessionId_DeletesObjectsBeforeMapping(t *testing.T) {
+	svc, _, store := newServiceWithSessions(t, map[string]sessionFixture{
+		"session-abc123": abcFixture(t),
+	})
+	mock := svc.client.(*mockS3Client)
+	prefix := hivePrefixFor("session-abc123")
+	mainKey := prefix + mainTranscriptName("session-abc123")
+	subKeyA := prefix + "agent-a1b2c3d.jsonl"
+	subKeyB := prefix + "agent-xyz789.jsonl"
+
+	boom := errors.New("simulated S3 delete failure on the main object")
+	mock.deleteObjectErr = func(key string) error {
+		if key == mainKey {
+			return boom
+		}
+		return nil
+	}
+
+	err := svc.DeleteTranscriptBySessionId(context.Background(), "session-abc123")
+	if err == nil || !errors.Is(err, boom) {
+		t.Fatalf("err = %v, want it to wrap the injected S3 failure", err)
+	}
+
+	// The whole object sweep runs before the mapping is touched, and the main
+	// transcript is swept last of all.
+	if n := len(mock.deletedKeys); n != 3 {
+		t.Fatalf("attempted object deletes = %d (%v), want 3 (full sweep)", n, mock.deletedKeys)
+	}
+	if last := mock.deletedKeys[len(mock.deletedKeys)-1]; last != mainKey {
+		t.Errorf("last deleted key = %q, want the main object %q swept last", last, mainKey)
+	}
+
+	// The subagent objects were removed before the failure...
+	for _, k := range []string{subKeyA, subKeyB} {
+		if _, ok := mock.objects[k]; ok {
+			t.Errorf("subagent object %q should have been deleted before the main object", k)
+		}
+	}
+	// ...the main object (whose delete failed) is still present...
+	if _, ok := mock.objects[mainKey]; !ok {
+		t.Error("main object whose delete failed should remain in storage")
+	}
+	// ...and crucially the mapping is intact: it is dropped only after a fully
+	// successful object sweep, never midway through one.
+	if _, err := store.GetSessionPrefix(context.Background(), "session-abc123"); err != nil {
+		t.Errorf("mapping must survive an interrupted object sweep: %v", err)
+	}
+}
+
+// TestDeleteTranscriptBySessionId_InterruptedDeleteIsRetrySafe locks in LC-AC5's
+// retry-safety guarantee: an object delete that fails partway leaves the session
+// fully resolvable, and simply retrying the delete once the transient failure
+// clears removes everything — objects and mapping alike.
+func TestDeleteTranscriptBySessionId_InterruptedDeleteIsRetrySafe(t *testing.T) {
+	svc, _, store := newServiceWithSessions(t, map[string]sessionFixture{
+		"session-abc123": abcFixture(t),
+	})
+	mock := svc.client.(*mockS3Client)
+	prefix := hivePrefixFor("session-abc123")
+
+	// First attempt is interrupted on the very first object delete, so nothing
+	// is removed at all.
+	firstKey := prefix + "agent-a1b2c3d.jsonl"
+	boom := errors.New("simulated transient S3 failure")
+	mock.deleteObjectErr = func(key string) error {
+		if key == firstKey {
+			return boom
+		}
+		return nil
+	}
+	if err := svc.DeleteTranscriptBySessionId(context.Background(), "session-abc123"); !errors.Is(err, boom) {
+		t.Fatalf("first delete err = %v, want the injected failure", err)
+	}
+
+	// The session survives the interruption intact: the mapping is present and
+	// the full manifest (main + both subagents) still resolves, so the delete
+	// is safe to retry.
+	if _, err := store.GetSessionPrefix(context.Background(), "session-abc123"); err != nil {
+		t.Errorf("mapping should survive an interrupted delete: %v", err)
+	}
+	files, err := svc.GetTranscriptFiles(context.Background(), "session-abc123")
+	if err != nil {
+		t.Fatalf("session should stay queryable after an interrupted delete: %v", err)
+	}
+	if len(files.Subagents) != 2 {
+		t.Errorf("subagents still resolvable = %d, want 2", len(files.Subagents))
+	}
+
+	// Retry with the transient failure cleared: the delete now completes and
+	// removes every object plus the mapping.
+	mock.deleteObjectErr = nil
+	if err := svc.DeleteTranscriptBySessionId(context.Background(), "session-abc123"); err != nil {
+		t.Fatalf("retry delete should succeed: %v", err)
+	}
+	for k := range mock.objects {
+		if strings.HasPrefix(k, prefix) {
+			t.Errorf("object %q under session prefix should be gone after a successful retry", k)
+		}
+	}
+	if _, err := store.GetSessionPrefix(context.Background(), "session-abc123"); !errors.Is(err, ErrSessionNotMapped) {
+		t.Errorf("mapping should be removed after a successful retry: err = %v, want ErrSessionNotMapped", err)
 	}
 }
 
