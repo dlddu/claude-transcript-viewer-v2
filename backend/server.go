@@ -13,7 +13,7 @@ import (
 // underlying storage. Tests use a fake; production wires in *S3Service.
 type TranscriptService interface {
 	GetTranscriptFiles(ctx context.Context, sessionID string) (TranscriptFilesResponse, error)
-	ListTranscripts(ctx context.Context) ([]string, error)
+	ListTranscripts(ctx context.Context) ([]SessionSummary, error)
 	CreateUploadURL(ctx context.Context, req UploadURLRequest) (UploadURLResponse, error)
 	DeleteTranscriptBySessionId(ctx context.Context, sessionID string) error
 }
@@ -87,13 +87,13 @@ func (s *Server) handle404(w http.ResponseWriter, _ *http.Request) {
 }
 
 func (s *Server) handleList(w http.ResponseWriter, r *http.Request) {
-	ids, err := s.svc.ListTranscripts(r.Context())
+	sessions, err := s.svc.ListTranscripts(r.Context())
 	if err != nil {
 		log.Printf("Error listing transcripts: %v", err)
 		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to list transcripts"})
 		return
 	}
-	writeJSON(w, http.StatusOK, ids)
+	writeJSON(w, http.StatusOK, sessions)
 }
 
 func (s *Server) handleGetBySession(w http.ResponseWriter, r *http.Request) {

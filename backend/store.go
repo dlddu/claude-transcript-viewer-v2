@@ -86,15 +86,24 @@ func (s *Store) GetSessionPrefix(ctx context.Context, sessionID string) (string,
 	return prefix, nil
 }
 
-// PutSession records that sessionID's transcript files live under s3Prefix.
-// The first mapping wins: a session keeps its original prefix so that the
-// main transcript and any later subagent uploads share one directory.
+// PutSession records that sessionID's transcript files live under s3Prefix,
+// stamping the mapping with the current time. It is the production entry point;
+// tests and seeding use PutSessionAt to inject a deterministic created_at.
 func (s *Store) PutSession(ctx context.Context, sessionID, s3Prefix string) error {
+	return s.PutSessionAt(ctx, sessionID, s3Prefix, time.Now().UTC())
+}
+
+// PutSessionAt records sessionID's mapping with an explicit created_at. The
+// first mapping wins: a session keeps its original prefix (and original
+// created_at) so that the main transcript and any later subagent uploads share
+// one directory. Exposing the timestamp as a parameter is the seam that lets
+// tests and the seed subcommand assert a deterministic newest-first ordering.
+func (s *Store) PutSessionAt(ctx context.Context, sessionID, s3Prefix string, createdAt time.Time) error {
 	_, err := s.db.ExecContext(ctx,
 		`INSERT INTO transcript_sessions (session_id, s3_prefix, created_at)
 		 VALUES (?, ?, ?)
 		 ON CONFLICT(session_id) DO NOTHING`,
-		sessionID, s3Prefix, time.Now().UTC().Format(time.RFC3339),
+		sessionID, s3Prefix, createdAt.UTC().Format(time.RFC3339),
 	)
 	if err != nil {
 		return fmt.Errorf("put session %q: %w", sessionID, err)
@@ -114,6 +123,49 @@ func (s *Store) DeleteSession(ctx context.Context, sessionID string) error {
 		return fmt.Errorf("delete session %q: %w", sessionID, err)
 	}
 	return nil
+}
+
+// SessionRecord is one row of the session→prefix mapping as returned by
+// ListSessions: the session id and when it was first recorded. It is the
+// store's minimal shape; higher layers project it into the API response type.
+type SessionRecord struct {
+	SessionID string
+	CreatedAt time.Time
+}
+
+// ListSessions returns every mapped session ordered newest-first by created_at
+// so callers can present the most recently uploaded sessions at the top. The
+// session id breaks ties for a deterministic order when two rows share a
+// timestamp (RFC3339 is second-resolution). created_at is stored as an RFC3339
+// UTC string, whose lexicographic order matches chronological order, so the SQL
+// ORDER BY is sound; it is parsed back to time.Time here.
+func (s *Store) ListSessions(ctx context.Context) ([]SessionRecord, error) {
+	rows, err := s.db.QueryContext(ctx,
+		"SELECT session_id, created_at FROM transcript_sessions ORDER BY created_at DESC, session_id DESC")
+	if err != nil {
+		return nil, fmt.Errorf("list sessions: %w", err)
+	}
+	defer rows.Close()
+
+	records := make([]SessionRecord, 0)
+	for rows.Next() {
+		var (
+			id        string
+			createdAt string
+		)
+		if err := rows.Scan(&id, &createdAt); err != nil {
+			return nil, fmt.Errorf("scan session row: %w", err)
+		}
+		t, err := time.Parse(time.RFC3339, createdAt)
+		if err != nil {
+			return nil, fmt.Errorf("parse created_at %q for session %q: %w", createdAt, id, err)
+		}
+		records = append(records, SessionRecord{SessionID: id, CreatedAt: t})
+	}
+	if err := rows.Err(); err != nil {
+		return nil, fmt.Errorf("iterate sessions: %w", err)
+	}
+	return records, nil
 }
 
 // ListSessionIDs returns every mapped session id, ordered for stable output.

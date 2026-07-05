@@ -122,10 +122,14 @@ test.describe('Transcript Delete API E2E', () => {
     const after = await request.get(`${API_URL}/api/transcript/session/${sessionId}`);
     expect(after.status()).toBe(404);
 
-    // Assert - the session no longer appears in the list
+    // Assert - the session no longer appears in the list. The list returns
+    // {session_id, created_at} summary objects, so match against the ids.
     const list = await request.get(`${API_URL}/api/transcripts`);
     expect(list.status()).toBe(200);
-    expect(await list.json()).not.toContain(sessionId);
+    const listedIds = ((await list.json()) as Array<{ session_id: string }>).map(
+      (s) => s.session_id
+    );
+    expect(listedIds).not.toContain(sessionId);
 
     // Assert - a second delete reports not found (mapping already removed)
     const again = await request.delete(`${API_URL}/api/transcript/session/${sessionId}`);

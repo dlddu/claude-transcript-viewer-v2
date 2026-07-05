@@ -20,3 +20,12 @@ type TranscriptFilesResponse struct {
 	Main      TranscriptFileRef   `json:"main"`
 	Subagents []TranscriptFileRef `json:"subagents"`
 }
+
+// SessionSummary is one entry in the session list returned by
+// GET /api/transcripts. CreatedAt is an RFC3339 UTC timestamp of when the
+// session was first recorded; the list is ordered newest-first so clients can
+// render the most recently uploaded sessions at the top without re-sorting.
+type SessionSummary struct {
+	SessionID string `json:"session_id"`
+	CreatedAt string `json:"created_at"`
+}

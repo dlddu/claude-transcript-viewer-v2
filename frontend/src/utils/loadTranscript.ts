@@ -12,7 +12,7 @@ import type {
 
 // Same-origin by default: production serves the app and API from one origin,
 // dev goes through the Vite proxy. VITE_API_URL overrides for split setups.
-function apiBaseUrl(): string {
+export function apiBaseUrl(): string {
   return import.meta.env.VITE_API_URL ?? '';
 }
 

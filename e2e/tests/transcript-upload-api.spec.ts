@@ -141,10 +141,14 @@ test.describe('Transcript Upload API E2E', () => {
       expect(manifestBody.session_id).toBe(sessionId);
       expect(manifestBody.main.key).toBe(key);
 
-      // And the session is listed.
+      // And the session is listed. The list returns {session_id, created_at}
+      // summary objects (newest-first), so match against the projected ids.
       const list = await request.get(`${API_URL}/api/transcripts`);
       expect(list.status()).toBe(200);
-      expect(await list.json()).toContain(sessionId);
+      const listedIds = ((await list.json()) as Array<{ session_id: string }>).map(
+        (s) => s.session_id
+      );
+      expect(listedIds).toContain(sessionId);
     } finally {
       s3.destroy();
       await cleanup(request, sessionId);

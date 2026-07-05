@@ -41,7 +41,9 @@ type Presigner interface {
 type SessionStore interface {
 	GetSessionPrefix(ctx context.Context, sessionID string) (string, error)
 	PutSession(ctx context.Context, sessionID, s3Prefix string) error
+	PutSessionAt(ctx context.Context, sessionID, s3Prefix string, createdAt time.Time) error
 	ListSessionIDs(ctx context.Context) ([]string, error)
+	ListSessions(ctx context.Context) ([]SessionRecord, error)
 	DeleteSession(ctx context.Context, sessionID string) error
 }
 
@@ -311,8 +313,23 @@ func (s *S3Service) PutObject(ctx context.Context, key string, body []byte) erro
 	return nil
 }
 
-func (s *S3Service) ListTranscripts(ctx context.Context) ([]string, error) {
-	return s.store.ListSessionIDs(ctx)
+// ListTranscripts returns every stored session as a summary (id + created_at),
+// ordered newest-first by the store. It only reads the SQLite mapping — no S3
+// calls — so listing cost stays flat regardless of how large each transcript
+// is. created_at is projected to an RFC3339 UTC string for the JSON contract.
+func (s *S3Service) ListTranscripts(ctx context.Context) ([]SessionSummary, error) {
+	records, err := s.store.ListSessions(ctx)
+	if err != nil {
+		return nil, err
+	}
+	summaries := make([]SessionSummary, 0, len(records))
+	for _, r := range records {
+		summaries = append(summaries, SessionSummary{
+			SessionID: r.SessionID,
+			CreatedAt: r.CreatedAt.UTC().Format(time.RFC3339),
+		})
+	}
+	return summaries, nil
 }
 
 // GetTranscriptFiles resolves a session to its transcript objects and returns

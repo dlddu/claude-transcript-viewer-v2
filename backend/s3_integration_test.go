@@ -141,18 +141,18 @@ func TestIntegration_TranscriptFilesViaMapping(t *testing.T) {
 		t.Errorf("downloaded body differs from fixture (%d vs %d bytes)", len(body), len(fixture))
 	}
 
-	ids, err := svc.ListTranscripts(context.Background())
+	sessions, err := svc.ListTranscripts(context.Background())
 	if err != nil {
 		t.Fatalf("ListTranscripts: %v", err)
 	}
 	found := false
-	for _, id := range ids {
-		if id == sessionID {
+	for _, s := range sessions {
+		if s.SessionID == sessionID {
 			found = true
 		}
 	}
 	if !found {
-		t.Errorf("expected %q in %v", sessionID, ids)
+		t.Errorf("expected %q in %v", sessionID, sessions)
 	}
 }
 
@@ -336,12 +336,12 @@ func TestIntegration_DeleteTranscriptRemovesAllFiles(t *testing.T) {
 	if _, err := store.GetSessionPrefix(context.Background(), sessionID); !errors.Is(err, ErrSessionNotMapped) {
 		t.Errorf("store err = %v, want ErrSessionNotMapped", err)
 	}
-	ids, err := svc.ListTranscripts(context.Background())
+	sessions, err := svc.ListTranscripts(context.Background())
 	if err != nil {
 		t.Fatalf("ListTranscripts: %v", err)
 	}
-	for _, id := range ids {
-		if id == sessionID {
+	for _, s := range sessions {
+		if s.SessionID == sessionID {
 			t.Errorf("deleted session %q still listed", sessionID)
 		}
 	}

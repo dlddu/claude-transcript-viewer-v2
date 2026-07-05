@@ -236,6 +236,56 @@ func TestSeedDir_RealFixturesReproduceServerEnvironment(t *testing.T) {
 	}
 }
 
+// TestSeedDir_RecordsDeterministicNewestFirstOrder asserts seed stamps each
+// session with a distinct created_at ordered by fixture position, so a seeded
+// store lists sessions newest-first deterministically — the ordering the
+// session-list E2E asserts against. Fixtures are processed in name order
+// (os.ReadDir sorts), so the alphabetically-last fixture is recorded newest.
+func TestSeedDir_RecordsDeterministicNewestFirstOrder(t *testing.T) {
+	ctx := context.Background()
+	dir := t.TempDir()
+	write := func(name string) {
+		body := `{"sessionId":"` + strings.TrimSuffix(name, ".jsonl") + `","uuid":"u"}` + "\n"
+		if err := os.WriteFile(filepath.Join(dir, name), []byte(body), 0o644); err != nil {
+			t.Fatalf("write %q: %v", name, err)
+		}
+	}
+	// Deliberately written out of order: seed must key ordering off the sorted
+	// fixture names, not the write order.
+	write("session-charlie.jsonl")
+	write("session-alpha.jsonl")
+	write("session-bravo.jsonl")
+
+	store := newTestStore(t)
+	svc := NewS3ServiceWithClient(&mockS3Client{objects: map[string]string{}}, &fakePresigner{}, store, "test-transcripts", "")
+	if err := seedDir(ctx, svc, store, dir); err != nil {
+		t.Fatalf("seedDir: %v", err)
+	}
+
+	got, err := store.ListSessions(ctx)
+	if err != nil {
+		t.Fatalf("ListSessions: %v", err)
+	}
+
+	// Newest-first: the alphabetically-last fixture (charlie) is the newest.
+	wantOrder := []string{"session-charlie", "session-bravo", "session-alpha"}
+	if len(got) != len(wantOrder) {
+		t.Fatalf("got %d sessions, want %d: %+v", len(got), len(wantOrder), got)
+	}
+	for i, want := range wantOrder {
+		if got[i].SessionID != want {
+			t.Errorf("index %d: session_id = %q, want %q (full: %+v)", i, got[i].SessionID, want, got)
+		}
+	}
+	// created_at is strictly descending (hence distinct) across the list.
+	for i := 0; i+1 < len(got); i++ {
+		if !got[i].CreatedAt.After(got[i+1].CreatedAt) {
+			t.Errorf("created_at not strictly descending at %d: %v then %v",
+				i, got[i].CreatedAt, got[i+1].CreatedAt)
+		}
+	}
+}
+
 // TestRunSeed_RequiresDir pins the subcommand's CLI contract: `server seed`
 // without --dir fails fast (before touching the store or S3) with a message
 // naming the missing flag.

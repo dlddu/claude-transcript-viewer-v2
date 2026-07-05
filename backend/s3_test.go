@@ -228,7 +228,7 @@ func abcService(t *testing.T) *S3Service {
 
 // --- ListTranscripts --------------------------------------------------------
 
-func TestListTranscripts_ReturnsMappedSessionIDs(t *testing.T) {
+func TestListTranscripts_ReturnsMappedSessionSummaries(t *testing.T) {
 	svc, _, _ := newServiceWithSessions(t, map[string]sessionFixture{
 		"session-abc123": xyzFixture(t),
 		"session-xyz789": xyzFixture(t),
@@ -240,11 +240,15 @@ func TestListTranscripts_ReturnsMappedSessionIDs(t *testing.T) {
 	}
 	want := map[string]bool{"session-abc123": true, "session-xyz789": true}
 	if len(got) != len(want) {
-		t.Fatalf("got %d ids, want %d: %v", len(got), len(want), got)
+		t.Fatalf("got %d summaries, want %d: %+v", len(got), len(want), got)
 	}
-	for _, id := range got {
-		if !want[id] {
-			t.Errorf("unexpected id %q", id)
+	for _, s := range got {
+		if !want[s.SessionID] {
+			t.Errorf("unexpected session id %q", s.SessionID)
+		}
+		// Every entry carries a parseable RFC3339 created_at.
+		if _, err := time.Parse(time.RFC3339, s.CreatedAt); err != nil {
+			t.Errorf("session %q created_at %q is not RFC3339: %v", s.SessionID, s.CreatedAt, err)
 		}
 	}
 }
@@ -257,7 +261,48 @@ func TestListTranscripts_EmptyStore(t *testing.T) {
 		t.Fatalf("unexpected error: %v", err)
 	}
 	if len(got) != 0 {
-		t.Errorf("expected empty, got %v", got)
+		t.Errorf("expected empty, got %+v", got)
+	}
+}
+
+// TestListTranscripts_OrderedNewestFirst asserts the service surfaces sessions
+// newest-first with the created_at the store recorded. Timestamps are injected
+// through PutSessionAt (the deterministic seam) in an order that is neither
+// chronological nor lexical, so only a real created_at DESC sort — carried up
+// from the store through the RFC3339 projection — yields the expected result.
+func TestListTranscripts_OrderedNewestFirst(t *testing.T) {
+	store := newTestStore(t)
+	base := time.Date(2026, 7, 5, 10, 0, 0, 0, time.UTC)
+	seed := []struct {
+		id      string
+		created time.Time
+	}{
+		{"session-mid", base.Add(1 * time.Hour)},
+		{"session-new", base.Add(2 * time.Hour)},
+		{"session-old", base},
+	}
+	for _, s := range seed {
+		if err := store.PutSessionAt(context.Background(), s.id, hivePrefixFor(s.id), s.created); err != nil {
+			t.Fatalf("PutSessionAt %q: %v", s.id, err)
+		}
+	}
+	svc := NewS3ServiceWithClient(&mockS3Client{objects: map[string]string{}}, &fakePresigner{}, store, "test-transcripts", "")
+
+	got, err := svc.ListTranscripts(context.Background())
+	if err != nil {
+		t.Fatalf("ListTranscripts: %v", err)
+	}
+	wantOrder := []string{"session-new", "session-mid", "session-old"}
+	if len(got) != len(wantOrder) {
+		t.Fatalf("got %d summaries, want %d: %+v", len(got), len(wantOrder), got)
+	}
+	for i, want := range wantOrder {
+		if got[i].SessionID != want {
+			t.Errorf("index %d: session_id = %q, want %q (full: %+v)", i, got[i].SessionID, want, got)
+		}
+	}
+	if wantCreated := base.Add(2 * time.Hour).Format(time.RFC3339); got[0].CreatedAt != wantCreated {
+		t.Errorf("newest created_at = %q, want %q", got[0].CreatedAt, wantCreated)
 	}
 }
 

@@ -4,20 +4,20 @@
 - 정의된 가치: 4개 (V1~V4)
 - PRD: 5개 (lifecycle, viewer, lookup, deployment, session-list)
 - Acceptance Criteria: 25개 (가치 연결됨: 25개 / 미연결: 0개)
-- 테스트 문서: 5개 (AC 커버됨: 19개 / 미커버: 6개 — SL-AC1~6 구현·테스트 대기)
-- **건강 상태**: ⚠️ 위험 있음 — 고아 가치(소유자 미정) 4건, 미검증 AC 6건(session-list 신규 기능, 구현·테스트 대기)
+- 테스트 문서: 5개 (AC 커버됨: 25개 / 미커버: 0개 — SL-AC1~6 검증 완료(file_count 제외); file_count는 SL-AC1/AC2의 잔여로 별도 추적)
+- **건강 상태**: ⚠️ 위험 있음 — 고아 가치(소유자 미정) 4건 (미검증 AC 0건; session-list의 file_count는 잔여 후속 작업)
 
 ## 연결 매트릭스
 
 | 가치 | PRD | AC | 테스트 | 상태 |
 |------|-----|-----|--------|------|
-| V1: 대화 구조의 시각적 이해 | prd-viewer (+prd-session-list) | VW-AC1~6 (+SL-AC1~2 계획) | test-viewer (+test-session-list 계획) | ⚠️ SL 부분 미검증 |
-| V2: 즉각적인 대화 탐색 | prd-lookup, prd-lifecycle (+prd-session-list) | LK-AC1~4, LC-AC4 (+SL-AC1~6 계획) | test-lookup, test-lifecycle (+test-session-list 계획) | ⚠️ SL 부분 미검증 |
+| V1: 대화 구조의 시각적 이해 | prd-viewer (+prd-session-list) | VW-AC1~6 (+SL-AC1~2) | test-viewer (+test-session-list) | ✅ 완전 (SL file_count 잔여) |
+| V2: 즉각적인 대화 탐색 | prd-lookup, prd-lifecycle (+prd-session-list) | LK-AC1~4, LC-AC4 (+SL-AC1~6) | test-lookup, test-lifecycle (+test-session-list) | ✅ 완전 (SL file_count 잔여) |
 | V3: 크기 무관한 가벼움 | prd-lifecycle | LC-AC1, LC-AC2, LC-AC3 | test-lifecycle | ✅ 완전 |
-| V4: 운영 부담 최소화 | prd-lifecycle, prd-deployment (+prd-session-list) | LC-AC1, LC-AC5, DP-AC1~4 (+SL-AC5 계획) | test-lifecycle, test-deployment (+test-session-list 계획) | ⚠️ SL 부분 미검증 |
+| V4: 운영 부담 최소화 | prd-lifecycle, prd-deployment (+prd-session-list) | LC-AC1, LC-AC5, DP-AC1~4 (+SL-AC5) | test-lifecycle, test-deployment (+test-session-list) | ✅ 완전 |
 
-> `(+...)` 표기는 2026-07-05 추가된 session-list PRD의 기여로, 구현·테스트가 아직 없는 **계획 상태**다.
-> 기존 4개 PRD의 커버리지는 그대로 ✅ 완전이며, ⚠️는 session-list 신규 AC에 한정된다.
+> `(+...)` 표기는 2026-07-05 추가된 session-list PRD의 기여다. SL-AC1~6은 구현·검증 완료이며
+> (파일 수 file_count만 SL-AC1/AC2의 잔여로 후속 작업), 전 가치의 커버리지는 ✅ 완전이다.
 
 ## 위험 진단
 
@@ -37,12 +37,17 @@
 - (없음)
 
 ### 미검증 AC (테스트 없는 AC)
-- 🟢 **SL-AC1~6 (session-list, 2026-07-05 추가) — 미검증: 구현·테스트 대기.** 세션 목록 기능은 현재
-  PRD(`prd-session-list`)·테스트 문서(`test-session-list`)만 존재하고, 프론트엔드 UI·백엔드 응답 스키마
-  확장·대응 테스트가 아직 없다. `test-session-list`에 시나리오 6건은 정의되어 있으나 스펙 미구현 상태다.
-  구현 완료 시 각 시나리오의 "구현(계획)" 경로를 실제 스펙으로 채워 해소한다.
-  (삭제 SL-AC5는 기존 `DELETE` 재시도 안전 삭제 경로를 재사용하므로 백엔드 안전성 테스트는 이미 존재 —
-  목록 UI에서의 삭제 흐름만 미검증이다.)
+- (없음 — 전 AC 검증 완료. 아래 잔여 1건과 과거 해소 이력 참조)
+- 🟡 **잔여: session-list file_count (SL-AC1/AC2의 "파일 수" 표시)** — 세션당 파일 수(메인 + 서브에이전트)는
+  이번 범위에서 제외되어 미구현이다. SL-AC1/AC2의 나머지(ID·`created_at`·최신순·검색·열기·삭제·상태)는
+  모두 검증되었고, file_count 표시만 후속 작업으로 분리한다(백엔드 산출 방식 — 세션당 S3 나열 vs 업로드
+  시점 저장 — 결정 포함). 별도 작업 착수 시 해소한다.
+- 2026-07-05 **SL-AC1~6(session-list, file_count 제외) 해소**: 백엔드 목록 스키마를 `[]string` →
+  `[{session_id, created_at}]`(`created_at` DESC)로 확장하고, 시각 주입 seam(`Store.PutSessionAt`)과 seed의
+  결정적 `created_at`을 도입했다. 프론트에 `SessionList` 컴포넌트와 세 번째 "Sessions" 탭을 추가하여
+  렌더·최신순·검색·클릭 열기·재시도 안전 삭제·빈/로딩/실패를 단위(`store_test`/`s3_test`/`server_test`/
+  `seed_test`)·컴포넌트(`SessionList.test.tsx`/`LookupTabs.test.tsx`)·E2E(`session-list.spec.ts`)로 검증했다.
+  (상세는 변경 이력 참조.)
 - (기존 AC 19개는 모두 검증 완료 — 아래는 과거 해소 이력)
 - 2026-07-04 `e2e/tests/transcript-upload-api.spec.ts` 추가로 LC-AC1·LC-AC2 해소
 - 2026-07-04 VW-AC5(절단) 실측 공백 해소: `text-truncation.spec.ts`가 전부 `test.skip`(미구현 UI 가정)이라 절단이 실제로 검증되지 않던 상태였음. 스펙을 실제 구현/픽스처에 맞게 활성화하고, 툴 ID·경로 절단을 타임라인 렌더로 단정하는 `frontend/src/components/TranscriptViewer.truncation.test.tsx`를 추가하여 해소.
@@ -55,10 +60,12 @@
 - (없음)
 
 ### 문서 정합성 주의 (신규 기능이 기존 문서에 주는 영향)
-- 🟡 **LK-AC1 "두 탭 표시" ↔ session-list "Sessions" 탭**: SL-AC2가 `LookupTabs`에 세 번째 탭을 추가하므로,
-  구현 시 LK-AC1의 "메인 페이지에 두 탭 표시" 서술과 그 테스트(`e2e/tests/lookup-tabs.spec.ts`,
-  test-lookup 시나리오 1의 "두 탭 표시" 기대값)를 세 탭 기준으로 갱신해야 한다.
-  기본 활성 탭은 "Message UUID"로 유지하는 전제이므로 LK-AC1의 기본 활성 부분은 영향 없음.
+- ✅ **[해소] LK-AC1 "두 탭 표시" ↔ session-list "Sessions" 탭**: SL-AC2가 `LookupTabs`에 세 번째 탭을
+  추가함에 따라 2026-07-05 정합성을 맞췄다. prd-lookup LK-AC1 서술을 "세 탭"으로 갱신(룩업 두 탭 +
+  Sessions 탭, 기본 활성 "Message UUID" 유지)하고, test-lookup 시나리오 1의 "두 탭" 기대값을 "룩업 두 탭
+  표시(Sessions는 SL-AC2 소관)"로 명확화했다. `e2e/tests/lookup-tabs.spec.ts`는 탭 개수를 단정하지 않고
+  두 룩업 탭의 표시·기본 활성·전환만 확인하므로 무변경(그린 유지); 컴포넌트 테스트
+  `LookupTabs.test.tsx`의 탭 개수 단정만 2 → 3으로 갱신했다.
 - 참고 — V2 서술 범위: 가치 문서 V2 설명은 "세션 ID 또는 메시지 UUID만으로"라는 두 식별자 경로를 열거하지만,
   session-list는 동일 가치(즉각적인 대화 탐색·낮은 입력 마찰)에 브라우징 경로를 더한 것이다. 가치 자체 변경은
   아니며, 원하면 V2 설명에 브라우징 경로를 추가하는 문구 갱신을 선택적으로 진행할 수 있다.
@@ -76,3 +83,4 @@
 | 2026-07-05 | VW-AC1 서브에이전트 없는 세션 렌더링 실측 공백 해소: `timeline-integration.spec.ts`의 no-subagent 테스트가 서브에이전트 포함 픽스처(session-abc123)를 쓰던 decoy이고 컴포넌트 테스트도 메시지 1건 렌더만 확인하던 상태 발견. E2E를 session-xyz789(서브에이전트 없는 seed 세션) 실제 로드 + 서브에이전트 그룹 0개 단정으로 보정하고, no-subagent 렌더링(전 메시지 시간순 렌더·그룹 미생성·agentId==세션ID 메인 취급)을 결정적으로 단정하는 컴포넌트 테스트 4케이스 추가 | VW-AC1 no-subagent 렌더링 실측 미검증(E2E decoy + 컴포넌트 단건 렌더) | VW-AC1 no-subagent 렌더링 실측 검증(컴포넌트 4케이스 그린 + E2E 정직화), 잔여 위험: 고아 가치만 |
 | 2026-07-05 | DP-AC4 seed 동일 코드 경로 재현 실측 공백 해소: DP-AC4 매핑 스펙 2건이 워크플로/스크립트 문자열만 정적 검사하고 `server seed`의 실제 업로드·매핑 동작(=CI 재현의 핵심 경로)은 결정적 테스트가 전무하던 상태 발견. 3개 서브에이전트 레이아웃 적재 후 서버 조회 경로(`GetTranscriptFiles`)로 해석을 단정하고 실제 `e2e/fixtures` 재현·CLI 계약을 검증하는 백엔드 테스트 3건을 `backend/seed_test.go`에 추가 | DP-AC4 seed 동일 코드 경로·재현성 실측 미검증(정적 문자열 검사만) | DP-AC4 seed 재현성 실측 검증(백엔드 3케이스 그린, `go test ./...`), 잔여 위험: 고아 가치만 |
 | 2026-07-05 | session-list 기능 문서 추가: PRD(`prd-session-list`, SL-AC1~6)·테스트 문서(`test-session-list`) 생성, V2(+V1/V4)에 연결. 백엔드 `GET /api/transcripts`(세션 ID 배열)는 이미 존재하나 응답 스키마 확장·프론트 UI·테스트는 미구현이라 SL-AC1~6을 미검증 AC로 등록. LK-AC1 "두 탭"↔Sessions 탭 정합성 주의 기록 | PRD 4개·AC 19개·테스트 4개, 잔여 위험: 고아 가치만 | PRD 5개·AC 25개·테스트 5개, 잔여 위험: 고아 가치 4건 + 미검증 AC 6건(session-list) |
+| 2026-07-05 | session-list 기능 구현(file_count 제외): 백엔드 목록 스키마 `[]string` → `[{session_id, created_at}]`(`created_at` DESC), 시각 주입 seam(`Store.PutSessionAt`)·seed 결정적 `created_at` 도입. 프론트 `SessionList` 컴포넌트 + 세 번째 "Sessions" 탭 추가(렌더·최신순·검색·클릭 열기·재시도 안전 삭제·빈/로딩/실패). 단위(`store_test`/`s3_test`/`server_test`/`seed_test`)·컴포넌트(`SessionList.test.tsx`/`LookupTabs.test.tsx`)·E2E(`session-list.spec.ts`) 검증, upload/delete E2E를 객체 배열 스키마로 갱신, LK-AC1 "두 탭"→"세 탭" 정합성 해소 | 미검증 AC 6건(SL-AC1~6, 구현·테스트 대기), 잔여 위험: 고아 가치 4건 + session-list 미검증 | 미검증 AC 0건(SL-AC1~6 검증 완료; file_count는 SL-AC1/AC2의 잔여로 후속), 잔여 위험: 고아 가치 4건 + file_count 후속 |

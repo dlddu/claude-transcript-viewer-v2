@@ -1,15 +1,22 @@
 import { useState } from 'react';
 import { SessionIdLookup } from './SessionIdLookup.js';
 import { MessageUuidLookup } from './MessageUuidLookup.js';
+import { SessionList } from './SessionList.js';
 
 export interface LookupTabsProps {
   onSessionLookup?: (sessionId: string) => void;
+  // Opening a session from the Sessions list. Defaults to onSessionLookup when
+  // omitted; App wires it separately so a list open switches to the full-screen
+  // master-detail view while identifier lookups stay inline.
+  onSessionOpen?: (sessionId: string) => void;
   isLoading?: boolean;
   error?: string;
 }
 
-export function LookupTabs({ onSessionLookup, isLoading, error }: LookupTabsProps = {}) {
-  const [activeTab, setActiveTab] = useState<'message-uuid' | 'session-id'>('message-uuid');
+export function LookupTabs({ onSessionLookup, onSessionOpen, isLoading, error }: LookupTabsProps = {}) {
+  const [activeTab, setActiveTab] = useState<'message-uuid' | 'session-id' | 'sessions'>(
+    'message-uuid'
+  );
 
   return (
     <div className="lookup-tabs">
@@ -30,6 +37,14 @@ export function LookupTabs({ onSessionLookup, isLoading, error }: LookupTabsProp
         >
           Session ID
         </button>
+        <button
+          role="tab"
+          aria-selected={activeTab === 'sessions'}
+          className={`lookup-tabs__tab${activeTab === 'sessions' ? ' lookup-tabs__tab--active' : ''}`}
+          onClick={() => setActiveTab('sessions')}
+        >
+          Sessions
+        </button>
       </div>
       <div role="tabpanel" className="lookup-tabs__panel">
         {activeTab === 'message-uuid' && (
@@ -45,6 +60,9 @@ export function LookupTabs({ onSessionLookup, isLoading, error }: LookupTabsProp
             isLoading={isLoading}
             error={error}
           />
+        )}
+        {activeTab === 'sessions' && (
+          <SessionList onSessionLookup={onSessionOpen ?? onSessionLookup} />
         )}
       </div>
     </div>

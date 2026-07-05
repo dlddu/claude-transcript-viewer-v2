@@ -6,11 +6,13 @@
 ## Acceptance Criteria
 
 ### LK-AC1: 룩업 탭 UI
-- **설명**: 메인 페이지에 "Message UUID" 탭과 "Session ID" 탭을 표시한다.
+- **설명**: 메인 페이지에 "Message UUID"·"Session ID"·"Sessions" 세 탭을 표시한다.
+  이 중 룩업(식별자로 열기) 경로는 "Message UUID"·"Session ID" 두 탭이며,
+  세 번째 "Sessions" 탭(브라우징 목록)은 session-list PRD의 SL-AC2 소관이다.
   기본 활성 탭은 "Message UUID"이며, 탭 전환 시 해당 입력 UI가 표시되고
-  각 탭에서 룩업 플로우를 끝까지 완료할 수 있다.
+  각 룩업 탭에서 룩업 플로우를 끝까지 완료할 수 있다.
 - **달성 가치**: V2
-- **검증 방법**: 탭 렌더링·기본 활성 상태·전환·플로우 완료를 UI에서 확인
+- **검증 방법**: 탭 렌더링(세 탭)·기본 활성 상태(Message UUID)·전환·룩업 플로우 완료를 UI에서 확인
 
 ### LK-AC2: Session ID 룩업
 - **설명**: 세션 ID 입력 필드와 룩업 버튼을 제공한다. 유효한 세션 ID 입력 시 트랜스크립트를
