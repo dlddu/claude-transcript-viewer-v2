@@ -14,7 +14,7 @@ import (
 // fakeService implements TranscriptService for handler tests.
 type fakeService struct {
 	getTranscriptFiles        func(ctx context.Context, sessionID string) (TranscriptFilesResponse, error)
-	listTranscripts           func(ctx context.Context) ([]string, error)
+	listTranscripts           func(ctx context.Context) ([]SessionSummary, error)
 	createUploadURL           func(ctx context.Context, req UploadURLRequest) (UploadURLResponse, error)
 	deleteTranscriptBySession func(ctx context.Context, sessionID string) error
 	lastSessionIDPassed       string
@@ -28,7 +28,7 @@ func (f *fakeService) GetTranscriptFiles(ctx context.Context, sessionID string) 
 	return TranscriptFilesResponse{}, errors.New("not stubbed")
 }
 
-func (f *fakeService) ListTranscripts(ctx context.Context) ([]string, error) {
+func (f *fakeService) ListTranscripts(ctx context.Context) ([]SessionSummary, error) {
 	if f.listTranscripts != nil {
 		return f.listTranscripts(ctx)
 	}
@@ -392,6 +392,70 @@ func TestHandleCreateUploadURL_InvalidSessionReturns400(t *testing.T) {
 	rec := doPost(t, server, "/api/transcripts/upload-url/bad-session", "")
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("status = %d, want 400", rec.Code)
+	}
+}
+
+// --- GET /api/transcripts (session list) ------------------------------------
+
+// TestHandleList_ReturnsSessionSummaries pins the list endpoint's response
+// schema (SL-AC1): a JSON array of {session_id, created_at} objects, emitted in
+// the order the service returns them (newest-first) without the handler
+// re-sorting. This is the contract the frontend SessionList and the
+// upload/delete E2E specs read against.
+func TestHandleList_ReturnsSessionSummaries(t *testing.T) {
+	fake := &fakeService{
+		listTranscripts: func(_ context.Context) ([]SessionSummary, error) {
+			return []SessionSummary{
+				{SessionID: "session-newer", CreatedAt: "2026-07-05T12:00:00Z"},
+				{SessionID: "session-older", CreatedAt: "2026-07-05T09:00:00Z"},
+			}, nil
+		},
+	}
+	server := NewServer(fake)
+
+	for _, base := range []string{"/api/transcripts", "/api/transcript"} {
+		rec := doRequest(t, server, base)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s: status = %d, want 200", base, rec.Code)
+		}
+		var got []map[string]any
+		if err := json.Unmarshal(rec.Body.Bytes(), &got); err != nil {
+			t.Fatalf("%s: decode array: %v\nbody: %s", base, err, rec.Body.String())
+		}
+		if len(got) != 2 {
+			t.Fatalf("%s: got %d entries, want 2: %v", base, len(got), got)
+		}
+		// Order is preserved (newest-first from the service).
+		if got[0]["session_id"] != "session-newer" || got[1]["session_id"] != "session-older" {
+			t.Errorf("%s: order = [%v, %v], want [session-newer, session-older]",
+				base, got[0]["session_id"], got[1]["session_id"])
+		}
+		// Each entry carries both contract fields.
+		for _, entry := range got {
+			if _, ok := entry["session_id"].(string); !ok {
+				t.Errorf("%s: entry missing session_id: %v", base, entry)
+			}
+			if _, ok := entry["created_at"].(string); !ok {
+				t.Errorf("%s: entry missing created_at: %v", base, entry)
+			}
+		}
+	}
+}
+
+func TestHandleList_ServiceErrorReturns500(t *testing.T) {
+	fake := &fakeService{
+		listTranscripts: func(_ context.Context) ([]SessionSummary, error) {
+			return nil, errors.New("store unavailable")
+		},
+	}
+	server := NewServer(fake)
+
+	rec := doRequest(t, server, "/api/transcripts")
+	if rec.Code != http.StatusInternalServerError {
+		t.Fatalf("status = %d, want 500", rec.Code)
+	}
+	if _, ok := decodeResponse(t, rec.Body.Bytes())["error"]; !ok {
+		t.Error("expected error field")
 	}
 }
 

@@ -8,10 +8,10 @@
 ### 시나리오 1: 탭 UI와 플로우 완주
 - **사전 조건**: seed로 적재된 세션 존재
 - **실행 단계**: 메인 페이지 진입 → 탭 확인 → "Session ID" 탭 전환 → 룩업 완료
-- **기대 결과**: 두 탭 표시, "Message UUID" 기본 활성, 탭 전환 시 해당 입력 표시,
-  Session ID 탭에서 룩업 플로우 완료
+- **기대 결과**: 룩업 두 탭("Message UUID"·"Session ID") 표시(세 번째 "Sessions" 탭은 SL-AC2 소관),
+  "Message UUID" 기본 활성, 탭 전환 시 해당 입력 표시, Session ID 탭에서 룩업 플로우 완료
 - **검증 AC**: LK-AC1
-- **구현**: `e2e/tests/lookup-tabs.spec.ts`
+- **구현**: `e2e/tests/lookup-tabs.spec.ts`(룩업 두 탭의 표시·기본 활성·전환·플로우를 단정; 탭 개수는 미단정)
 
 ### 시나리오 2: Session ID 룩업 정상/보조 동작
 - **사전 조건**: 유효한 세션 ID

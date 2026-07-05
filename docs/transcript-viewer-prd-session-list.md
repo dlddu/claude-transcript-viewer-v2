@@ -12,22 +12,28 @@
 ## Acceptance Criteria
 
 ### SL-AC1: 세션 목록 조회 API
-- **설명**: 백엔드가 저장된 전체 세션을 목록으로 반환한다. 각 항목은 세션 ID,
-  업로드 시각(`created_at`), 파일 수(메인 + 서브에이전트)를 포함한다.
-  세션 매핑과 시각은 SQLite `transcript_sessions`에 이미 영속화되어 있으며,
-  파일 수는 세션 Hive 프리픽스의 객체 나열로 산출한다.
-  (현행 `GET /api/transcripts`는 세션 ID 배열(`[]string`)만 반환하므로 응답 스키마 확장이 필요하다.)
+- **설명**: 백엔드가 저장된 전체 세션을 목록으로 반환한다. 각 항목은 세션 ID와
+  업로드 시각(`created_at`)을 포함한다. 세션 매핑과 시각은 SQLite `transcript_sessions`에
+  영속화되어 있으며, 목록은 `created_at` 내림차순(최신순)으로 반환한다.
+  `GET /api/transcripts`의 응답 스키마는 세션 ID 배열(`[]string`)에서
+  `[{ session_id, created_at }]` 객체 배열로 확장되었다.
+  - **파일 수(file_count) 보류**: 세션당 파일 수(메인 + 서브에이전트)는 이번 범위에서 제외한다
+    (세션 프리픽스 객체 나열 비용/산출 방식 미결정). 후속 작업으로 분리하며 상태 추적 문서에
+    SL-AC1/AC2의 잔여로 기록한다.
 - **달성 가치**: V2, V1
-- **검증 방법**: 여러 세션(서브에이전트 유/무 혼합) 적재 후 API 응답의 각 항목이
-  ID·업로드 시각·파일 수를 정확히 포함하는지 확인
+- **검증 방법**: 여러 세션 적재 후 API 응답의 각 항목이 ID·업로드 시각을 정확히 포함하고
+  최신순으로 정렬되는지 확인 (`backend/server_test.go`의 `TestHandleList_ReturnsSessionSummaries`,
+  `backend/s3_test.go`의 `TestListTranscripts_OrderedNewestFirst`, `e2e/tests/session-list.spec.ts`)
 
 ### SL-AC2: 목록 렌더링과 최신순 정렬
-- **설명**: 프론트엔드가 세션 목록을 행/카드로 렌더링하고 **기본 최신 업로드순**으로 정렬한다.
-  각 항목에 세션 ID, 업로드 날짜, 파일 수를 표시한다.
+- **설명**: 프론트엔드가 세션 목록을 행으로 렌더링하고 **기본 최신 업로드순**으로 표시한다.
+  정렬은 백엔드가 `created_at` 내림차순으로 반환하며(프론트는 받은 순서대로 렌더),
+  각 항목에 세션 ID와 업로드 날짜를 표시한다(파일 수는 SL-AC1과 함께 보류 — 상단 주석 참조).
   기존 룩업 UI와 동일한 메인 페이지에 "Sessions" 탭으로 추가하며(기본 활성 탭은 기존 "Message UUID" 유지),
   데스크톱과 모바일(375×667, 360×640) 모두에서 가로 스크롤 없이 가독성을 유지한다.
 - **달성 가치**: V2, V1
-- **검증 방법**: 다중 세션 픽스처로 정렬 순서·표시 필드(ID/날짜/파일 수)·반응형 레이아웃 확인
+- **검증 방법**: 다중 세션 픽스처로 정렬 순서·표시 필드(ID/날짜)·반응형 레이아웃 확인
+  (`frontend/src/components/SessionList.test.tsx`, `e2e/tests/session-list.spec.ts`)
 
 ### SL-AC3: 목록 내 검색·필터
 - **설명**: 목록 상단 검색 입력으로 세션 ID 부분 일치 기준 실시간 필터링한다.
@@ -58,16 +64,19 @@
 - **달성 가치**: V2
 - **검증 방법**: 빈 목록·로딩 중·API 실패 각 상태의 UI 렌더링 확인
 
-## 현재 구현 격차 (문서화 시점 기준)
-이 PRD는 현재 코드보다 앞서 있다. 상태 추적 문서에서 SL-AC1~6은 **미검증 AC(구현·테스트 대기)**로 관리한다.
+## 구현 현황 (2026-07-05 갱신)
+SL-AC1~6은 **file_count를 제외하고 구현·검증**되었다. 상태 추적 문서에서 SL-AC1~6은
+검증 완료(파일 수 제외)로 관리하며, file_count는 잔여로 별도 후속 작업이다.
 
-- **백엔드**: `GET /api/transcripts`(`handleList` → `ListTranscripts` → `Store.ListSessionIDs`)는
-  존재하나 세션 ID 배열만 반환한다. SL-AC1 충족을 위해 응답을
-  `[{ session_id, created_at, file_count }]` 형태로 확장해야 한다
-  (`created_at`은 SQLite에 이미 있음; `file_count`는 세션 프리픽스 객체 나열로 산출).
-  → 세션 수 × 세션당 S3 나열 비용이 발생하므로, 소규모 전제에서 허용 가능한지 또는
-  업로드 시점에 파일 수를 함께 저장할지는 구현 단계에서 결정한다.
+- **백엔드**: `GET /api/transcripts`(`handleList` → `ListTranscripts` → `Store.ListSessions`)는
+  `[{ session_id, created_at }]`를 `created_at` 내림차순(최신순)으로 반환한다. 시각 주입 seam
+  (`Store.PutSessionAt`)으로 정렬 결정성을 확보하고, seed(`backend/seed.go`)는 픽스처마다
+  결정적 `created_at`을 부여한다.
+- **file_count(보류)**: 세션당 파일 수는 미구현. 세션 수 × 세션당 S3 나열 비용이 발생하므로,
+  소규모 전제에서 허용할지 또는 업로드 시점에 파일 수를 함께 저장할지 산출 방식을 후속 작업에서
+  결정한다. SL-AC1/AC2의 "파일 수" 표시는 이 잔여가 해소될 때 충족된다.
 - **삭제(SL-AC5)**: 기존 `DELETE /api/transcript/session/{id}`를 재사용 — 백엔드 신규 작업 없음.
-- **프론트엔드**: 세션 목록 컴포넌트 및 "Sessions" 탭이 아직 없다.
-  `LookupTabs`에 세 번째 탭을 추가하면 룩업 PRD LK-AC1의 "두 탭 표시" 서술 및
-  그 테스트(`e2e/tests/lookup-tabs.spec.ts`)가 함께 갱신되어야 한다(상태 추적 문서의 정합성 주의 참조).
+  목록 UI의 삭제 흐름(확인 → 호출 → 성공 시 행 제거, 실패 시 유지 + 에러)이 추가되었다.
+- **프론트엔드**: `SessionList` 컴포넌트와 `LookupTabs`의 세 번째 "Sessions" 탭이 추가되었다.
+  세 탭 전환에 맞춰 룩업 PRD LK-AC1의 서술을 "세 탭"으로 갱신했다(기본 활성 "Message UUID" 유지;
+  `e2e/tests/lookup-tabs.spec.ts`는 탭 개수를 단정하지 않아 무변).

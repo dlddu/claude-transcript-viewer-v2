@@ -41,20 +41,39 @@ func runSeed(ctx context.Context, args []string) error {
 	return seedDir(ctx, svc, store, *dir)
 }
 
+// seedCreatedAtBase anchors the created_at stamps seed assigns. A fixed base
+// (rather than time.Now) makes a seeded environment's session ordering fully
+// deterministic and reproducible: fixtures are recorded oldest→newest in
+// fixture order (base + index·seedCreatedAtStep), so the E2E suite can assert
+// the session list's newest-first ordering without depending on the wall clock.
+// It sits in the past so any session uploaded live during a test run sorts above
+// the seeded fixtures.
+var seedCreatedAtBase = time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC)
+
+// seedCreatedAtStep spaces successive fixtures far enough apart that the
+// RFC3339 (second-resolution) stamps stay distinct and clearly ordered.
+const seedCreatedAtStep = time.Minute
+
 func seedDir(ctx context.Context, svc *S3Service, store SessionStore, dir string) error {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return fmt.Errorf("read fixtures dir: %w", err)
 	}
 
+	// os.ReadDir returns entries sorted by name, so seq assigns a stable,
+	// deterministic created_at per fixture: later fixtures are recorded as newer.
+	seq := 0
 	for _, entry := range entries {
 		if entry.IsDir() || !strings.HasSuffix(entry.Name(), ".jsonl") {
 			continue
 		}
 		sessionID := strings.TrimSuffix(entry.Name(), ".jsonl")
 
-		candidate := svc.prefix + hiveSessionPrefix(sessionID, time.Now())
-		if err := store.PutSession(ctx, sessionID, candidate); err != nil {
+		createdAt := seedCreatedAtBase.Add(time.Duration(seq) * seedCreatedAtStep)
+		seq++
+
+		candidate := svc.prefix + hiveSessionPrefix(sessionID, createdAt)
+		if err := store.PutSessionAt(ctx, sessionID, candidate, createdAt); err != nil {
 			return err
 		}
 		prefix, err := store.GetSessionPrefix(ctx, sessionID)

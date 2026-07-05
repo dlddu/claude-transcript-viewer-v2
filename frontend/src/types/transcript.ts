@@ -82,6 +82,14 @@ export interface TranscriptFilesResponse {
   subagents: TranscriptFileRef[];
 }
 
+// One entry in the session list from GET /api/transcripts. snake_case mirrors
+// the backend JSON. created_at is an RFC3339 UTC timestamp; the backend returns
+// the list ordered newest-first, so clients render it in the received order.
+export interface SessionSummary {
+  session_id: string;
+  created_at: string;
+}
+
 export interface EnrichedToolUse {
   id: string;
   name: string;
