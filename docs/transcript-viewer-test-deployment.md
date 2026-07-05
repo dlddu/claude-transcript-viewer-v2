@@ -26,9 +26,21 @@
 - **검증 AC**: DP-AC3
 - **구현**: `e2e/tests/k8s-manifests.spec.ts`, `e2e/tests/k8s-localstack-manifests.spec.ts`
 
-### 시나리오 4: kind + LocalStack 재현 환경
+### 시나리오 4: kind + LocalStack 재현 환경 (매니페스트·스크립트 계약)
 - **사전 조건**: kind 클러스터 스크립트와 LocalStack 매니페스트
 - **실행 단계**: 로컬 kind 클러스터 기동 → seed로 픽스처 적재 → 앱 동작 확인
 - **기대 결과**: CI/로컬에서 동일하게 재현, seed 기반 E2E 통과
-- **검증 AC**: DP-AC4
+- **검증 AC**: DP-AC4 (매니페스트·스크립트·워크플로 존재와 구성)
 - **구현**: `e2e/tests/kind-cluster-workflow.spec.ts`, `e2e/tests/local-kind-script.spec.ts`
+
+### 시나리오 4-B: seed 서브커맨드가 서버와 동일한 코드 경로로 환경을 재현 (백엔드 계약)
+- **사전 조건**: 픽스처 디렉토리, in-memory S3 목(`mockS3Client`)과 임시 SQLite 스토어(`newTestStore`)로 배선한 서비스
+- **실행 단계**: `server seed`가 실행하는 바로 그 함수(`seedDir`)를 픽스처 디렉토리에 대해 호출하고, 적재 결과를 서버 자신의 조회 경로(`GetTranscriptFiles` — `GET /api/transcript/session/{id}`가 호출)로 다시 해석
+- **기대 결과**:
+  - **매핑·키**: 각 세션이 Hive 파티션 프리픽스(`year=/month=/day=/hour=/session_id=`)로 매핑되고, 메인은 `<prefix><session>.jsonl`에, 서브에이전트는 두 레이아웃(`agent-*.jsonl` 직접 배치, `subagents/*.jsonl` 하위 디렉토리) 모두 정확한 키에 원본 바이트로 업로드된다. 픽스처 외 잉여 객체는 없다.
+  - **동일 코드 경로/재현성(핵심)**: 적재 직후 `GetTranscriptFiles`가 각 세션의 메인과 모든 서브에이전트를 그대로 해석한다 — 즉 seed가 실행 중 서버(따라서 CI의 E2E)가 의존하는 상태를 정확히 재현함을 단정한다.
+  - **실제 CI 코퍼스**: CI가 넘기는 바로 그 디렉토리(`e2e/fixtures`)를 seed하면 상단 `*.jsonl` 세션 전부가 서버 조회로 해석되고, 서브에이전트를 가진 유일 픽스처(`session-abc123`)가 두 서브에이전트를 노출한다.
+  - **CLI 계약**: `--dir` 없이 실행하면 스토어/S3를 건드리기 전에 즉시 실패한다.
+- **검증 AC**: DP-AC4 (seed의 업로드·매핑·서브에이전트 발견이 서버 조회 경로와 정합 = 재현성의 근거)
+- **구현**: `backend/seed_test.go` (`TestSeedDir_PopulatesStorageForServerReadPath`가 3개 레이아웃과 서버-읽기-경로 해석을, `TestSeedDir_RealFixturesReproduceServerEnvironment`가 실제 `e2e/fixtures` 코퍼스 재현을, `TestRunSeed_RequiresDir`가 CLI 계약을 검증; CI의 `go test ./...`로 실행)
+- **비고**: 기존 시나리오 4의 두 스펙은 워크플로 YAML과 `kind-setup.sh` 문자열을 정적으로 검사할 뿐 `seedDir`/`seedSubagents`의 실제 동작은 다루지 않았다. seed는 CI 재현의 핵심 경로임에도(`.github/workflows/test.yml`가 `./backend/server seed --dir e2e/fixtures`를 실행) 결정적 테스트가 전무해, AC 이름 그대로인 DP-AC4의 핵심 보장 — "seed가 서버와 동일한 코드 경로로 업로드·매핑하여 CI가 환경을 재현" — 이 실측 미검증이었다. 위 백엔드 테스트로 이 공백을 해소했다(seed가 메인을 잘못된 키에 올리거나·서브에이전트 레이아웃을 누락하거나·매핑을 건너뛰도록 변조하면 즉시 실패함을 확인).
