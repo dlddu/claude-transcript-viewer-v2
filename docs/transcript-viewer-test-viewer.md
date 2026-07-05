@@ -6,12 +6,16 @@
 ## 테스트 시나리오
 
 ### 시나리오 1: 통합 타임라인 렌더링
-- **사전 조건**: 서브에이전트를 포함한 세션 픽스처 적재
-- **실행 단계**: 세션 로드 후 타임라인 렌더링
-- **기대 결과**: 서브에이전트 메시지가 호출 지점에 인라인 삽입, 항목이 시간순 정렬,
-  서브에이전트 없는 세션도 정상 처리
+- **사전 조건**: 서브에이전트를 포함한 세션 픽스처(session-abc123)와, 서브에이전트가 없는 세션 픽스처(session-xyz789) 적재
+- **실행 단계**: 각 세션 로드 후 타임라인 렌더링
+- **기대 결과**:
+  - (서브에이전트 포함) 서브에이전트 메시지가 호출 지점에 인라인 삽입되고 항목이 시간순 정렬된다.
+  - (서브에이전트 미포함) 모든 메인 메시지가 시간순으로 렌더되고 서브에이전트 그룹이 하나도 생기지 않는다.
 - **검증 AC**: VW-AC1
-- **구현**: `e2e/tests/timeline-integration.spec.ts`
+- **구현**:
+  - E2E: `e2e/tests/timeline-integration.spec.ts` — 'should handle sessions with no subagents gracefully'가 서브에이전트 없는 seed 세션(session-xyz789)을 실제로 로드해 서브에이전트 그룹 0개를 단정한다.
+  - 컴포넌트/유닛: `frontend/src/components/TranscriptViewer.no-subagents.test.tsx` — 서브에이전트 없는 세션이 통합 타임라인에 전 메시지를 시간순으로 렌더하고, 서브에이전트 그룹/헤더/라벨이 하나도 생기지 않으며, agentId가 세션 ID와 같은 메시지도 메인으로 취급됨을 단정한다.
+  - 비고: 과거 'should handle sessions with no subagents gracefully'는 beforeEach가 적재한 서브에이전트 포함 픽스처(session-abc123)를 그대로 쓰면서 에러 미발생만 단정하는 decoy였고(테스트 주석: "would need a different fixture without subagents"), 컴포넌트 테스트의 'should handle messages without agentId field gracefully'는 메시지 1건 렌더만 확인해, AC 이름 그대로인 "서브에이전트가 없는 세션도 정상 렌더링" 절반이 실측 미검증이었다. 위 두 테스트로 해소했다.
 
 ### 시나리오 2: 메인/서브에이전트 구분과 메타데이터
 - **사전 조건**: 시나리오 1과 동일
