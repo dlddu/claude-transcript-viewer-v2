@@ -36,6 +36,16 @@
 - **검증 AC**: LC-AC5, LC-AC4
 - **구현**: `e2e/tests/transcript-delete-api.spec.ts`
 
+### 시나리오 1-B: 삭제 순서와 재시도 안전성 (재시도 안전 삭제)
+- **사전 조건**: 메인 + 서브에이전트가 적재된 세션, S3 `DeleteObject`에 실패를 주입할 수 있는 mock 클라이언트
+- **실행 단계**: 객체 스윕 도중(마지막 객체인 메인 / 첫 객체)에 삭제 실패를 주입해 `DeleteTranscriptBySessionId`를 호출하고, 이후 실패를 해제하고 다시 호출
+- **기대 결과**:
+  - **순서(객체 → 매핑)**: 세션 Hive 디렉토리의 모든 객체를 먼저 삭제한 뒤 SQLite 매핑을 마지막에 제거한다(메인 객체가 스윕의 마지막). 스윕 도중 실패하면 이미 삭제된 앞선 객체와 무관하게 매핑은 그대로 남는다.
+  - **재시도 안전성**: 중단된 삭제는 세션을 여전히 조회 가능한 상태로 남긴다(매핑 유지 + 매니페스트가 메인·서브에이전트 전량 해석). 실패가 해소된 뒤 동일 삭제를 재시도하면 객체와 매핑이 모두 제거된다.
+- **검증 AC**: LC-AC5 (삭제 순서 객체→매핑, 중단 시 재시도 안전)
+- **구현**: `backend/s3_test.go` (`TestDeleteTranscriptBySessionId_DeletesObjectsBeforeMapping`가 객체→매핑 순서와 스윕 실패 시 매핑 잔존을, `TestDeleteTranscriptBySessionId_InterruptedDeleteIsRetrySafe`가 중단 후 세션 조회 가능성과 재시도 완결성을 검증; CI의 `go test ./...`로 실행)
+- **비고**: 기존 `transcript-delete-api.spec.ts`(시나리오 1)는 정상 삭제 성공·S3 스토리지 제거·404만 단정하고 삭제 순서와 재시도 안전성은 다루지 않았다. AC 이름 그대로인 LC-AC5의 핵심 보장("재시도 안전 삭제")이 실측 미검증이던 공백을 이 백엔드 fault-injection 테스트로 해소했다.
+
 ### 시나리오 2: 미등록 세션 조회
 - **사전 조건**: SQLite에 매핑이 없는 세션 ID
 - **실행 단계**: `GET /api/transcript/session/{id}` 호출
