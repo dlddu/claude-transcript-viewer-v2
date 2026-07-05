@@ -175,21 +175,31 @@ test.describe('Timeline Integration', () => {
   });
 
   test('should handle sessions with no subagents gracefully', async ({ page }) => {
-    // Note: This test would need a different fixture without subagents
-    // For now, testing the timeline can handle mixed content
+    // VW-AC1 requires that a session WITHOUT subagents also renders correctly.
+    // session-xyz789 is seeded with only main-agent messages and no subagents/
+    // directory, so its timeline must render without producing any subagent
+    // group. Navigate fresh (the beforeEach loaded a session that HAS subagents)
+    // so no leftover subagent groups can mask the assertion.
+    await page.goto('/');
+    const sessionIdTab = page.getByRole('tab', { name: 'Session ID' });
+    if ((await sessionIdTab.count()) > 0) {
+      await sessionIdTab.click();
+    }
+    await page.getByTestId('session-id-input').fill('session-xyz789');
+    await page.getByTestId('session-id-lookup-button').click();
 
-    // Arrange
+    // The unified timeline renders with the main-agent messages...
     const timeline = page.getByTestId('timeline-view');
-
-    // Assert - Timeline should still work with only main agent messages
     await expect(timeline).toBeVisible();
+    await expect(timeline.getByText(/Can you summarize this report/i)).toBeVisible();
+    await expect(timeline.locator('[data-testid="timeline-item"]').first()).toBeVisible();
 
-    // Should show messages (main agent messages are directly visible)
-    const messageItems = timeline.locator('[data-testid="timeline-item"]');
-    await expect(messageItems.first()).toBeVisible();
+    // ...and NO subagent group is created for a session without subagents.
+    await expect(page.getByTestId('subagent-group')).toHaveCount(0);
+    await expect(page.getByTestId('subagent-group-header')).toHaveCount(0);
 
-    // Timeline should not show errors when no subagents present
-    await expect(page.getByText(/error/i)).not.toBeVisible();
+    // No error surfaced during the lookup.
+    await expect(page.locator('[role="alert"]')).toHaveCount(0);
   });
 
   test('should support keyboard navigation through timeline items', async ({ page }) => {
