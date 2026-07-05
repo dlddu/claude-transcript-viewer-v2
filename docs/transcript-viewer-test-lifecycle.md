@@ -53,9 +53,21 @@
 - **검증 AC**: LC-AC4
 - **구현**: `e2e/tests/session-id-lookup.spec.ts` (error 케이스)
 
-### 시나리오 3: 매니페스트 기반 브라우저 직접 다운로드
-- **사전 조건**: seed로 적재된 세션(서브에이전트 포함)
-- **실행 단계**: 프론트엔드에서 세션 룩업 → 매니페스트 수신 → 브라우저가 S3에서 직접 JSONL 다운로드·파싱
-- **기대 결과**: main + subagents presigned URL이 포함된 매니페스트, 트랜스크립트 정상 렌더링
-- **검증 AC**: LC-AC3
-- **구현**: `e2e/tests/session-id-lookup.spec.ts`, `e2e/tests/timeline-integration.spec.ts` (룩업·타임라인 테스트가 이 경로를 경유)
+### 시나리오 3: 매니페스트 구조와 단기 presigned GET (백엔드 계약)
+- **사전 조건**: 실행 중인 백엔드 + S3, 또는 mock presigner/store
+- **실행 단계**: `GET /api/transcript/session/{id}` 호출 → 매니페스트 응답 검사, presigned URL로 직접 다운로드
+- **기대 결과**: 매니페스트에 `session_id`·`expires_in`·`main`(id/name/key/url)·`subagents[]` 포함,
+  각 URL이 presigned GET(서명 포함), TTL이 기본 5분(`DOWNLOAD_URL_TTL_SECONDS`로 조정), 서브에이전트 전량 노출
+- **검증 AC**: LC-AC3 (매니페스트 구조·단기 TTL)
+- **구현**: `backend/s3_test.go`(`TestGetTranscriptFiles_ReturnsPresignedMain`가 main ref·presigned URL을, `TestGetTranscriptFiles_UsesShortDownloadTTL`가 기본 300초·커스텀 TTL을, `TestGetTranscriptFiles_DiscoversSubagentsInSessionDir`가 서브에이전트 노출을 단정), `backend/s3_integration_test.go`(`X-Amz-Expires` 쿼리·presigned URL 실다운로드), `backend/server_test.go`(`TestHandleGetBySession_ReturnsFileManifest`가 매니페스트 JSON 형태를 단정); 룩업·타임라인 E2E가 이 경로를 실사용으로 경유
+
+### 시나리오 3-B: 브라우저-S3 직결 다운로드·백엔드 미경유 (프론트 로더)
+- **사전 조건**: 매니페스트(presigned S3 URL)와 각 파일 응답을 주입할 수 있는 `fetch` 목
+- **실행 단계**: `loadTranscript(sessionId)` 호출 후 발생한 모든 `fetch` URL을 수집해 백엔드(`/api/*`) vs 직결-S3(`X-Amz-Signature`)로 분류
+- **기대 결과**:
+  - **백엔드 미경유**: 백엔드는 매니페스트 1건만 호출되고(`/api/transcript/session/{id}`), 트랜스크립트 바이트를 서빙하는 백엔드 요청이 없다(백엔드 요청 중 `.jsonl`·presigned 서명 URL 없음).
+  - **S3 직결**: main과 모든 서브에이전트가 매니페스트의 각 presigned S3 URL 그대로에서 다운로드되며(파일당 정확히 1건), 그 URL은 백엔드 오리진이 아니다.
+  - **크기 무관(V3)**: 파일 수가 늘어도 백엔드 요청은 매니페스트 1건으로 일정하고, 직결-S3 다운로드만 파일 수에 비례한다.
+- **검증 AC**: LC-AC3 (브라우저-S3 직결, 백엔드 미경유)
+- **구현**: `frontend/src/utils/loadTranscript.test.ts`(`describe('loadTranscript')` 내 라우팅 2케이스; CI의 `pnpm --filter @claude-transcript-viewer/frontend test:unit`로 실행)
+- **비고**: 기존 `loadTranscript.test.ts`는 파일이 로드·파싱되는 happy-path와 presigned URL이 "하나라도" 쓰였음만 단정하고, AC 이름 그대로인 LC-AC3의 핵심 보장 — 트랜스크립트 바이트가 백엔드를 경유하지 않고 각 파일이 자신의 presigned URL에서 직결 다운로드된다는 것(=V3 "크기 무관한 가벼움"의 근거) — 은 실측 검증되지 않았다. 요청 URL을 백엔드 vs S3로 분류해 단정하는 위 2케이스로 이 공백을 해소했다. (소스를 서브에이전트 다운로드가 백엔드를 경유하도록 변조하면 두 케이스가 즉시 실패함을 확인.)
