@@ -129,16 +129,27 @@ test.describe('Session List', () => {
     await expect(page.getByTestId('session-list-item')).toHaveCount(0);
   });
 
-  test('opens a session from the list into the timeline view (SL-AC4)', async ({ page }) => {
+  test('opens a session into a full-screen detail view and returns via back (SL-AC4)', async ({
+    page,
+  }) => {
     await page.goto('/');
     await page.getByRole('tab', { name: 'Sessions' }).click();
     await expect(page.getByText('session-abc123', { exact: true })).toBeVisible();
 
-    // Click the row to open it (reuses the lookup loadTranscript path).
+    // Click the row to open it (reuses the lookup loadTranscript path). The list
+    // is replaced by the transcript (master-detail), so a large session count
+    // never has to be scrolled past to reach a session's content.
     await page.getByText('session-abc123', { exact: true }).click();
 
     await expect(page.getByTestId('transcript-viewer')).toBeVisible();
     await expect(page.getByText(/Can you help me analyze this dataset/i)).toBeVisible();
+    await expect(page.getByTestId('session-list')).not.toBeVisible();
+
+    // Back returns to the list, with the Sessions tab still active.
+    await page.getByTestId('session-detail-back').click();
+    await expect(page.getByTestId('session-list')).toBeVisible();
+    await expect(page.getByTestId('transcript-viewer')).not.toBeVisible();
+    await expect(page.getByText('session-abc123', { exact: true })).toBeVisible();
   });
 
   test('deletes a session from the list (SL-AC5)', async ({ page, request }) => {

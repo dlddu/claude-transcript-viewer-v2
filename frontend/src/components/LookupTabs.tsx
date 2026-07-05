@@ -5,11 +5,15 @@ import { SessionList } from './SessionList.js';
 
 export interface LookupTabsProps {
   onSessionLookup?: (sessionId: string) => void;
+  // Opening a session from the Sessions list. Defaults to onSessionLookup when
+  // omitted; App wires it separately so a list open switches to the full-screen
+  // master-detail view while identifier lookups stay inline.
+  onSessionOpen?: (sessionId: string) => void;
   isLoading?: boolean;
   error?: string;
 }
 
-export function LookupTabs({ onSessionLookup, isLoading, error }: LookupTabsProps = {}) {
+export function LookupTabs({ onSessionLookup, onSessionOpen, isLoading, error }: LookupTabsProps = {}) {
   const [activeTab, setActiveTab] = useState<'message-uuid' | 'session-id' | 'sessions'>(
     'message-uuid'
   );
@@ -58,7 +62,7 @@ export function LookupTabs({ onSessionLookup, isLoading, error }: LookupTabsProp
           />
         )}
         {activeTab === 'sessions' && (
-          <SessionList onSessionLookup={onSessionLookup} />
+          <SessionList onSessionLookup={onSessionOpen ?? onSessionLookup} />
         )}
       </div>
     </div>

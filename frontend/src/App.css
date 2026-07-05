@@ -366,3 +366,38 @@ header {
   color: #d32f2f;
   font-size: 0.9em;
 }
+
+/* session master-detail: opening a session from the list replaces the list and
+   tabs with a full-screen transcript view plus a control to return, so a large
+   session count never has to be scrolled past to read a session's content. */
+.session-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.session-detail__back {
+  align-self: flex-start;
+  padding: 8px 14px;
+  background: #fff;
+  color: #1976d2;
+  border: 1px solid #90caf9;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.95em;
+}
+
+.session-detail__back:hover {
+  background: #f5faff;
+  border-color: #2196f3;
+}
+
+.session-detail__loading {
+  color: #555;
+  font-style: italic;
+}
+
+.session-detail__error {
+  color: #d32f2f;
+  font-size: 0.9em;
+}
