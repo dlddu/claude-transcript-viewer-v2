@@ -17,7 +17,10 @@
 - **실행 단계**: 해시된 `assets/*`와 `index.html` 요청 후 `Cache-Control` 응답 헤더 확인
 - **기대 결과**: 해시 자산은 `public, max-age=31536000, immutable`, `index.html`은 `no-cache`
 - **검증 AC**: DP-AC2
-- **구현**: `backend/static_test.go` (`TestStatic_ServesIndexAtRoot`가 `index.html`의 no-cache를, `TestStatic_HashedAssetsAreImmutable`가 해시 자산의 immutable을 검증; CI의 `go test ./...`로 실행)
+- **구현**:
+  - E2E: `e2e/tests/static-cache-headers.spec.ts` — 배포 구성(빌드된 `frontend/dist`를 서빙하는 Go 서버, `BASE_URL`)에 실제 HTTP 요청을 보내 `index.html`과 SPA fallback 경로는 `no-cache`, 서빙된 `index.html`에서 발견한 content-hash `/assets/*` 파일은 `public, max-age=31536000, immutable`임을 단정한다(해시 파일명은 매 빌드 달라지므로 셸에서 동적으로 추출).
+  - 유닛: `backend/static_test.go` (`TestStatic_ServesIndexAtRoot`가 `index.html`의 no-cache를, `TestStatic_HashedAssetsAreImmutable`가 해시 자산의 immutable을 httptest 서버로 검증; CI의 `go test ./...`로 실행)
+- **비고**: 기존엔 캐시 정책이 `static_test.go`(httptest + 합성 디렉토리) 유닛 테스트로만 검증되고, 실제 배포되는 바이너리+빌드 산출물이 헤더를 그대로 내보내는지는 E2E로 확인되지 않았다. 위 E2E로 이 공백을 해소해 DP-AC2가 유닛뿐 아니라 E2E로도 커버된다.
 
 ### 시나리오 3: k8s 매니페스트 검증
 - **사전 조건**: `k8s/app/`, `k8s/localstack/` 매니페스트
