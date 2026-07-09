@@ -5,6 +5,7 @@
 - PRD: 5개 (lifecycle, viewer, lookup, deployment, session-list)
 - Acceptance Criteria: 25개 (가치 연결됨: 25개 / 미연결: 0개)
 - 테스트 문서: 5개 (AC 커버됨: 25개 / 미커버: 0개 — SL-AC1~6 검증 완료(file_count 제외); file_count는 SL-AC1/AC2의 잔여로 별도 추적)
+- AC↔E2E 1:1: **12/25** (전용 E2E 스펙 1개를 배타적으로 소유한 AC 수. 나머지 13건은 1:N 또는 N:1)
 - **건강 상태**: ⚠️ 위험 있음 — 고아 가치(소유자 미정) 4건 (미검증 AC 0건; session-list의 file_count는 잔여 후속 작업)
 
 ## 연결 매트릭스
@@ -59,6 +60,28 @@
 ### 고아 테스트 (AC를 참조하지 않는 테스트)
 - (없음)
 
+### AC↔E2E 1:1 진행 상황
+목표는 각 AC가 전용 E2E 스펙 파일 하나를 배타적으로 소유하는 것이다(양방향 1:1).
+
+- ✅ **1:1 달성(12)**: DP-AC2, LC-AC3, LK-AC1, SL-AC1~6, VW-AC1~3
+- 🟡 **1:N — AC 하나에 스펙 여러 개(6)**
+  - DP-AC1 → `docker-build`, `docker-publish-workflow`
+  - DP-AC3 → `k8s-manifests`, `k8s-localstack-manifests`
+  - DP-AC4 → `kind-cluster-workflow`, `local-kind-script`
+  - VW-AC4 → `task-tool-subagent-type`, `tool-detail-view`
+  - VW-AC5 → `text-truncation`, `message-timestamps`
+  - VW-AC6 → `mobile-layout`, `tool-call-compact`
+  - 비고: VW-AC5("절단 **과** 타임스탬프")·DP-AC4("로컬 **과** CI")처럼 AC 자체가 복합이라 스펙이 갈린 건은
+    스펙 병합이 아니라 **AC 분할**이 답이다. DP-AC1/AC3/AC4의 스펙 4~6건은 `node --test`로 CI가 파일명을 직접
+    호출하므로(`.github/workflows/test.yml`) 분할·병합 시 워크플로 동반 수정이 필요하다.
+- 🟡 **N:1 — 스펙 하나가 AC 여러 개(4)**
+  - `session-id-lookup` → LK-AC2, LK-AC4, LC-AC4
+  - `message-uuid-lookup` → LK-AC3, LK-AC4
+  - `transcript-upload-api` → LC-AC1, LC-AC2
+  - `transcript-delete-api` → LC-AC4, LC-AC5
+  - 비고: LK-AC4(실패 피드백)·LC-AC4(미등록 세션 404)가 두 스펙에 걸쳐 있는 것이 얽힘의 축이다.
+    두 AC의 전용 스펙을 신설하고 나머지 스펙에서 해당 단정을 걷어내면 이 4건이 함께 풀린다.
+
 ### 문서 정합성 주의 (신규 기능이 기존 문서에 주는 영향)
 - ✅ **[해소] LK-AC1 "두 탭 표시" ↔ session-list "Sessions" 탭**: SL-AC2가 `LookupTabs`에 세 번째 탭을
   추가함에 따라 2026-07-05 정합성을 맞췄다. prd-lookup LK-AC1 서술을 "세 탭"으로 갱신(룩업 두 탭 +
@@ -86,3 +109,4 @@
 | 2026-07-05 | session-list 기능 구현(file_count 제외): 백엔드 목록 스키마 `[]string` → `[{session_id, created_at}]`(`created_at` DESC), 시각 주입 seam(`Store.PutSessionAt`)·seed 결정적 `created_at` 도입. 프론트 `SessionList` 컴포넌트 + 세 번째 "Sessions" 탭 추가(렌더·최신순·검색·클릭 열기·재시도 안전 삭제·빈/로딩/실패). 단위(`store_test`/`s3_test`/`server_test`/`seed_test`)·컴포넌트(`SessionList.test.tsx`/`LookupTabs.test.tsx`)·E2E(`session-list.spec.ts`) 검증, upload/delete E2E를 객체 배열 스키마로 갱신, LK-AC1 "두 탭"→"세 탭" 정합성 해소 | 미검증 AC 6건(SL-AC1~6, 구현·테스트 대기), 잔여 위험: 고아 가치 4건 + session-list 미검증 | 미검증 AC 0건(SL-AC1~6 검증 완료; file_count는 SL-AC1/AC2의 잔여로 후속), 잔여 위험: 고아 가치 4건 + file_count 후속 |
 | 2026-07-07 | AC↔E2E 1:1 정비 시작 — LC-AC3 전용 E2E 추가: 브라우저-S3 직결·백엔드 미경유를 실제 브라우저에서 분류·단정하는 `e2e/tests/transcript-direct-download.spec.ts` 신설. 기존 LC-AC3의 E2E 커버리지는 룩업/타임라인 스펙의 실사용 "경유"뿐이었고 핵심 보장은 프론트 유닛(`loadTranscript.test.ts`)에만 있었음. test-lifecycle 시나리오 3-B 구현/비고 갱신 | LC-AC3 전용 E2E 부재(프론트 유닛 + 간접 경유만) | LC-AC3 전용 E2E 보유(E2E 2케이스 그린 대기: CI 풀스택) |
 | 2026-07-07 | DP-AC2 전용 E2E 추가: 배포 구성의 실제 Go 서버 응답 헤더를 검증하는 `e2e/tests/static-cache-headers.spec.ts` 신설(`index.html`·SPA fallback=no-cache, `/assets/*` 해시 파일=immutable). 기존엔 `static_test.go` httptest 유닛만 존재. 실제 서버 기동+`curl`로 헤더 3종을 사전 실측 확인. test-deployment 시나리오 2 구현/비고 갱신 | DP-AC2 전용 E2E 부재(백엔드 유닛만) | DP-AC2 전용 E2E 보유(실서버 헤더 실측 통과, 3케이스) |
+| 2026-07-09 | AC↔E2E 1:1 정비 2단계 — 복합 스펙 분할: `session-list.spec.ts`(SL-AC1~5 혼재) → `session-list-api`·`session-list-order`·`session-list-search`·`session-list-open`·`session-list-delete` 5개로, `timeline-integration.spec.ts`(VW-AC1~3 혼재) → `timeline-unified`·`timeline-distinction`·`timeline-expand-collapse` 3개로 분리. 공유 픽스처/헬퍼는 `e2e/tests/support/{session-list,timeline}.ts`로 추출(Playwright 기본 testMatch가 `*.spec.ts`만 수집하므로 자동 실행되지 않음). SL-AC6은 E2E가 아예 없던 유일한 AC였는데, `page.route`로 `GET /api/transcripts`만 가로채(빈 배열/응답 보류/500) 빈 상태·로딩·실패를 실제 브라우저에서 단정하는 `session-list-states.spec.ts` 신설로 해소. SL-AC1도 전용 API 계약 스펙을 얻음. 스펙 22개·테스트 106개 수집 확인(`playwright test --list`), 신규 파일 타입 에러 0 | 1:1 달성 3/25 (DP-AC2, LC-AC3, LK-AC1), E2E 없는 AC 1건(SL-AC6) | 1:1 달성 12/25, E2E 없는 AC 0건, 고아 스펙 0건 |

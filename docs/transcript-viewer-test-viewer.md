@@ -3,6 +3,11 @@
 ## 검증 대상 AC
 - VW-AC1 ~ VW-AC6 (PRD: 트랜스크립트 뷰어)
 
+> **AC↔E2E 1:1**: 2026-07-09 기준 VW-AC1/AC2/AC3은 각각 전용 E2E 스펙 파일을 소유한다
+> (`timeline-unified` / `timeline-distinction` / `timeline-expand-collapse`). 이전에는
+> `e2e/tests/timeline-integration.spec.ts` 한 파일이 세 AC를 함께 덮었다. 공유 헬퍼는
+> `e2e/tests/support/timeline.ts`에 있다(스펙 아님).
+
 ## 테스트 시나리오
 
 ### 시나리오 1: 통합 타임라인 렌더링
@@ -13,7 +18,7 @@
   - (서브에이전트 미포함) 모든 메인 메시지가 시간순으로 렌더되고 서브에이전트 그룹이 하나도 생기지 않는다.
 - **검증 AC**: VW-AC1
 - **구현**:
-  - E2E: `e2e/tests/timeline-integration.spec.ts` — 'should handle sessions with no subagents gracefully'가 서브에이전트 없는 seed 세션(session-xyz789)을 실제로 로드해 서브에이전트 그룹 0개를 단정한다.
+  - E2E: `e2e/tests/timeline-unified.spec.ts` — 통합 타임라인 렌더·호출 지점 인라인 삽입·시간순 정렬을 단정하고, 'renders a session with no subagents without creating any group'이 서브에이전트 없는 seed 세션(session-xyz789)을 실제로 로드해 서브에이전트 그룹 0개를 단정한다.
   - 컴포넌트/유닛: `frontend/src/components/TranscriptViewer.no-subagents.test.tsx` — 서브에이전트 없는 세션이 통합 타임라인에 전 메시지를 시간순으로 렌더하고, 서브에이전트 그룹/헤더/라벨이 하나도 생기지 않으며, agentId가 세션 ID와 같은 메시지도 메인으로 취급됨을 단정한다.
   - 비고: 과거 'should handle sessions with no subagents gracefully'는 beforeEach가 적재한 서브에이전트 포함 픽스처(session-abc123)를 그대로 쓰면서 에러 미발생만 단정하는 decoy였고(테스트 주석: "would need a different fixture without subagents"), 컴포넌트 테스트의 'should handle messages without agentId field gracefully'는 메시지 1건 렌더만 확인해, AC 이름 그대로인 "서브에이전트가 없는 세션도 정상 렌더링" 절반이 실측 미검증이었다. 위 두 테스트로 해소했다.
 
@@ -22,14 +27,16 @@
 - **실행 단계**: 타임라인에서 두 메시지 유형의 스타일과 메타데이터 확인
 - **기대 결과**: 시각적 구분 스타일 적용, 서브에이전트 메타데이터 인라인 표시
 - **검증 AC**: VW-AC2
-- **구현**: `e2e/tests/timeline-integration.spec.ts`
+- **구현**: `e2e/tests/timeline-distinction.spec.ts`(VW-AC2 전용 — 서브에이전트 그룹 스타일·메인 메시지 비포함,
+  그룹 헤더의 이름·메시지 수 배지 인라인 표시)
 
 ### 시나리오 3: 확장/축소와 키보드 내비게이션
 - **사전 조건**: 시나리오 1과 동일
 - **실행 단계**: 항목 확장/축소, 키보드로 항목 이동
 - **기대 결과**: 확장/축소 시 타임라인·스크롤 위치 유지, 키보드 내비게이션 동작
 - **검증 AC**: VW-AC3
-- **구현**: `e2e/tests/timeline-integration.spec.ts`
+- **구현**: `e2e/tests/timeline-expand-collapse.spec.ts`(VW-AC3 전용 — 그룹 확장/축소, 토글 후 헤더가 뷰포트에 유지,
+  그룹 헤더 포커스·`aria-expanded` 전이와 툴 항목의 Enter 확장)
 
 ### 시나리오 4: 툴 호출 인라인·상세 표기
 - **사전 조건**: Task(subagent_type 유/무)·비-Task 툴 호출이 포함된 픽스처
