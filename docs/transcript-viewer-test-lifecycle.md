@@ -69,5 +69,7 @@
   - **S3 직결**: main과 모든 서브에이전트가 매니페스트의 각 presigned S3 URL 그대로에서 다운로드되며(파일당 정확히 1건), 그 URL은 백엔드 오리진이 아니다.
   - **크기 무관(V3)**: 파일 수가 늘어도 백엔드 요청은 매니페스트 1건으로 일정하고, 직결-S3 다운로드만 파일 수에 비례한다.
 - **검증 AC**: LC-AC3 (브라우저-S3 직결, 백엔드 미경유)
-- **구현**: `frontend/src/utils/loadTranscript.test.ts`(`describe('loadTranscript')` 내 라우팅 2케이스; CI의 `pnpm --filter @claude-transcript-viewer/frontend test:unit`로 실행)
-- **비고**: 기존 `loadTranscript.test.ts`는 파일이 로드·파싱되는 happy-path와 presigned URL이 "하나라도" 쓰였음만 단정하고, AC 이름 그대로인 LC-AC3의 핵심 보장 — 트랜스크립트 바이트가 백엔드를 경유하지 않고 각 파일이 자신의 presigned URL에서 직결 다운로드된다는 것(=V3 "크기 무관한 가벼움"의 근거) — 은 실측 검증되지 않았다. 요청 URL을 백엔드 vs S3로 분류해 단정하는 위 2케이스로 이 공백을 해소했다. (소스를 서브에이전트 다운로드가 백엔드를 경유하도록 변조하면 두 케이스가 즉시 실패함을 확인.)
+- **구현**:
+  - E2E: `e2e/tests/transcript-direct-download.spec.ts` — 실제 브라우저에서 세션을 로드하며 발생한 모든 요청을 백엔드(`/api/*`) vs presigned S3(`X-Amz-Signature`)로 분류해, ⓐ 백엔드는 해당 세션 매니페스트 1건만 GET되고 ⓑ 백엔드 오리진이 트랜스크립트 바이트(presigned·`.jsonl`)를 서빙하지 않으며 ⓒ main·서브에이전트가 각자의 presigned S3 URL에서 직결 다운로드되고(파일당 1건) ⓓ 파일 수가 늘어도(main+2 서브에이전트 vs main-only) 백엔드 매니페스트 요청은 1건으로 고정임을 단정한다.
+  - 컴포넌트/유닛: `frontend/src/utils/loadTranscript.test.ts`(`describe('loadTranscript')` 내 라우팅 2케이스; CI의 `pnpm --filter @claude-transcript-viewer/frontend test:unit`로 실행)
+- **비고**: 기존 `loadTranscript.test.ts`는 파일이 로드·파싱되는 happy-path와 presigned URL이 "하나라도" 쓰였음만 단정하고, AC 이름 그대로인 LC-AC3의 핵심 보장 — 트랜스크립트 바이트가 백엔드를 경유하지 않고 각 파일이 자신의 presigned URL에서 직결 다운로드된다는 것(=V3 "크기 무관한 가벼움"의 근거) — 은 실측 검증되지 않았다. 요청 URL을 백엔드 vs S3로 분류해 단정하는 위 2케이스로 이 공백을 해소했다. (소스를 서브에이전트 다운로드가 백엔드를 경유하도록 변조하면 두 케이스가 즉시 실패함을 확인.) 이후 동일한 백엔드-vs-S3 분류를 **실제 브라우저**에서 수행하는 전용 E2E(`transcript-direct-download.spec.ts`)를 추가해, LC-AC3가 프론트 유닛뿐 아니라 E2E로도 직접 커버되도록 했다(기존에는 룩업/타임라인 E2E의 실사용 경유만 있었다).
