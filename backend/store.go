@@ -30,11 +30,15 @@ func OpenStore(ctx context.Context, path string) (*Store, error) {
 		return nil, fmt.Errorf("open sqlite %q: %w", path, err)
 	}
 	// A single connection avoids "database is locked" churn for this
-	// low-concurrency workload while WAL keeps cross-process reads working.
+	// low-concurrency workload.
 	db.SetMaxOpenConns(1)
 
+	// The database lives on EFS. WAL requires every process that opens the file
+	// to share a -shm mapping, which a network filesystem does not guarantee, so
+	// stay on the rollback journal. maxSurge=0 on the Deployment keeps this a
+	// single-writer database, which is what the rollback journal assumes.
 	for _, pragma := range []string{
-		"PRAGMA journal_mode=WAL",
+		"PRAGMA journal_mode=DELETE",
 		"PRAGMA busy_timeout=5000",
 		"PRAGMA foreign_keys=ON",
 	} {
