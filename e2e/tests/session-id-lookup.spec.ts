@@ -1,13 +1,17 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * Session ID Lookup E2E Tests
+ * Session ID Lookup (LK-AC2)
  *
  * Purpose: Test the session ID lookup functionality that allows users to search
- * for transcripts by entering a session ID.
+ * for transcripts by entering a session ID — the input/button UI, a successful
+ * lookup and the metadata it reveals, the loading state, pre-submit validation,
+ * whitespace trimming, Enter-key submit, and re-searching a different session.
  *
- * Test Status: ACTIVE - Tests ready for implementation (TDD Red Phase)
- * Reason: Tests activated - ready to verify session ID lookup implementation.
+ * Failure feedback (not-found errors, the pre-lookup guidance message) is
+ * LK-AC4's job (`lookup-failure-feedback.spec.ts`).
+ *
+ * Test Status: ACTIVE
  *
  * Expected Flow:
  * 1. User enters a session ID in the search input field
@@ -81,25 +85,6 @@ test.describe('Session ID Lookup E2E', () => {
     // Assert - loading indicator should appear briefly
     // Note: This may require network throttling or mock to be visible
     await expect(page.getByText(/loading/i)).toBeVisible();
-  });
-
-  test('should display error message when session ID not found', async ({ page }) => {
-    // Arrange - use a non-existent session ID
-    const invalidSessionId = 'session-nonexistent-999';
-
-    // Act - enter invalid session ID and attempt lookup
-    await page.getByTestId('session-id-input').fill(invalidSessionId);
-    await page.getByTestId('session-id-lookup-button').click();
-
-    // Assert - error message should be displayed
-    await expect(
-      page.getByText(/session.*not.*found|no.*transcript.*found/i)
-    ).toBeVisible();
-
-    // The transcript content should not be visible
-    await expect(
-      page.getByText(/Can you help me analyze this dataset/i)
-    ).not.toBeVisible();
   });
 
   test('should validate session ID format before lookup', async ({ page }) => {
@@ -179,18 +164,5 @@ test.describe('Session ID Lookup E2E', () => {
     // Assert - lookup should still succeed (whitespace trimmed)
     await expect(page.getByTestId('transcript-viewer')).toBeVisible();
     await expect(page.getByText(/Can you help me analyze this dataset/i)).toBeVisible();
-  });
-
-  test('should display appropriate message when no session ID is stored', async ({ page }) => {
-    // Arrange & Assert - initial state before any lookup
-    // Should show a message prompting user to enter a session ID
-    await expect(
-      page.getByText(/enter.*session.*id|search.*session/i)
-    ).toBeVisible();
-
-    // Transcript viewer should not show content yet
-    await expect(
-      page.getByText(/Can you help me analyze this dataset/i)
-    ).not.toBeVisible();
   });
 });

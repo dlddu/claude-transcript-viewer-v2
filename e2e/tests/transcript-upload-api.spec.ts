@@ -1,85 +1,34 @@
-import { test, expect, type APIRequestContext } from '@playwright/test';
-import { S3Client, ListObjectsV2Command } from '@aws-sdk/client-s3';
+import { test, expect } from '@playwright/test';
+import {
+  API_URL,
+  cleanupSession,
+  hiveDirOf,
+  listS3Keys,
+  newS3Client,
+  reachableFromHost,
+  transcriptLine,
+} from './support/transcript-api';
 
 /**
- * Transcript Upload API E2E Tests
+ * Transcript Upload URL API (LC-AC1)
  *
- * Purpose: Exercise POST /api/transcripts/upload-url/{sessionId} as a
- * first-class contract, covering the two acceptance criteria that were
- * previously only verified indirectly through the seed subcommand:
+ * Purpose: exercise `POST /api/transcripts/upload-url/{sessionId}` as a
+ * first-class contract against a running backend + S3:
  *
- * - LC-AC1 (docs/transcript-viewer-prd-lifecycle.md): the endpoint returns a
- *   presigned PUT URL whose key follows the Hive partition convention, the
- *   PUT lands the object in the bucket at that exact key, and the
- *   session_id → s3_prefix mapping is persisted (observable because the
- *   download manifest later resolves the same key from SQLite).
- * - LC-AC2: every later upload for the same session — subagents/<name>.jsonl,
- *   bare agent-<name>.jsonl, or a re-issued main URL — reuses the stored
- *   prefix so all of a session's files share one Hive directory.
+ * - the endpoint returns a presigned PUT URL whose key follows the Hive
+ *   partition convention,
+ * - the PUT lands the object in the bucket at that exact key,
+ * - the `session_id → s3_prefix` mapping is persisted (observable because the
+ *   download manifest later resolves the same key from SQLite),
+ * - malformed `file_name` / session ids are rejected with 400.
+ *
+ * That a session's *later* files reuse one Hive directory is LC-AC2's job
+ * (`transcript-session-prefix.spec.ts`).
  *
  * Test Status: ACTIVE
- *
- * Notes:
- * - Tests create their own throwaway sessions (unique id per attempt) and
- *   delete them afterwards so the shared backend stays clean for other specs
- *   and CI retries never collide with a fixed id.
- * - In the kind job the presigned URL points at the cluster-internal S3 host
- *   (http://localstack:4566). CI port-forwards that endpoint on the same
- *   port, so the host is rewritten to localhost before the PUT — same
- *   approach as transcript-delete-api.spec.ts.
  */
 
-const API_URL = process.env.API_URL || 'http://localhost:3000';
-const S3_ENDPOINT = process.env.AWS_ENDPOINT_URL || 'http://localhost:9000';
-const S3_BUCKET = process.env.S3_BUCKET || 'test-transcripts';
-
-function transcriptLine(sessionId: string, uuid: string, text: string, timestamp: string): string {
-  return JSON.stringify({
-    type: 'user',
-    sessionId,
-    uuid,
-    parentUuid: null,
-    timestamp,
-    message: { role: 'user', content: text },
-  });
-}
-
-function reachableFromHost(presignedUrl: string): string {
-  const url = new URL(presignedUrl);
-  url.hostname = 'localhost';
-  return url.toString();
-}
-
-/** Everything up to and including "session_id=<id>/" — the session's Hive directory. */
-function hiveDirOf(key: string, sessionId: string): string {
-  const marker = `session_id=${sessionId}/`;
-  const idx = key.indexOf(marker);
-  expect(idx, `key "${key}" contains "${marker}"`).toBeGreaterThanOrEqual(0);
-  return key.slice(0, idx + marker.length);
-}
-
-function newS3Client(): S3Client {
-  return new S3Client({
-    endpoint: S3_ENDPOINT,
-    region: process.env.AWS_REGION || 'us-east-1',
-    forcePathStyle: true,
-    credentials: {
-      accessKeyId: process.env.AWS_ACCESS_KEY_ID || 'minioadmin',
-      secretAccessKey: process.env.AWS_SECRET_ACCESS_KEY || 'minioadmin',
-    },
-  });
-}
-
-async function listS3Keys(s3: S3Client, prefix: string): Promise<string[]> {
-  const out = await s3.send(new ListObjectsV2Command({ Bucket: S3_BUCKET, Prefix: prefix }));
-  return (out.Contents ?? []).map((obj) => obj.Key ?? '').sort();
-}
-
-async function cleanup(request: APIRequestContext, sessionId: string): Promise<void> {
-  await request.delete(`${API_URL}/api/transcript/session/${sessionId}`);
-}
-
-test.describe('Transcript Upload API E2E', () => {
+test.describe('Transcript Upload URL API (LC-AC1)', () => {
   test('should issue a presigned PUT URL with the Hive-partitioned key contract', async ({
     request,
   }) => {
@@ -109,7 +58,7 @@ test.describe('Transcript Upload API E2E', () => {
         `session_id=${sessionId}/${sessionId}.jsonl`
       );
     } finally {
-      await cleanup(request, sessionId);
+      await cleanupSession(request, sessionId);
     }
   });
 
@@ -151,66 +100,7 @@ test.describe('Transcript Upload API E2E', () => {
       expect(listedIds).toContain(sessionId);
     } finally {
       s3.destroy();
-      await cleanup(request, sessionId);
-    }
-  });
-
-  test('should reuse one Hive directory for all of a session\'s files', async ({ request }) => {
-    const sessionId = `upload-e2e-prefix-${Date.now()}`;
-    const s3 = newS3Client();
-
-    try {
-      // Main transcript establishes the session's Hive directory.
-      const mainResp = await request.post(`${API_URL}/api/transcripts/upload-url/${sessionId}`);
-      const main = await mainResp.json();
-      const sessionDir = hiveDirOf(main.key, sessionId);
-
-      // A subagents/ file reuses the stored prefix.
-      const subResp = await request.post(
-        `${API_URL}/api/transcripts/upload-url/${sessionId}?file_name=${encodeURIComponent(
-          'subagents/agent-e2e-1.jsonl'
-        )}`
-      );
-      const sub = await subResp.json();
-      expect(sub.key).toBe(`${sessionDir}subagents/agent-e2e-1.jsonl`);
-
-      // A bare agent-<id>.jsonl in the session directory reuses it too.
-      const bareResp = await request.post(
-        `${API_URL}/api/transcripts/upload-url/${sessionId}?file_name=agent-e2e-2.jsonl`
-      );
-      const bare = await bareResp.json();
-      expect(bare.key).toBe(`${sessionDir}agent-e2e-2.jsonl`);
-
-      // Re-issuing the main upload URL returns the identical key: the prefix
-      // comes from the persisted mapping, not from the current clock.
-      const againResp = await request.post(`${API_URL}/api/transcripts/upload-url/${sessionId}`);
-      const again = await againResp.json();
-      expect(again.key).toBe(main.key);
-
-      // Upload all three and verify the bucket holds them under one directory.
-      for (const [target, uuid] of [
-        [main, 'msg-main'],
-        [sub, 'msg-sub'],
-        [bare, 'msg-bare'],
-      ] as const) {
-        const putResp = await request.put(reachableFromHost(target.url), {
-          data: transcriptLine(sessionId, uuid, `body for ${target.key}`, '2026-07-01T00:00:00Z'),
-        });
-        expect(putResp.ok(), `presigned PUT for ${target.key}`).toBeTruthy();
-      }
-      const stored = await listS3Keys(s3, sessionDir);
-      expect(stored).toEqual([main.key, sub.key, bare.key].sort());
-
-      // The manifest surfaces both subagent files alongside the main one.
-      const manifest = await request.get(`${API_URL}/api/transcript/session/${sessionId}`);
-      expect(manifest.status()).toBe(200);
-      const manifestBody = await manifest.json();
-      expect(manifestBody.main.key).toBe(main.key);
-      const subagentKeys = manifestBody.subagents.map((s: { key: string }) => s.key).sort();
-      expect(subagentKeys).toEqual([sub.key, bare.key].sort());
-    } finally {
-      s3.destroy();
-      await cleanup(request, sessionId);
+      await cleanupSession(request, sessionId);
     }
   });
 
@@ -227,7 +117,7 @@ test.describe('Transcript Upload API E2E', () => {
         expect(String(body.error)).toContain('.jsonl');
       }
     } finally {
-      await cleanup(request, sessionId);
+      await cleanupSession(request, sessionId);
     }
   });
 

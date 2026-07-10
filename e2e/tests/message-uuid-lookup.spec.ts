@@ -1,14 +1,11 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * Message UUID Lookup E2E Tests
+ * Message UUID Lookup (LK-AC3)
  *
  * Purpose: Test the message UUID lookup functionality that allows users to paste
- * a message containing a UUID v4 and extract it to search for the associated transcript.
- *
- * Test Status: SKIPPED (TDD Red Phase)
- * Reason: Tests are written before implementation. These tests will be enabled
- * after the Message UUID lookup UI and parsing logic are implemented (DLD-474).
+ * a message containing a UUID v4 and extract it to search for the associated
+ * transcript.
  *
  * Expected Flow:
  * 1. User is on the "Message UUID" tab (default active tab)
@@ -21,25 +18,16 @@ import { test, expect } from '@playwright/test';
  *
  * UUID v4 regex: /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi
  *
- * Implementation Requirements (DLD-474):
- * 1. Render textarea and "Extract & Search" button in the "Message UUID" tab panel
- * 2. Disable "Extract & Search" button when textarea is empty
- * 3. Extract UUID v4 from pasted text on button click / Ctrl+Enter
- * 4. Display extracted UUID as a green badge
- * 5. Fetch and display transcript for the extracted UUID
- * 6. Show "No UUID found" error when input contains no UUID v4
- * 7. Show API error when UUID does not match any transcript
- * 8. Remove .skip from tests when implementation is complete
+ * Failure feedback ("No UUID found" for text without a UUID, the API error for a
+ * well-formed but unknown UUID) is LK-AC4's job
+ * (`lookup-failure-feedback.spec.ts`).
+ *
+ * Test Status: ACTIVE
  *
  * Fixture Data:
- * - e2e/fixtures/session-abc123.jsonl
- *   - Contains messages with uuid fields (msg-001 through msg-006)
- *   - UUID used in tests: a representative UUID v4 embedded in natural language
+ * - e2e/fixtures/f47ac10b-58cc-4372-a567-0e02b2c3d479.jsonl
  *
- * Linear Issue: DLD-473
- * Title: 작업 2-1: [메시지 UUID 파싱] e2e 테스트 작성 (skipped)
- * Parent: DLD-470 [Feature] Message UUID 조회 기능
- * Next: DLD-474 작업 2-2: [메시지 UUID 파싱] 구현 및 e2e 테스트 활성화
+ * Linear Issue: DLD-473 (parent: DLD-470 [Feature] Message UUID 조회 기능)
  */
 
 // A UUID v4 that the test server will recognise and resolve to a transcript.
@@ -51,16 +39,7 @@ const MESSAGE_WITH_UUID =
   `Here is the conversation reference you asked for: ${KNOWN_UUID}. ` +
   `Please look it up and show me the full transcript.`;
 
-// Text that contains no UUID v4 whatsoever.
-const MESSAGE_WITHOUT_UUID =
-  'Hello, I would like to see a transcript but I forgot the identifier.';
-
-// A UUID v4 that does not match any transcript in the test server.
-const UNKNOWN_UUID = '00000000-0000-4000-8000-000000000000';
-const MESSAGE_WITH_UNKNOWN_UUID =
-  `The session reference is ${UNKNOWN_UUID}, please retrieve it.`;
-
-test.describe('Message UUID Lookup', () => {
+test.describe('Message UUID Lookup (LK-AC3)', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to the app home page.
     // "Message UUID" tab is the default active tab (DLD-471), so no tab switch is needed.
@@ -117,21 +96,6 @@ test.describe('Message UUID Lookup', () => {
     await expect(page.getByTestId('transcript-viewer')).toBeVisible();
   });
 
-  test('should show "No UUID found" error when input contains no UUID v4', async ({ page }) => {
-    // Arrange - paste text that has no UUID v4
-    const textarea = page.getByRole('textbox');
-    await textarea.fill(MESSAGE_WITHOUT_UUID);
-
-    // Act - click "Extract & Search"
-    await page.getByRole('button', { name: 'Extract & Search' }).click();
-
-    // Assert - inline error message is shown
-    await expect(page.getByText(/no uuid found/i)).toBeVisible();
-
-    // Assert - transcript viewer should NOT appear
-    await expect(page.getByTestId('transcript-viewer')).not.toBeVisible();
-  });
-
   test('should trigger extraction and search with Ctrl+Enter keyboard shortcut', async ({ page }) => {
     // Arrange - paste a message containing a UUID v4
     const textarea = page.getByRole('textbox');
@@ -147,27 +111,5 @@ test.describe('Message UUID Lookup', () => {
 
     // Assert - transcript viewer becomes visible
     await expect(page.getByTestId('transcript-viewer')).toBeVisible();
-  });
-
-  test('should show API error when UUID does not match any transcript', async ({ page }) => {
-    // Arrange - paste a message with a UUID v4 that the server does not recognise
-    const textarea = page.getByRole('textbox');
-    await textarea.fill(MESSAGE_WITH_UNKNOWN_UUID);
-
-    // Act - click "Extract & Search"
-    await page.getByRole('button', { name: 'Extract & Search' }).click();
-
-    // Assert - extracted UUID badge is shown (extraction itself succeeded)
-    const uuidBadge = page.getByTestId('extracted-uuid-badge');
-    await expect(uuidBadge).toBeVisible();
-    await expect(uuidBadge).toContainText(UNKNOWN_UUID);
-
-    // Assert - an API / not-found error message is displayed
-    await expect(
-      page.getByText(/not found|error|could not find/i)
-    ).toBeVisible();
-
-    // Assert - transcript viewer should NOT appear with content
-    await expect(page.getByTestId('transcript-viewer')).not.toBeVisible();
   });
 });
