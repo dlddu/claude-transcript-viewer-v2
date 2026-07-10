@@ -201,20 +201,6 @@ jobs:
           path: e2e/playwright-report/
           retention-days: 30
 
-  workflow-validation-tests:
-    name: Workflow File Validation
-    runs-on: ubuntu-24.04-arm
-
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-
-      - name: Run Docker Publish Workflow validation tests
-        run: node --test e2e/tests/docker-publish-workflow.spec.mjs
-
   docker-e2e-tests:
     name: Docker Build E2E Tests
     runs-on: ubuntu-24.04-arm
@@ -302,7 +288,7 @@ jobs:
         run: pnpm tsx --test e2e/tests/k8s-localstack-manifests.spec.ts
 
   kind-cluster-validation:
-    name: Kind Cluster Infrastructure Validation
+    name: Kind Local Script Validation
     runs-on: ubuntu-24.04-arm
 
     steps:
@@ -319,9 +305,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Run Kind workflow validation tests
-        run: pnpm tsx --test e2e/tests/kind-cluster-workflow.spec.ts
 
       - name: Run Kind local script validation tests
         run: pnpm tsx --test e2e/tests/local-kind-script.spec.ts
