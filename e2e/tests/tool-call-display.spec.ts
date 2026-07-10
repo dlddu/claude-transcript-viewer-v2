@@ -1,27 +1,28 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * Tool Detail View E2E Tests (DLD-252)
+ * Tool Call Display (VW-AC4)
  *
- * Purpose: Test the tool detail view functionality that displays tool_use input/output
- * details in an expandable/collapsible view when users click on messages containing tool_use.
+ * VW-AC4 하나가 두 가지를 함께 보장한다: `tool_use` 메시지가 타임라인에 툴 이름을 인라인으로
+ * 표시하고(Task 툴은 `Task [subagent_type]`, subagent_type이 없으면 `Task`만, 비-Task 툴은
+ * 이름만), 클릭하면 상세 뷰에서 툴 입력을 포맷된 JSON으로 보여주고 다시 클릭하면 축소된다.
+ * 예전에는 두 스펙 파일로 갈려 있었으나 AC 하나가 스펙 하나를 소유하도록 병합했다.
  *
- * Test Status: ACTIVE (all 13 tests enabled)
+ * 두 describe는 서로 다른 픽스처를 읽으므로 beforeEach를 각자 유지한다.
  *
- * Expected Behavior:
- * - Messages containing tool_use can be clicked to expand details
- * - Expanded view shows tool name, input parameters, and output (if available)
- * - Clicking again collapses the details
- * - Visual indication shows whether details are expanded or collapsed
- * - JSON input is rendered with syntax highlighting
- * - Accessibility attributes are present (role, aria-expanded, aria-label)
+ * Test Status: ACTIVE
  *
  * Fixture Data:
  * - e2e/fixtures/session-abc123.jsonl
- *   - msg-002 contains single tool_use content block (DataAnalyzer)
- *   - msg-005 contains multiple tool_use content blocks (FileReader, SchemaValidator)
+ *   - msg-002 단일 tool_use (DataAnalyzer), msg-005 다중 tool_use (FileReader, SchemaValidator)
+ * - e2e/fixtures/session-task-subagent.jsonl
+ *   - msg-002 subagent_type "code"를 가진 Task, msg-005 subagent_type 없는 Task,
+ *     msg-008 FileReader (대조군)
+ *
+ * Linear: DLD-252 (tool detail view), DLD-356/357/358 (Task subagent_type)
  */
-test.describe('Tool Detail View', () => {
+
+test.describe('Tool Detail View (VW-AC4)', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to the app and load a transcript with tool_use
     await page.goto('/');
@@ -316,5 +317,124 @@ test.describe('Tool Detail View', () => {
     const toolDetail = page.getByTestId('tool-detail-view');
     await expect(toolDetail).toHaveAttribute('role', 'region');
     await expect(toolDetail).toHaveAttribute('aria-label', /Tool details for DataAnalyzer/);
+  });
+});
+
+test.describe('Task Tool Subagent Type Display (VW-AC4)', () => {
+  test.beforeEach(async ({ page }) => {
+    // Navigate to the app and load a transcript with Task tool_use
+    await page.goto('/');
+    const sessionIdTab = page.getByRole('tab', { name: 'Session ID' });
+    if ((await sessionIdTab.count()) > 0) {
+      await sessionIdTab.click();
+    }
+    await page.getByTestId('session-id-input').fill('session-task-subagent');
+    await page.getByTestId('session-id-lookup-button').click();
+
+    // Wait for transcript to load
+    await expect(page.getByTestId('transcript-viewer')).toBeVisible();
+  });
+
+  test('should display Task tool with subagent_type as "Task [code]" in inline view', async ({ page }) => {
+
+    // Arrange - Find the message with Task tool_use that has subagent_type: "code"
+    const timeline = page.getByTestId('timeline-view');
+    const messageWithTaskTool = timeline.locator('[data-testid="timeline-item"]').filter({
+      hasText: /I'll delegate this code refactoring task/i,
+    });
+
+    // Assert - Inline tool names should show "Task [code]"
+    const inlineNames = messageWithTaskTool.getByTestId('tool-names-inline');
+    await expect(inlineNames).toBeVisible();
+    await expect(inlineNames).toContainText('Task [code]');
+
+    // Should not show just "Task" without the subagent type
+    const inlineText = await inlineNames.textContent();
+    expect(inlineText).not.toBe('Task');
+    expect(inlineText).toMatch(/Task \[code\]/);
+  });
+
+  test('should display Task tool with subagent_type as "Task [code]" in detail view header', async ({ page }) => {
+
+    // Arrange - Find and expand the message with Task tool_use
+    const timeline = page.getByTestId('timeline-view');
+    const messageWithTaskTool = timeline.locator('[data-testid="timeline-item"]').filter({
+      hasText: /I'll delegate this code refactoring task/i,
+    });
+
+    // Act - Click to expand tool details
+    await messageWithTaskTool.click();
+
+    // Assert - Tool detail header should show "Tool: Task [code]"
+    const toolDetailView = page.getByTestId('tool-detail-view');
+    await expect(toolDetailView).toBeVisible();
+
+    const toolName = toolDetailView.getByTestId('tool-name');
+    await expect(toolName).toBeVisible();
+    await expect(toolName).toContainText('Task [code]');
+
+    // Verify the exact format in the detail header
+    const toolNameText = await toolName.textContent();
+    expect(toolNameText).toMatch(/Tool: Task \[code\]|Task \[code\]/);
+  });
+
+  test('should display non-Task tools (FileReader) with name only, no brackets', async ({ page }) => {
+
+    // Arrange - Find the message with FileReader tool_use
+    const timeline = page.getByTestId('timeline-view');
+    const messageWithFileReader = timeline.locator('[data-testid="timeline-item"]').filter({
+      hasText: /I'll read the configuration file/i,
+    });
+
+    // Assert - Inline should show "FileReader" without brackets
+    const inlineNames = messageWithFileReader.getByTestId('tool-names-inline');
+    await expect(inlineNames).toBeVisible();
+    await expect(inlineNames).toContainText('FileReader');
+
+    const inlineText = await inlineNames.textContent();
+    // Should not have brackets for non-Task tools
+    expect(inlineText).not.toMatch(/\[.*\]/);
+
+    // Act - Expand to check detail view
+    await messageWithFileReader.click();
+
+    // Assert - Detail view should also show "FileReader" without brackets
+    const toolDetailView = page.getByTestId('tool-detail-view');
+    const toolName = toolDetailView.getByTestId('tool-name');
+    await expect(toolName).toContainText('FileReader');
+
+    const toolNameText = await toolName.textContent();
+    expect(toolNameText).not.toMatch(/\[.*\]/);
+  });
+
+  test('should display Task tool without subagent_type as "Task" only (edge case)', async ({ page }) => {
+
+    // Arrange - Find the message with Task tool_use that has NO subagent_type
+    const timeline = page.getByTestId('timeline-view');
+    const messageWithTaskNoSubagent = timeline.locator('[data-testid="timeline-item"]').filter({
+      hasText: /I'll delegate the test analysis/i,
+    });
+
+    // Assert - Inline should show just "Task" without brackets
+    const inlineNames = messageWithTaskNoSubagent.getByTestId('tool-names-inline');
+    await expect(inlineNames).toBeVisible();
+    await expect(inlineNames).toContainText('Task');
+
+    const inlineText = await inlineNames.textContent();
+    // Should not have brackets when subagent_type is absent
+    expect(inlineText).toBe('Task');
+    expect(inlineText).not.toMatch(/\[.*\]/);
+
+    // Act - Expand to check detail view
+    await messageWithTaskNoSubagent.click();
+
+    // Assert - Detail view should also show just "Task"
+    const toolDetailView = page.getByTestId('tool-detail-view');
+    const toolName = toolDetailView.getByTestId('tool-name');
+    await expect(toolName).toContainText('Task');
+
+    const toolNameText = await toolName.textContent();
+    expect(toolNameText).toMatch(/Tool: Task$|^Task$/);
+    expect(toolNameText).not.toMatch(/\[.*\]/);
   });
 });

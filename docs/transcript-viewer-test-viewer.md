@@ -3,7 +3,12 @@
 ## 검증 대상 AC
 - VW-AC1 ~ VW-AC6 (PRD: 트랜스크립트 뷰어)
 
-> **AC↔E2E 1:1**: 2026-07-09 기준 VW-AC1/AC2/AC3은 각각 전용 E2E 스펙 파일을 소유한다
+> **AC↔E2E 1:1**: 2026-07-09 기준 VW-AC1~AC6이 각각 전용 E2E 스펙 파일을 소유한다.
+> VW-AC4/AC5/AC6은 AC 문장이 두 보장을 접속사로 묶고 있어 스펙이 둘로 갈려 있었는데,
+> AC를 쪼개는 대신 스펙을 병합했다(`tool-call-display`, `truncation-and-timestamps`,
+> `mobile-layout`). 각 파일 안에서 두 보장은 별도 describe 블록으로 남는다.
+>
+> VW-AC1/AC2/AC3은 각각 전용 E2E 스펙 파일을 소유한다
 > (`timeline-unified` / `timeline-distinction` / `timeline-expand-collapse`). 이전에는
 > `e2e/tests/timeline-integration.spec.ts` 한 파일이 세 AC를 함께 덮었다. 공유 헬퍼는
 > `e2e/tests/support/timeline.ts`에 있다(스펙 아님).
@@ -44,7 +49,7 @@
 - **기대 결과**: `Task [code]` / `Task` / 툴 이름만 각각 올바르게 표기,
   상세 뷰에 포맷된 JSON 입력 표시
 - **검증 AC**: VW-AC4
-- **구현**: `e2e/tests/task-tool-subagent-type.spec.ts`, `e2e/tests/tool-detail-view.spec.ts`
+- **구현**: `e2e/tests/tool-call-display.spec.ts`
 
 ### 시나리오 5: 절단과 타임스탬프
 - **사전 조건**: 장문 메시지 포함 픽스처
@@ -52,9 +57,9 @@
 - **기대 결과**: 긴 텍스트 절단 표시(툴 입력의 파일 경로가 디렉토리 없이 파일명으로, 긴 툴 ID가 8자 프리픽스+생략부호로 절단), 메시지별 타임스탬프 렌더링
 - **검증 AC**: VW-AC5
 - **구현**:
-  - E2E: `e2e/tests/text-truncation.spec.ts`(툴 입력 파일 경로 절단 — 원본 디렉토리 미노출까지 단정), `e2e/tests/message-timestamps.spec.ts`(타임스탬프)
+  - E2E: `e2e/tests/truncation-and-timestamps.spec.ts`(VW-AC5 전용 — 툴 입력 파일 경로 절단은 원본 디렉토리 미노출까지 단정하고, 메인·서브에이전트 메시지의 타임스탬프 렌더·포맷·위치를 단정. 이전의 `text-truncation` + `message-timestamps` 병합)
   - 컴포넌트/유닛: `frontend/src/components/TranscriptViewer.truncation.test.tsx`(긴 툴 ID 생략부호 절단·깊은/얕은 경로 절단을 타임라인 렌더로 단정), `frontend/src/utils/truncate.test.ts`, `frontend/src/components/TruncatedText.test.tsx`
-  - 비고: seed 픽스처(session-abc123)의 툴 ID는 모두 8자 이하라 E2E에서는 생략부호 절단이 발생하지 않아 툴 ID 절단은 컴포넌트/유닛 테스트로 검증한다. 과거 `text-truncation.spec.ts`는 미구현 UI를 가정한 채 전부 `test.skip` 이어서 절단이 실측 검증되지 않았다.
+  - 비고: seed 픽스처(session-abc123)의 툴 ID는 모두 8자 이하라 E2E에서는 생략부호 절단이 발생하지 않아 툴 ID 절단은 컴포넌트/유닛 테스트로 검증한다. 과거 절단 스펙(현재는 위 파일로 병합)은 미구현 UI를 가정한 채 전부 `test.skip` 이어서 절단이 실측 검증되지 않았다.
 
 ### 시나리오 6: 모바일/데스크톱 레이아웃
 - **사전 조건**: 툴 블록 다수 포함 픽스처
@@ -62,4 +67,4 @@
 - **기대 결과**: 모바일에서 컴팩트 패딩·11px 폰트·pre-wrap·가로 스크롤 없음,
   데스크톱에서 기본 패딩·14px 폰트 유지, 리사이즈 시 일관성
 - **검증 AC**: VW-AC6
-- **구현**: `e2e/tests/tool-call-compact.spec.ts`, `e2e/tests/mobile-layout.spec.ts`
+- **구현**: `e2e/tests/mobile-layout.spec.ts`
