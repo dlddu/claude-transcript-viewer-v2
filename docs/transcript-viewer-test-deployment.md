@@ -44,7 +44,9 @@
 - **실행 단계**: 로컬 kind 클러스터 기동 → seed로 픽스처 적재 → 앱 동작 확인
 - **기대 결과**: CI/로컬에서 동일하게 재현, seed 기반 E2E 통과
 - **검증 AC**: DP-AC4 (매니페스트·스크립트의 존재와 구성)
-- **구현**: `e2e/tests/local-kind-script.spec.ts`, `e2e/tests/k8s-localstack-manifests.spec.ts`
+- **구현**: `e2e/tests/kind-localstack-environment.spec.ts`(DP-AC4 전용 — `scripts/kind-setup.sh`·
+  `scripts/kind-config.yaml`과 `k8s/localstack/` 매니페스트를 한 파일에서 검증. 이전의
+  `local-kind-script.spec.ts` + `k8s-localstack-manifests.spec.ts`를 병합했다)
 - **비고**: "CI 파이프라인에서 seed 기반 E2E 통과"는 파이프라인이 실제로 통과하는 것으로 확인되지,
   워크플로 YAML에 특정 문자열이 있는지 단정해서 확인되지 않는다. 그 단정을 하던
   `kind-cluster-workflow.spec.ts`는 삭제했고, seed의 실제 동작은 아래 시나리오 4-B가 덮는다.
