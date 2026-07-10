@@ -3,6 +3,13 @@
 ## 검증 대상 AC
 - DP-AC1 ~ DP-AC4 (PRD: 단일 워크로드 배포·운영)
 
+> **AC 없는 테스트 제거(2026-07-09)**: `docker-publish-workflow.spec.mjs`(30 단정)와
+> `kind-cluster-workflow.spec.ts`(26 단정)를 삭제했다. 두 스펙은 `.github/workflows/*.yml`을
+> 자체 정규식 파서로 읽어 "워크플로 이름이 정의되어 있는가", "jobs 섹션이 있는가", "GHCR 태그
+> 규칙이 쓰였는가" 따위를 단정했는데, 이 중 어떤 것도 DP-AC1~4의 문장에 대응하지 않는다.
+> AC에 없으면 제품 가치가 아니므로 남길 이유가 없다. (특히 `kind-cluster-workflow.spec.ts`는
+> 자신을 실행하는 `test.yml`을 검사하고 있었다.)
+
 ## 테스트 시나리오
 
 ### 시나리오 1: 단일 이미지 빌드와 서빙
@@ -10,7 +17,8 @@
 - **실행 단계**: 이미지 빌드 → 컨테이너 기동 → `/api` 및 정적 경로 요청
 - **기대 결과**: 빌드 성공, 하나의 컨테이너가 API와 프론트엔드(SPA fallback 포함)를 모두 서빙
 - **검증 AC**: DP-AC1
-- **구현**: `e2e/tests/docker-build.spec.ts`, `e2e/tests/docker-publish-workflow.spec.mjs`
+- **구현**: `e2e/tests/docker-build.spec.ts`(멀티스테이지 빌드·`VITE_API_URL` 없는 프론트 빌드·
+  이미지 빌드 성공·단일 컨테이너의 API + 정적 서빙)
 
 ### 시나리오 2: 캐시 헤더 정책
 - **사전 조건**: 정적 파일 서빙 핸들러(`backend/static.go`)
@@ -22,19 +30,24 @@
   - 유닛: `backend/static_test.go` (`TestStatic_ServesIndexAtRoot`가 `index.html`의 no-cache를, `TestStatic_HashedAssetsAreImmutable`가 해시 자산의 immutable을 httptest 서버로 검증; CI의 `go test ./...`로 실행)
 - **비고**: 기존엔 캐시 정책이 `static_test.go`(httptest + 합성 디렉토리) 유닛 테스트로만 검증되고, 실제 배포되는 바이너리+빌드 산출물이 헤더를 그대로 내보내는지는 E2E로 확인되지 않았다. 위 E2E로 이 공백을 해소해 DP-AC2가 유닛뿐 아니라 E2E로도 커버된다.
 
-### 시나리오 3: k8s 매니페스트 검증
-- **사전 조건**: `k8s/app/`, `k8s/localstack/` 매니페스트
+### 시나리오 3: 앱 매니페스트의 단일 라이터 롤아웃 구성
+- **사전 조건**: `k8s/app/` 매니페스트
 - **실행 단계**: 매니페스트의 replica·maxSurge·PVC·Service 구성 정적 검증
 - **기대 결과**: 1 replica, `maxSurge: 0`, RWO PVC `/data` 마운트, Service 80→3000
 - **검증 AC**: DP-AC3
-- **구현**: `e2e/tests/k8s-manifests.spec.ts`, `e2e/tests/k8s-localstack-manifests.spec.ts`
+- **구현**: `e2e/tests/k8s-manifests.spec.ts`
+- **비고**: `k8s/localstack/` 매니페스트는 DP-AC3(SQLite 단일 라이터 롤아웃)이 아니라
+  DP-AC4(kind + LocalStack 재현 환경)의 대상이므로 시나리오 4로 옮겼다.
 
 ### 시나리오 4: kind + LocalStack 재현 환경 (매니페스트·스크립트 계약)
 - **사전 조건**: kind 클러스터 스크립트와 LocalStack 매니페스트
 - **실행 단계**: 로컬 kind 클러스터 기동 → seed로 픽스처 적재 → 앱 동작 확인
 - **기대 결과**: CI/로컬에서 동일하게 재현, seed 기반 E2E 통과
-- **검증 AC**: DP-AC4 (매니페스트·스크립트·워크플로 존재와 구성)
-- **구현**: `e2e/tests/kind-cluster-workflow.spec.ts`, `e2e/tests/local-kind-script.spec.ts`
+- **검증 AC**: DP-AC4 (매니페스트·스크립트의 존재와 구성)
+- **구현**: `e2e/tests/local-kind-script.spec.ts`, `e2e/tests/k8s-localstack-manifests.spec.ts`
+- **비고**: "CI 파이프라인에서 seed 기반 E2E 통과"는 파이프라인이 실제로 통과하는 것으로 확인되지,
+  워크플로 YAML에 특정 문자열이 있는지 단정해서 확인되지 않는다. 그 단정을 하던
+  `kind-cluster-workflow.spec.ts`는 삭제했고, seed의 실제 동작은 아래 시나리오 4-B가 덮는다.
 
 ### 시나리오 4-B: seed 서브커맨드가 서버와 동일한 코드 경로로 환경을 재현 (백엔드 계약)
 - **사전 조건**: 픽스처 디렉토리, in-memory S3 목(`mockS3Client`)과 임시 SQLite 스토어(`newTestStore`)로 배선한 서비스

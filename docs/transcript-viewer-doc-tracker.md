@@ -5,7 +5,7 @@
 - PRD: 5개 (lifecycle, viewer, lookup, deployment, session-list)
 - Acceptance Criteria: 25개 (가치 연결됨: 25개 / 미연결: 0개)
 - 테스트 문서: 5개 (AC 커버됨: 25개 / 미커버: 0개 — SL-AC1~6 검증 완료(file_count 제외); file_count는 SL-AC1/AC2의 잔여로 별도 추적)
-- AC↔E2E 1:1: **19/25** (전용 E2E 스펙 1개를 배타적으로 소유한 AC 수. 남은 6건은 모두 1:N이며 N:1은 0건)
+- AC↔E2E 1:1: **21/25** (전용 E2E 스펙 1개를 배타적으로 소유한 AC 수. 남은 4건은 모두 1:N이며 N:1은 0건)
 - **건강 상태**: ⚠️ 위험 있음 — 고아 가치(소유자 미정) 4건 (미검증 AC 0건; session-list의 file_count는 잔여 후속 작업)
 
 ## 연결 매트릭스
@@ -58,27 +58,39 @@
 - 2026-07-05 DP-AC4(seed 서브커맨드의 동일 코드 경로 재현) 실측 공백 해소: DP-AC4에 매핑된 `kind-cluster-workflow.spec.ts`·`local-kind-script.spec.ts`는 워크플로 YAML과 `kind-setup.sh` 문자열을 정적 검사할 뿐, AC 이름 그대로인 핵심 보장 — `server seed`가 서버와 동일한 코드 경로로 픽스처를 S3에 업로드·매핑하여 CI가 환경을 재현한다는 것 — 을 검증하지 않았다. seed는 CI 재현의 핵심 경로임에도(`.github/workflows/test.yml`가 `./backend/server seed --dir e2e/fixtures`를 실행) `seedDir`/`seedSubagents`에 결정적 테스트가 전무했다. 3개 서브에이전트 레이아웃 적재 후 서버 조회 경로(`GetTranscriptFiles`)로 메인·서브에이전트 해석을 단정하고, 실제 `e2e/fixtures` 코퍼스 재현과 `--dir` CLI 계약까지 검증하는 백엔드 테스트 3건(`TestSeedDir_PopulatesStorageForServerReadPath`, `TestSeedDir_RealFixturesReproduceServerEnvironment`, `TestRunSeed_RequiresDir`)을 `backend/seed_test.go`에 추가하여 해소(잘못된 키·서브에이전트 레이아웃 누락·매핑 생략으로 변조 시 즉시 실패 확인).
 
 ### 고아 테스트 (AC를 참조하지 않는 테스트)
-- (없음)
+- **삭제 완료(2026-07-09)**: `docker-publish-workflow.spec.mjs`(30 단정), `kind-cluster-workflow.spec.ts`(26 단정).
+  둘 다 `.github/workflows/*.yml`을 자체 정규식 파서로 읽어 워크플로 이름·트리거·jobs 섹션·GHCR 태그 규칙 등을
+  단정했을 뿐, 어떤 AC의 문장에도 대응하지 않았다. DP-AC1/AC4 배지를 달고 있어 이전 감사에서 "고아 없음"으로
+  집계됐다.
+- **잔여(부분 고아)**: 아래 스펙들은 AC에 대응하는 단정과 대응하지 않는 단정이 한 파일에 섞여 있다.
+  파일 단위 삭제로는 처리할 수 없어 별도 작업으로 남긴다.
+  - `k8s-manifests.spec.ts`(59) — DP-AC3의 검증 방법은 replica·maxSurge·PVC뿐. Service·ConfigMap·Secret·
+    Label Consistency·Best Practices·File Structure·YAML Validity·kubectl dry-run 약 40 단정은 AC 밖.
+  - `docker-build.spec.ts`(18) — 실제 빌드·서빙 단정은 3개. `.dockerignore` 5, 이미지 300MB 미만, non-root 유저,
+    포트 3000 등은 AC 밖.
+  - `local-kind-script.spec.ts`(33) — "주석에 prerequisites가 있는가", "필요 도구가 문서화됐는가" 등 문서 존재
+    단정 포함.
+- **문서 미언급 유닛 테스트(7)**: `parseUuid`, `groupMessages`, `enrichMessages`, `useTranscriptData`,
+  `TranscriptViewer`, `SessionIdLookup`, `MessageUuidLookup`. 이들은 AC 없는 동작을 지키는 게 아니라 AC 구현의
+  단위 테스트이므로 성격이 다르다(문서 누락 문제). 단 `useTranscriptData`의 `caching` 블록은 어떤 AC도 캐싱을
+  요구하지 않으므로 확인이 필요하다.
 
 ### AC↔E2E 1:1 진행 상황
 목표는 각 AC가 전용 E2E 스펙 파일 하나를 배타적으로 소유하는 것이다(양방향 1:1).
 
-- ✅ **1:1 달성(19)**: DP-AC2, LC-AC1~5, LK-AC1~4, SL-AC1~6, VW-AC1~3
-- ✅ **N:1 (스펙 하나가 AC 여러 개) 0건** — 2026-07-09 해소
-- 🟡 **1:N — AC 하나에 스펙 여러 개(6)**
-  - DP-AC1 → `docker-build`, `docker-publish-workflow`
-  - DP-AC3 → `k8s-manifests`, `k8s-localstack-manifests`
-  - DP-AC4 → `kind-cluster-workflow`, `local-kind-script`
+- ✅ **1:1 달성(21)**: DP-AC1~3, LC-AC1~5, LK-AC1~4, SL-AC1~6, VW-AC1~3
+- ✅ **N:1 (스펙 하나가 AC 여러 개) 0건**
+- 🟡 **1:N — AC 하나에 스펙 여러 개(4)**
+  - DP-AC4 → `local-kind-script`, `k8s-localstack-manifests`
   - VW-AC4 → `task-tool-subagent-type`, `tool-detail-view`
   - VW-AC5 → `text-truncation`, `message-timestamps`
   - VW-AC6 → `mobile-layout`, `tool-call-compact`
-  - 비고: 남은 6건은 **스펙 분할이 아니라 AC 분할**이 필요한 종류다. VW-AC5("절단 **과** 타임스탬프"),
-    DP-AC4("재현 가능한 로컬 **과** CI"), VW-AC6(모바일 레이아웃 **과** 툴 블록 컴팩트),
-    VW-AC4(Task 툴 표기 **과** 툴 상세 뷰), DP-AC1(이미지 빌드 **과** 퍼블리시 워크플로),
-    DP-AC3(k8s 매니페스트 **과** LocalStack 매니페스트) 모두 AC 문장 자체가 두 가지 보장을 접속사로 묶고 있다.
-    PRD의 AC를 먼저 쪼개야 스펙이 따라 쪼개진다.
-  - 추가 제약: DP-AC1/AC3/AC4의 스펙 6건은 `node --test`로 CI가 파일명을 직접 호출하므로
-    (`.github/workflows/test.yml`), 파일 분할·개명 시 워크플로 동반 수정이 필요하다.
+  - 처리 방향: 네 건 모두 AC 문장이 두 보장을 접속사로 묶고 있어 스펙이 갈렸다. **AC 분할 대신 스펙 병합**으로
+    1:1을 맞추기로 한다(2026-07-09 결정). VW 3건은 Playwright가 CI에서 `workers: 1`이라 병합해도 러닝타임
+    손해가 없고, DP-AC4의 두 스펙은 같은 job의 인접 스텝이라 워크플로 두 줄이 한 줄로 줄어든다.
+  - 이전에 1:N으로 집계됐던 DP-AC1(`docker-build` + `docker-publish-workflow`)과
+    DP-AC3(`k8s-manifests` + `k8s-localstack-manifests`)은 실제로는 1:N이 아니라 오분류였다. 전자는 고아 스펙,
+    후자는 DP-AC4 소관 스펙이 잘못 매달려 있었다.
 
 ### 문서 정합성 주의 (신규 기능이 기존 문서에 주는 영향)
 - ✅ **[해소] LK-AC1 "두 탭 표시" ↔ session-list "Sessions" 탭**: SL-AC2가 `LookupTabs`에 세 번째 탭을
@@ -109,3 +121,4 @@
 | 2026-07-07 | DP-AC2 전용 E2E 추가: 배포 구성의 실제 Go 서버 응답 헤더를 검증하는 `e2e/tests/static-cache-headers.spec.ts` 신설(`index.html`·SPA fallback=no-cache, `/assets/*` 해시 파일=immutable). 기존엔 `static_test.go` httptest 유닛만 존재. 실제 서버 기동+`curl`로 헤더 3종을 사전 실측 확인. test-deployment 시나리오 2 구현/비고 갱신 | DP-AC2 전용 E2E 부재(백엔드 유닛만) | DP-AC2 전용 E2E 보유(실서버 헤더 실측 통과, 3케이스) |
 | 2026-07-09 | AC↔E2E 1:1 정비 2단계 — 복합 스펙 분할: `session-list.spec.ts`(SL-AC1~5 혼재) → `session-list-api`·`session-list-order`·`session-list-search`·`session-list-open`·`session-list-delete` 5개로, `timeline-integration.spec.ts`(VW-AC1~3 혼재) → `timeline-unified`·`timeline-distinction`·`timeline-expand-collapse` 3개로 분리. 공유 픽스처/헬퍼는 `e2e/tests/support/{session-list,timeline}.ts`로 추출(Playwright 기본 testMatch가 `*.spec.ts`만 수집하므로 자동 실행되지 않음). SL-AC6은 E2E가 아예 없던 유일한 AC였는데, `page.route`로 `GET /api/transcripts`만 가로채(빈 배열/응답 보류/500) 빈 상태·로딩·실패를 실제 브라우저에서 단정하는 `session-list-states.spec.ts` 신설로 해소. SL-AC1도 전용 API 계약 스펙을 얻음. 스펙 22개·테스트 106개 수집 확인(`playwright test --list`), 신규 파일 타입 에러 0 | 1:1 달성 3/25 (DP-AC2, LC-AC3, LK-AC1), E2E 없는 AC 1건(SL-AC6) | 1:1 달성 12/25, E2E 없는 AC 0건, 고아 스펙 0건 |
 | 2026-07-09 | AC↔E2E 1:1 정비 3단계 — N:1(스펙 하나가 AC 여러 개) 전량 해소: 얽힘의 축이던 LK-AC4(실패 피드백)·LC-AC4(미등록 404)에 전용 스펙 `lookup-failure-feedback.spec.ts`·`transcript-not-found.spec.ts`를 신설하고, `session-id-lookup`(LK-AC2)·`message-uuid-lookup`(LK-AC3)·`transcript-delete-api`(LC-AC5)에서 해당 단정을 걷어냈다. 함께 `transcript-upload-api.spec.ts`(LC-AC1·AC2 혼재)를 LC-AC1 전용으로 좁히고 LC-AC2를 `transcript-session-prefix.spec.ts`로 분리했다. upload/delete 스펙이 복붙하던 S3 클라이언트·업로드 헬퍼는 `e2e/tests/support/transcript-api.ts`로 추출. 스펙 25개·테스트 109개 수집 확인(`playwright test --list`), 신규/수정 파일 타입 에러 0 | 1:1 12/25, N:1 4건(`session-id-lookup`, `message-uuid-lookup`, `transcript-upload-api`, `transcript-delete-api`) | 1:1 19/25, N:1 0건. 남은 6건은 전부 1:N이며 AC 분할이 선행 과제 |
+| 2026-07-09 | AC 없는 테스트 제거 — `docker-publish-workflow.spec.mjs`(30 단정)·`kind-cluster-workflow.spec.ts`(26 단정) 삭제. 두 스펙은 워크플로 YAML을 자체 파서로 읽어 "워크플로 이름이 정의됐는가", "jobs 섹션이 있는가" 등을 단정했고 어떤 AC에도 대응하지 않았다(후자는 자신을 실행하는 `test.yml`을 검사). CI의 `workflow-validation-tests` job과 `kind-cluster-validation`의 워크플로 검증 스텝을 함께 제거. `k8s-localstack-manifests.spec.ts`를 DP-AC3 → DP-AC4로 재매핑(내용은 전부 LocalStack 매니페스트). 남은 부분 고아 단정(≈100개)은 파일 단위로 처리할 수 없어 백로그에 명시 | 1:1 19/25, 고아 테스트 0건으로 오집계 | 1:1 21/25, 파일 단위 고아 0건. 남은 4건은 전부 1:N이며 스펙 병합으로 처리 예정 |
