@@ -2,7 +2,15 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
   testDir: './tests',
-  testIgnore: ['**/docker-build.*'],
+  // These specs use the node:test runner (not Playwright) and run via
+  // `pnpm tsx --test <file>` in dedicated CI jobs (docker-e2e-tests,
+  // k8s-manifest-validation). Ignore them here so `playwright test` never
+  // tries to load them.
+  testIgnore: [
+    '**/docker-build.*',
+    '**/k8s-manifests.*',
+    '**/kind-localstack-environment.*',
+  ],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
