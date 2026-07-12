@@ -80,10 +80,16 @@
   - 근거: 제품이 약속하는 단위는 AC이고, 이 단정들은 어떤 AC에도 대응하지 않는다. 이미지 크기·non-root·
     라벨 정합성 등은 실질적 가드였지만, "AC에 없으면 제품 가치가 아니다"를 끝까지 적용해 삭제했다. 되살리려면
     DP AC에 해당 문장을 추가하고 테스트를 매핑하면 된다.
-- **문서 미언급 유닛 테스트(7)**: `parseUuid`, `groupMessages`, `enrichMessages`, `useTranscriptData`,
-  `TranscriptViewer`, `SessionIdLookup`, `MessageUuidLookup`. 이들은 AC 없는 동작을 지키는 게 아니라 AC 구현의
-  단위 테스트이므로 성격이 다르다(문서 누락 문제). 단 `useTranscriptData`의 `caching` 블록은 어떤 AC도 캐싱을
-  요구하지 않으므로 확인이 필요하다.
+- **문서 미언급 유닛 테스트 매핑 완료(2026-07-09)**: 7개 유닛 테스트를 해당 AC 시나리오의 구현/단위 라인에 명시했다.
+  - `parseUuid.test.ts` → LK-AC3(UUID 추출)·LK-AC4("No UUID found" 근거)
+  - `groupMessages.test.ts` → VW-AC1·VW-AC2(타임라인 그룹핑)
+  - `enrichMessages.test.ts` → VW-AC1(필터·텍스트·서브에이전트 판정)·VW-AC4(tool_use 집계)
+  - `useTranscriptData.test.ts` → LK-AC2(룩업 데이터 로드)·LC-AC3(S3 직결 다운로드)
+  - `TranscriptViewer.test.tsx` → VW-AC1/AC2/AC3(뷰어 컴포넌트)
+  - `SessionIdLookup.test.tsx` → LK-AC2·LK-AC4
+  - `MessageUuidLookup.test.tsx` → LK-AC3·LK-AC4
+  - `useTranscriptData`의 `caching` describe(2개)는 삭제했다. 어떤 AC도 클라이언트측 트랜스크립트 캐싱을 요구하지
+    않는다(DP-AC2는 정적 자산의 HTTP `Cache-Control` 헤더로 별개). 가드레일 단정과 같은 근거로 정리했다.
 
 ### AC↔E2E 1:1 (달성)
 모든 AC가 전용 E2E 스펙 파일 하나를 배타적으로 소유한다(양방향 1:1). 스펙 25개 ↔ AC 25개.

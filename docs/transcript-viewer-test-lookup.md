@@ -25,6 +25,10 @@
 - **검증 AC**: LK-AC2
 - **구현**: `e2e/tests/session-id-lookup.spec.ts`(LK-AC2 전용 — 입력·버튼 UI, 정상 조회와 메타데이터·서브에이전트
   표시, 로딩 상태, 빈 입력 시 버튼 비활성, 공백 trim, Enter 제출, 재검색. 실패 피드백은 LK-AC4 소관)
+- **단위**: `frontend/src/components/SessionIdLookup.test.tsx`(입력·버튼·placeholder·초기 안내, 타이핑·클릭·Enter,
+  공백 trim, 빈 입력 시 버튼 비활성, 로딩 중 입력/버튼 비활성),
+  `frontend/src/hooks/useTranscriptData.test.ts`(매니페스트 조회 → presigned S3 URL 다운로드 → 메시지 파싱,
+  로딩 상태, 네트워크 에러·404 에러 메시지 표면화. S3 직결은 LC-AC3와도 겹친다)
 
 ### 시나리오 3: Message UUID 추출 룩업
 - **사전 조건**: UUID v4가 포함된 메시지 원문
@@ -34,6 +38,9 @@
 - **검증 AC**: LK-AC3
 - **구현**: `e2e/tests/message-uuid-lookup.spec.ts`(LK-AC3 전용 — 탭 기본 활성·textarea/placeholder,
   빈 입력 시 버튼 비활성, UUID 추출 → 배지 → 로드, Ctrl+Enter 단축키. 실패 피드백은 LK-AC4 소관)
+- **단위**: `frontend/src/utils/parseUuid.test.ts`(UUID v4 추출·다중 추출·소문자 정규화·중복 제거·삽입 순서 보존·
+  경계(자릿수 과부족·하이픈 없음) 거부·null/undefined 안전), `frontend/src/components/MessageUuidLookup.test.tsx`
+  (textarea·버튼 비활성 상태, 추출 배지 표시, 대문자 UUID의 소문자 onLookup, 다중 UUID 시 첫 번째 사용)
 
 ### 시나리오 4: 실패 피드백
 - **사전 조건**: 미등록 세션 ID / UUID 없는 텍스트
@@ -46,3 +53,6 @@
   트랜스크립트 뷰어가 뜨지 않음을 함께 단정한다)
 - **비고**: 미존재 세션의 404 응답 계약 자체는 LC-AC4(`e2e/tests/transcript-not-found.spec.ts`) 소관이고,
   이 시나리오는 그 404를 프론트가 어떻게 보여주는지를 다룬다.
+- **단위**: `frontend/src/components/SessionIdLookup.test.tsx`(error prop 표시·네트워크 실패 일반 에러),
+  `frontend/src/components/MessageUuidLookup.test.tsx`("No UUID found" 표시·재입력 시 에러 해제·UUID 없을 때
+  onLookup 미호출), `frontend/src/utils/parseUuid.test.ts`(UUID 없는 입력에 빈 배열 반환 — "No UUID found"의 근거)
