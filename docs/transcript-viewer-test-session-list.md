@@ -3,9 +3,9 @@
 ## 검증 대상 AC
 - SL-AC1 ~ SL-AC6 (PRD: 세션 목록)
 
-> **구현 상태**: SL-AC1~6은 **file_count를 제외하고 구현·검증**되었다. 아래 각 시나리오의
-> "구현" 경로에 실제 테스트를 명시한다. file_count(세션당 파일 수)는 범위에서 제외되어
-> 시나리오 1·2에서 제거했으며, 상태 추적 문서에 SL-AC1/AC2의 잔여로 기록한다.
+> **구현 상태**: SL-AC1~6은 구현·검증되었다. 아래 각 시나리오의 "구현" 경로에 실제
+> 테스트를 명시한다. file_count(세션당 파일 수) 표시는 2026-07-12 결정으로 제품 범위에서
+> 제외됐다(시나리오 1·2에 파일 수 기대는 없다).
 >
 > **AC↔E2E 1:1**: 2026-07-09 기준 각 SL-AC는 전용 E2E 스펙 파일 하나를 소유한다
 > (SL-AC1 `session-list-api`, SL-AC2 `session-list-order`, SL-AC3 `session-list-search`,
@@ -19,7 +19,7 @@
 - **사전 조건**: 여러 세션을 seed로 적재(seed가 픽스처마다 결정적 `created_at` 부여)
 - **실행 단계**: `GET /api/transcripts` 호출
 - **기대 결과**: 각 항목이 `session_id`·`created_at`을 포함하고, 목록이 `created_at`
-  내림차순(최신순)으로 정렬 (file_count는 범위 제외)
+  내림차순(최신순)으로 정렬
 - **검증 AC**: SL-AC1
 - **구현**: `e2e/tests/session-list-api.spec.ts`(SL-AC1 전용 — 실서버 응답의 `{session_id, created_at}` 스키마·
   RFC3339 파싱·`created_at` DESC·seed 세션 전량 노출·업로드 즉시 목록 반영을 단정)
@@ -28,7 +28,7 @@
 - **사전 조건**: 업로드 시각이 서로 다른 세션 3개 이상(seed가 결정적 `created_at` 부여)
 - **실행 단계**: 메인 페이지 진입 → "Sessions" 탭 전환 → 데스크톱/모바일 뷰포트 확인
 - **기대 결과**: 세 번째 탭으로 목록 표시(기본 활성은 여전히 "Message UUID"),
-  최신 업로드순 정렬(백엔드 `created_at` DESC → 받은 순 렌더), 각 항목에 ID·날짜 표시(파일 수 제외),
+  최신 업로드순 정렬(백엔드 `created_at` DESC → 받은 순 렌더), 각 항목에 ID·날짜 표시,
   375×667·360×640에서 가로 스크롤 없음
 - **검증 AC**: SL-AC2
 - **구현**: `e2e/tests/session-list-order.spec.ts`(SL-AC2 전용 — API가 준 순서를 UI가 보존하는지,

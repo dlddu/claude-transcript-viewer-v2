@@ -4,21 +4,21 @@
 - 정의된 가치: 4개 (V1~V4)
 - PRD: 5개 (lifecycle, viewer, lookup, deployment, session-list)
 - Acceptance Criteria: 25개 (가치 연결됨: 25개 / 미연결: 0개)
-- 테스트 문서: 5개 (AC 커버됨: 25개 / 미커버: 0개 — SL-AC1~6 검증 완료(file_count 제외); file_count는 SL-AC1/AC2의 잔여로 별도 추적)
+- 테스트 문서: 5개 (AC 커버됨: 25개 / 미커버: 0개 — SL-AC1~6 검증 완료)
 - AC↔E2E 1:1: **25/25** ✅ (모든 AC가 전용 E2E 스펙 파일 하나를 배타적으로 소유. 1:N·N:1·고아 스펙 모두 0건)
-- **건강 상태**: ⚠️ 위험 있음 — 고아 가치(소유자 미정) 4건 (미검증 AC 0건; session-list의 file_count는 잔여 후속 작업)
+- **건강 상태**: ⚠️ 위험 있음 — 고아 가치(소유자 미정) 4건 (미검증 AC 0건)
 
 ## 연결 매트릭스
 
 | 가치 | PRD | AC | 테스트 | 상태 |
 |------|-----|-----|--------|------|
-| V1: 대화 구조의 시각적 이해 | prd-viewer (+prd-session-list) | VW-AC1~6 (+SL-AC1~2) | test-viewer (+test-session-list) | ✅ 완전 (SL file_count 잔여) |
-| V2: 즉각적인 대화 탐색 | prd-lookup, prd-lifecycle (+prd-session-list) | LK-AC1~4, LC-AC4 (+SL-AC1~6) | test-lookup, test-lifecycle (+test-session-list) | ✅ 완전 (SL file_count 잔여) |
+| V1: 대화 구조의 시각적 이해 | prd-viewer (+prd-session-list) | VW-AC1~6 (+SL-AC1~2) | test-viewer (+test-session-list) | ✅ 완전 |
+| V2: 즉각적인 대화 탐색 | prd-lookup, prd-lifecycle (+prd-session-list) | LK-AC1~4, LC-AC4 (+SL-AC1~6) | test-lookup, test-lifecycle (+test-session-list) | ✅ 완전 |
 | V3: 크기 무관한 가벼움 | prd-lifecycle | LC-AC1, LC-AC2, LC-AC3 | test-lifecycle | ✅ 완전 |
 | V4: 운영 부담 최소화 | prd-lifecycle, prd-deployment (+prd-session-list) | LC-AC1, LC-AC5, DP-AC1~4 (+SL-AC5) | test-lifecycle, test-deployment (+test-session-list) | ✅ 완전 |
 
-> `(+...)` 표기는 2026-07-05 추가된 session-list PRD의 기여다. SL-AC1~6은 구현·검증 완료이며
-> (파일 수 file_count만 SL-AC1/AC2의 잔여로 후속 작업), 전 가치의 커버리지는 ✅ 완전이다.
+> `(+...)` 표기는 2026-07-05 추가된 session-list PRD의 기여다. SL-AC1~6은 구현·검증 완료이며,
+> 전 가치의 커버리지는 ✅ 완전이다.
 
 ## 위험 진단
 
@@ -38,11 +38,11 @@
 - (없음)
 
 ### 미검증 AC (테스트 없는 AC)
-- (없음 — 전 AC 검증 완료. 아래 잔여 1건과 과거 해소 이력 참조)
-- 🟡 **잔여: session-list file_count (SL-AC1/AC2의 "파일 수" 표시)** — 세션당 파일 수(메인 + 서브에이전트)는
-  이번 범위에서 제외되어 미구현이다. SL-AC1/AC2의 나머지(ID·`created_at`·최신순·검색·열기·삭제·상태)는
-  모두 검증되었고, file_count 표시만 후속 작업으로 분리한다(백엔드 산출 방식 — 세션당 S3 나열 vs 업로드
-  시점 저장 — 결정 포함). 별도 작업 착수 시 해소한다.
+- (없음 — 전 AC 검증 완료. 과거 해소 이력 참조)
+- 2026-07-12 **결정: session-list file_count 범위 제외** — SL-AC1/AC2의 "파일 수" 표시는 산출 방식 미결
+  (세션당 S3 나열 비용 vs 업로드 시점 저장)로 보류돼 있었으나, AC↔E2E 정합성 루프 결정에 따라 제품
+  약속에서 제외했다. prd/test 문서의 SL-AC1·SL-AC2와 V1 달성 가치에서 "파일 수"를 들어내고, 나머지
+  보장(ID·`created_at`·최신순·검색·열기·삭제·상태)만 유지한다. 이로써 SL-AC1~6은 잔여 없이 전부 검증됨.
 - 2026-07-05 **SL-AC1~6(session-list, file_count 제외) 해소**: 백엔드 목록 스키마를 `[]string` →
   `[{session_id, created_at}]`(`created_at` DESC)로 확장하고, 시각 주입 seam(`Store.PutSessionAt`)과 seed의
   결정적 `created_at`을 도입했다. 프론트에 `SessionList` 컴포넌트와 세 번째 "Sessions" 탭을 추가하여
