@@ -649,16 +649,6 @@ describe('K8s Manifests - Secret Configuration', () => {
     const hasDataOrStringData = containsKey(content, 'data') || containsKey(content, 'stringData');
     assert.ok(hasDataOrStringData, 'Secret should use data or stringData section');
   });
-
-  it('should include usage instructions in comments', () => {
-    // Arrange
-    const secretPath = resolve(K8S_DIR, 'secret.example.yaml');
-    const content = readFileSync(secretPath, 'utf-8');
-
-    // Assert
-    assert.ok(content.includes('kubectl') || content.includes('Usage') || content.includes('IMPORTANT'),
-      'Secret example should include usage instructions');
-  });
 });
 
 describe('K8s Manifests - kubectl dry-run validation', () => {

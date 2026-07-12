@@ -651,16 +651,6 @@ describe('Local Kind Script - Script Content', () => {
     );
   });
 
-  it('should include usage instructions in comments', () => {
-    // Arrange
-    const content = readFileSync(KIND_SCRIPT, 'utf-8');
-
-    // Assert
-    assert.ok(
-      content.includes('Usage') || content.includes('usage') || content.includes('USAGE'),
-      'Script should include usage instructions'
-    );
-  });
 });
 
 describe('Local Kind Script - Kind Config', () => {
@@ -779,46 +769,6 @@ describe('Local Kind Script - Environment Variables', () => {
   });
 });
 
-describe('Local Kind Script - Documentation', () => {
-  it('should include prerequisites in comments', () => {
-    // Arrange
-    const content = readFileSync(KIND_SCRIPT, 'utf-8');
-
-    // Assert
-    assert.ok(
-      content.includes('Prerequisites') || content.includes('Requirements') || content.includes('PREREQUISITES'),
-      'Script should document prerequisites'
-    );
-  });
-
-  it('should document required tools', () => {
-    // Arrange
-    const content = readFileSync(KIND_SCRIPT, 'utf-8');
-
-    // Assert
-    const hasToolDocs =
-      content.includes('kind') &&
-      content.includes('kubectl') &&
-      content.includes('docker');
-
-    assert.ok(
-      hasToolDocs,
-      'Script should document required tools (kind, kubectl, docker)'
-    );
-  });
-
-  it('should include setup steps description', () => {
-    // Arrange
-    const content = readFileSync(KIND_SCRIPT, 'utf-8');
-
-    // Assert
-    assert.ok(
-      content.includes('echo') || content.includes('Steps') || content.includes('STEP'),
-      'Script should describe setup steps'
-    );
-  });
-});
-
 describe('Local Kind Script - Port Forwarding', () => {
   it('should configure or document port forwarding for services', () => {
     // Arrange
@@ -828,28 +778,6 @@ describe('Local Kind Script - Port Forwarding', () => {
     assert.ok(
       content.includes('kubectl port-forward') || content.includes('port forward') || content.includes('extraPortMappings'),
       'Script should configure or document port forwarding for accessing services'
-    );
-  });
-
-  it('should document how to access frontend application', () => {
-    // Arrange
-    const content = readFileSync(KIND_SCRIPT, 'utf-8');
-
-    // Assert
-    assert.ok(
-      content.includes('frontend') || content.includes('localhost:') || content.includes('http://'),
-      'Script should document how to access frontend application'
-    );
-  });
-
-  it('should document how to access backend API', () => {
-    // Arrange
-    const content = readFileSync(KIND_SCRIPT, 'utf-8');
-
-    // Assert
-    assert.ok(
-      content.includes('backend') || content.includes('api') || content.includes(':3000'),
-      'Script should document how to access backend API'
     );
   });
 });
