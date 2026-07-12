@@ -9,13 +9,16 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 /**
- * Docker Build E2E Tests
+ * Docker Build — Single Application Image (DP-AC1)
  *
  * The application ships as a single image: the frontend is built as static
  * files and copied into the Go backend image, which serves them alongside
  * the API. These tests verify the root Dockerfile and build capabilities.
  * Static tests (Dockerfile/dockerignore content checks) always run.
  * Runtime tests (build, run, inspect) are skipped when Docker is unavailable.
+ *
+ * Runner: node:test via `pnpm tsx --test` (CI job `docker-e2e-tests`), not
+ * Playwright — this file is listed in playwright.config testIgnore.
  */
 
 const REPO_ROOT = resolve(__dirname, '../..');
@@ -48,7 +51,7 @@ const isDockerAvailable = (): boolean => {
   }
 };
 
-describe('Docker Build - Single Application Image', () => {
+describe('Docker Build - Single Application Image (DP-AC1)', () => {
   it('should have a Dockerfile at the repository root', () => {
     // Assert
     assert.strictEqual(existsSync(DOCKERFILE), true);

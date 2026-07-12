@@ -1,34 +1,31 @@
 import { test, expect } from '@playwright/test';
 
 /**
- * Lookup Tabs E2E Tests
+ * Lookup Tabs (LK-AC1)
  *
- * Test Status: SKIPPED (TDD Red Phase)
- * Reason: Tests are written before implementation. These tests will be enabled
- * after the tab UI switching feature is implemented (DLD-471).
+ * Purpose: the main page shows the lookup tabs and lets a user complete a lookup
+ * from them:
+ * - "Message UUID" and "Session ID" tabs are displayed,
+ * - "Message UUID" is the active tab by default on initial load,
+ * - clicking "Session ID" reveals its input + lookup button,
+ * - a full session-ID lookup completes from the "Session ID" tab.
  *
- * Expected Behavior:
- * - Main page displays two tabs: "Message UUID" and "Session ID"
- * - "Message UUID" tab is active by default on initial load
- * - Clicking "Session ID" tab reveals the session ID input and lookup button
- * - Existing session ID lookup flow works correctly under the "Session ID" tab
+ * The third "Sessions" browsing tab is SL-AC2's job; this spec deliberately does
+ * not assert the tab count, so it is unaffected by that tab's addition.
  *
- * Implementation Requirements (DLD-470 parent):
- * 1. Add tab UI component with "Message UUID" and "Session ID" tabs
- * 2. "Message UUID" tab is the default active tab
- * 3. "Session ID" tab shows the existing session-id-input and session-id-lookup-button
- * 4. Remove .skip from tests when implementation is complete
+ * Test Status: ACTIVE — the tab UI (DLD-470/DLD-471) is implemented and these
+ * tests run unskipped. (This file was originally authored in a TDD red phase as
+ * skipped; the `.skip` was removed when the feature landed. The tests below are
+ * the current, active source of truth.)
  *
  * Fixture Data:
  * - e2e/fixtures/session-abc123.jsonl
  *   - Contains messages accessible via session ID "session-abc123"
  *
- * Linear Issue: DLD-471
- * Title: 작업 1-1: [탭 UI] e2e 테스트 작성 (skipped)
- * Parent: DLD-470 [Feature] Message UUID 조회 기능
+ * Linear: DLD-471 (parent DLD-470 [Feature] Message UUID 조회 기능)
  */
 
-test.describe('Lookup Tabs', () => {
+test.describe('Lookup Tabs (LK-AC1)', () => {
   test.beforeEach(async ({ page }) => {
     await page.goto('/');
   });

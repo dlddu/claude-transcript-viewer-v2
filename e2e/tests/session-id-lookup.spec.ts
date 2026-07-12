@@ -21,7 +21,7 @@ import { test, expect } from '@playwright/test';
  *
  * Fixture Data: e2e/fixtures/session-abc123.jsonl is the main session transcript (session_id: "session-abc123")
  */
-test.describe('Session ID Lookup E2E', () => {
+test.describe('Session ID Lookup (LK-AC2)', () => {
   test.beforeEach(async ({ page }) => {
     // Navigate to the app home page
     await page.goto('/');

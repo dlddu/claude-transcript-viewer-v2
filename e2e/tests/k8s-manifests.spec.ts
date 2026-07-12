@@ -9,16 +9,24 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 /**
- * Kubernetes Manifests E2E Tests
+ * Kubernetes Manifests — SQLite Single-Writer Safe Rollout (DP-AC3)
  *
  * These tests verify the single-workload application manifests in k8s/app:
  * one Deployment whose Go server exposes the API under /api and serves the
  * static frontend bundle on every other route, plus its Service, PVC,
  * ConfigMap and Secret examples.
  *
- * To run these tests:
- * 1. Ensure kubectl is installed (optional for dry-run tests)
- * 2. Run: node --test e2e/tests/k8s-manifests.spec.ts
+ * DP-AC3's core guarantee is the safe SQLite single-writer rollout — 1 replica,
+ * `maxSurge: 0`, and a ReadWriteOnce PVC mounted at /data so the old pod
+ * releases the volume before the new pod mounts it. The Service/ConfigMap/
+ * Secret checks are supplementary manifest hygiene living in this same
+ * DP-AC3-owned file. (The k8s/localstack/ manifests are DP-AC4's job —
+ * kind-localstack-environment.spec.ts.)
+ *
+ * Runner: node:test via `pnpm tsx --test` (CI job `k8s-manifest-validation`),
+ * not Playwright — this file is listed in playwright.config testIgnore.
+ * Locally: `pnpm tsx --test e2e/tests/k8s-manifests.spec.ts` (kubectl optional,
+ * only the dry-run describe needs it).
  */
 
 const REPO_ROOT = resolve(__dirname, '../..');
