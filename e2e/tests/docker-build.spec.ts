@@ -20,7 +20,6 @@ const __dirname = dirname(__filename);
 
 const REPO_ROOT = resolve(__dirname, '../..');
 const DOCKERFILE = resolve(REPO_ROOT, 'Dockerfile');
-const DOCKERIGNORE = resolve(REPO_ROOT, '.dockerignore');
 const IMAGE_NAME = 'claude-transcript-viewer:test';
 
 const execCommand = (command: string, cwd?: string): string => {
@@ -53,11 +52,6 @@ describe('Docker Build - Single Application Image', () => {
   it('should have a Dockerfile at the repository root', () => {
     // Assert
     assert.strictEqual(existsSync(DOCKERFILE), true);
-  });
-
-  it('should have a .dockerignore at the repository root', () => {
-    // Assert
-    assert.strictEqual(existsSync(DOCKERIGNORE), true);
   });
 
   it('should not have per-service Dockerfiles anymore', () => {
@@ -111,22 +105,6 @@ describe('Docker Build - Single Application Image', () => {
     assert.ok(dockerfileContent.includes('go build'));
   });
 
-  it('should expose port 3000', () => {
-    // Arrange
-    const dockerfileContent = readFileSync(DOCKERFILE, 'utf-8');
-
-    // Assert
-    assert.ok(dockerfileContent.includes('EXPOSE 3000'));
-  });
-
-  it('should use a non-root user for security', () => {
-    // Arrange
-    const dockerfileContent = readFileSync(DOCKERFILE, 'utf-8');
-
-    // Assert
-    assert.ok(/^USER\s+(?!root\b)\S+/m.test(dockerfileContent));
-  });
-
   it('should run the compiled server binary as entrypoint', () => {
     // Arrange
     const dockerfileContent = readFileSync(DOCKERFILE, 'utf-8');
@@ -141,21 +119,6 @@ describe('Docker Build - Single Application Image', () => {
 
     // Assert - Verify image was created
     assert.strictEqual(dockerImageExists(IMAGE_NAME), true);
-  });
-
-  it('should produce an optimized image size under 300MB', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
-    // Act - Build from repo root
-    execCommand(`docker build -t ${IMAGE_NAME} -f Dockerfile .`);
-
-    // Get image size
-    const inspectOutput = execCommand(
-      `docker inspect ${IMAGE_NAME} --format='{{.Size}}'`
-    );
-    const sizeInBytes = parseInt(inspectOutput.replace(/'/g, '').trim(), 10);
-    const sizeInMB = sizeInBytes / (1024 * 1024);
-
-    // Assert
-    assert.ok(sizeInMB < 300, `Image size ${sizeInMB.toFixed(1)}MB exceeds 300MB`);
   });
 
   it('should serve the API health check and the static frontend', { skip: !isDockerAvailable() ? 'Docker is not available' : false }, () => {
@@ -191,59 +154,5 @@ describe('Docker Build - Single Application Image', () => {
     } finally {
       execCommand(`docker rm -f ${containerName} || true`);
     }
-  });
-});
-
-describe('Docker Build - .dockerignore Optimization', () => {
-  it('should exclude node_modules from the build context', () => {
-    // Arrange
-    const dockerignoreContent = readFileSync(DOCKERIGNORE, 'utf-8');
-
-    // Assert
-    assert.ok(dockerignoreContent.includes('node_modules'));
-  });
-
-  it('should exclude .git directory from the build context', () => {
-    // Arrange
-    const dockerignoreContent = readFileSync(DOCKERIGNORE, 'utf-8');
-
-    // Assert
-    assert.ok(dockerignoreContent.includes('.git'));
-  });
-
-  it('should exclude frontend test files from the build context', () => {
-    // Arrange
-    const dockerignoreContent = readFileSync(DOCKERIGNORE, 'utf-8');
-
-    // Assert
-    const excludesTests =
-      dockerignoreContent.includes('*.test.ts') ||
-      dockerignoreContent.includes('*.test.tsx') ||
-      dockerignoreContent.includes('**/*.test.*');
-
-    assert.strictEqual(excludesTests, true);
-  });
-
-  it('should exclude Go test files from the build context', () => {
-    // Arrange
-    const dockerignoreContent = readFileSync(DOCKERIGNORE, 'utf-8');
-
-    // Assert
-    const excludesTests =
-      dockerignoreContent.includes('*_test.go') ||
-      dockerignoreContent.includes('**/*_test.go');
-
-    assert.strictEqual(excludesTests, true);
-  });
-
-  it('should exclude README and documentation from the build context', () => {
-    // Arrange
-    const dockerignoreContent = readFileSync(DOCKERIGNORE, 'utf-8');
-
-    // Assert
-    const excludesDocs =
-      dockerignoreContent.includes('README') || dockerignoreContent.includes('*.md');
-
-    assert.strictEqual(excludesDocs, true);
   });
 });

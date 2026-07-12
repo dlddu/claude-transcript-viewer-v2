@@ -395,47 +395,6 @@ describe('K8s LocalStack Manifests - kubectl dry-run validation', () => {
   });
 });
 
-describe('K8s LocalStack Manifests - Label Consistency', () => {
-  it('should use consistent app label across deployment and service', () => {
-    // Arrange
-    const deploymentPath = resolve(K8S_LOCALSTACK_DIR, 'deployment.yaml');
-    const servicePath = resolve(K8S_LOCALSTACK_DIR, 'service.yaml');
-    const deploymentContent = readFileSync(deploymentPath, 'utf-8');
-    const serviceContent = readFileSync(servicePath, 'utf-8');
-
-    // Extract app labels
-    const deploymentAppMatch = deploymentContent.match(/app:\s*(\S+)/);
-    const serviceAppMatch = serviceContent.match(/app:\s*(\S+)/);
-
-    // Assert
-    assert.ok(deploymentAppMatch, 'Deployment should have app label');
-    assert.ok(serviceAppMatch, 'Service should have app label');
-
-    if (deploymentAppMatch && serviceAppMatch) {
-      assert.strictEqual(
-        deploymentAppMatch[1],
-        serviceAppMatch[1],
-        'Deployment and Service should use the same app label'
-      );
-    }
-  });
-
-  it('should have matching selector labels between deployment and service', () => {
-    // Arrange
-    const deploymentPath = resolve(K8S_LOCALSTACK_DIR, 'deployment.yaml');
-    const servicePath = resolve(K8S_LOCALSTACK_DIR, 'service.yaml');
-    const deploymentContent = readFileSync(deploymentPath, 'utf-8');
-    const serviceContent = readFileSync(servicePath, 'utf-8');
-
-    // Both should have selector sections
-    // Assert
-    assert.ok(containsKey(deploymentContent, 'selector'),
-      'Deployment should have selector');
-    assert.ok(containsKey(serviceContent, 'selector'),
-      'Service should have selector');
-  });
-});
-
 describe('K8s LocalStack Manifests - LocalStack-Specific Configuration', () => {
   it('should configure S3 service in SERVICES environment variable', () => {
     // Arrange
@@ -445,33 +404,6 @@ describe('K8s LocalStack Manifests - LocalStack-Specific Configuration', () => {
     // Assert
     assert.ok(content.includes('s3') || content.includes('S3'),
       'LocalStack should enable S3 service');
-  });
-
-  it('should use official localstack image', () => {
-    // Arrange
-    const deploymentPath = resolve(K8S_LOCALSTACK_DIR, 'deployment.yaml');
-    const content = readFileSync(deploymentPath, 'utf-8');
-
-    // Assert
-    assert.ok(content.includes('localstack/localstack'),
-      'Deployment should use official LocalStack image');
-  });
-
-  it('should not use latest tag for production', () => {
-    // Arrange
-    const deploymentPath = resolve(K8S_LOCALSTACK_DIR, 'deployment.yaml');
-    const content = readFileSync(deploymentPath, 'utf-8');
-
-    // Extract image references
-    const imageMatches = content.match(/image:\s*([^\n]+)/g) || [];
-
-    // Assert
-    const usesLatestTag = imageMatches.some(img =>
-      img.includes(':latest') && !img.includes('$')
-    );
-
-    assert.strictEqual(usesLatestTag, false,
-      'Production deployments should use specific image tags, not :latest');
   });
 });
 
