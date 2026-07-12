@@ -24,8 +24,7 @@
 - **검증 AC**: VW-AC1
 - **구현**:
   - E2E: `e2e/tests/timeline-unified.spec.ts` — 통합 타임라인 렌더·호출 지점 인라인 삽입·시간순 정렬을 단정하고, 'renders a session with no subagents without creating any group'이 서브에이전트 없는 seed 세션(session-xyz789)을 실제로 로드해 서브에이전트 그룹 0개를 단정한다.
-  - 컴포넌트/유닛: `frontend/src/components/TranscriptViewer.no-subagents.test.tsx` — 서브에이전트 없는 세션이 통합 타임라인에 전 메시지를 시간순으로 렌더하고, 서브에이전트 그룹/헤더/라벨이 하나도 생기지 않으며, agentId가 세션 ID와 같은 메시지도 메인으로 취급됨을 단정한다.
-  - 비고: 과거 'should handle sessions with no subagents gracefully'는 beforeEach가 적재한 서브에이전트 포함 픽스처(session-abc123)를 그대로 쓰면서 에러 미발생만 단정하는 decoy였고(테스트 주석: "would need a different fixture without subagents"), 컴포넌트 테스트의 'should handle messages without agentId field gracefully'는 메시지 1건 렌더만 확인해, AC 이름 그대로인 "서브에이전트가 없는 세션도 정상 렌더링" 절반이 실측 미검증이었다. 위 두 테스트로 해소했다.
+  - 비고: `timeline-unified.spec.ts`의 'renders a session with no subagents without creating any group'이 서브에이전트 없는 seed 세션(session-xyz789)을 실제로 로드해 이 절반을 실측한다. (과거엔 서브에이전트 포함 픽스처를 그대로 쓰며 에러 미발생만 보는 decoy뿐이라 이 보장이 미검증이었다.)
 
 ### 시나리오 2: 메인/서브에이전트 구분과 메타데이터
 - **사전 조건**: 시나리오 1과 동일
@@ -57,9 +56,8 @@
 - **기대 결과**: 긴 텍스트 절단 표시(툴 입력의 파일 경로가 디렉토리 없이 파일명으로, 긴 툴 ID가 8자 프리픽스+생략부호로 절단), 메시지별 타임스탬프 렌더링
 - **검증 AC**: VW-AC5
 - **구현**:
-  - E2E: `e2e/tests/truncation-and-timestamps.spec.ts`(VW-AC5 전용 — 툴 입력 파일 경로 절단은 원본 디렉토리 미노출까지 단정하고, 메인·서브에이전트 메시지의 타임스탬프 렌더·포맷·위치를 단정. 이전의 `text-truncation` + `message-timestamps` 병합)
-  - 컴포넌트/유닛: `frontend/src/components/TranscriptViewer.truncation.test.tsx`(긴 툴 ID 생략부호 절단·깊은/얕은 경로 절단을 타임라인 렌더로 단정), `frontend/src/utils/truncate.test.ts`, `frontend/src/components/TruncatedText.test.tsx`
-  - 비고: seed 픽스처(session-abc123)의 툴 ID는 모두 8자 이하라 E2E에서는 생략부호 절단이 발생하지 않아 툴 ID 절단은 컴포넌트/유닛 테스트로 검증한다. 과거 절단 스펙(현재는 위 파일로 병합)은 미구현 UI를 가정한 채 전부 `test.skip` 이어서 절단이 실측 검증되지 않았다.
+  - E2E: `e2e/tests/truncation-and-timestamps.spec.ts`(VW-AC5 전용 — 툴 입력 파일 경로 절단은 원본 디렉토리 미노출까지 단정, 긴 툴 ID는 8자 프리픽스+생략부호 절단·원본 미노출을 단정, 메인·서브에이전트 메시지의 타임스탬프 렌더·포맷·위치를 단정. 이전의 `text-truncation` + `message-timestamps` 병합)
+  - 비고: 픽스처(session-abc123)의 DataAnalyzer 툴 ID를 실제 툴 ID처럼 긴 값으로 두어 생략부호 절단이 E2E에서 발동하도록 했다(과거엔 8자 이하 ID뿐이라 절단이 E2E에서 발생하지 않았다).
 
 ### 시나리오 6: 모바일/데스크톱 레이아웃
 - **사전 조건**: 툴 블록 다수 포함 픽스처

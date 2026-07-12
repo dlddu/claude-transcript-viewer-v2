@@ -53,6 +53,7 @@
   - **순서(객체 → 매핑)**: 세션 Hive 디렉토리의 모든 객체를 먼저 삭제한 뒤 SQLite 매핑을 마지막에 제거한다(메인 객체가 스윕의 마지막). 스윕 도중 실패하면 이미 삭제된 앞선 객체와 무관하게 매핑은 그대로 남는다.
   - **재시도 안전성**: 중단된 삭제는 세션을 여전히 조회 가능한 상태로 남긴다(매핑 유지 + 매니페스트가 메인·서브에이전트 전량 해석). 실패가 해소된 뒤 동일 삭제를 재시도하면 객체와 매핑이 모두 제거된다.
 - **검증 AC**: LC-AC5 (삭제 순서 객체→매핑, 중단 시 재시도 안전)
+- **커버리지 성격**: ⚠️ **E2E 검증 불가 → 백엔드 테스트가 유일 검증 (AC↔E2E 매핑의 명시적 예외)**. 삭제 순서·재시도 안전성은 S3 `DeleteObject`에 실패를 주입해야 확인되는데, 실제 브라우저 E2E로는 스토리지 중간 실패를 주입할 수 없다.
 - **구현**: `backend/s3_test.go` (`TestDeleteTranscriptBySessionId_DeletesObjectsBeforeMapping`가 객체→매핑 순서와 스윕 실패 시 매핑 잔존을, `TestDeleteTranscriptBySessionId_InterruptedDeleteIsRetrySafe`가 중단 후 세션 조회 가능성과 재시도 완결성을 검증; CI의 `go test ./...`로 실행)
 - **비고**: 기존 `transcript-delete-api.spec.ts`(시나리오 1)는 정상 삭제 성공·S3 스토리지 제거·404만 단정하고 삭제 순서와 재시도 안전성은 다루지 않았다. AC 이름 그대로인 LC-AC5의 핵심 보장("재시도 안전 삭제")이 실측 미검증이던 공백을 이 백엔드 fault-injection 테스트로 해소했다.
 
@@ -71,7 +72,8 @@
 - **기대 결과**: 매니페스트에 `session_id`·`expires_in`·`main`(id/name/key/url)·`subagents[]` 포함,
   각 URL이 presigned GET(서명 포함), TTL이 기본 5분(`DOWNLOAD_URL_TTL_SECONDS`로 조정), 서브에이전트 전량 노출
 - **검증 AC**: LC-AC3 (매니페스트 구조·단기 TTL)
-- **구현**: `backend/s3_test.go`(`TestGetTranscriptFiles_ReturnsPresignedMain`가 main ref·presigned URL을, `TestGetTranscriptFiles_UsesShortDownloadTTL`가 기본 300초·커스텀 TTL을, `TestGetTranscriptFiles_DiscoversSubagentsInSessionDir`가 서브에이전트 노출을 단정), `backend/s3_integration_test.go`(`X-Amz-Expires` 쿼리·presigned URL 실다운로드), `backend/server_test.go`(`TestHandleGetBySession_ReturnsFileManifest`가 매니페스트 JSON 형태를 단정); 룩업·타임라인 E2E가 이 경로를 실사용으로 경유
+- **커버리지 성격**: ⚠️ **E2E 검증 불가 → 백엔드 테스트가 유일 검증 (AC↔E2E 매핑의 명시적 예외)**. LC-AC3의 브라우저-S3 직결 측면은 시나리오 3-B가 E2E로 덮지만, 매니페스트 JSON 형태와 presigned GET의 TTL 값(기본 300초)은 응답 바디·서명 파라미터를 정밀 검사해야 하므로 실브라우저 E2E로 확인되지 않는다.
+- **구현**: `backend/s3_test.go`(`TestGetTranscriptFiles_ReturnsPresignedMain`가 main ref·presigned URL을, `TestGetTranscriptFiles_UsesShortDownloadTTL`가 기본 300초·커스텀 TTL을, `TestGetTranscriptFiles_DiscoversSubagentsInSessionDir`가 서브에이전트 노출을 단정), `backend/s3_integration_test.go`(`X-Amz-Expires` 쿼리·presigned URL 실다운로드), `backend/server_test.go`(`TestHandleGetBySession_ReturnsFileManifest`가 매니페스트 JSON 형태를 단정)
 
 ### 시나리오 3-B: 브라우저-S3 직결 다운로드·백엔드 미경유 (프론트 로더)
 - **사전 조건**: 매니페스트(presigned S3 URL)와 각 파일 응답을 주입할 수 있는 `fetch` 목
@@ -81,7 +83,4 @@
   - **S3 직결**: main과 모든 서브에이전트가 매니페스트의 각 presigned S3 URL 그대로에서 다운로드되며(파일당 정확히 1건), 그 URL은 백엔드 오리진이 아니다.
   - **크기 무관(V3)**: 파일 수가 늘어도 백엔드 요청은 매니페스트 1건으로 일정하고, 직결-S3 다운로드만 파일 수에 비례한다.
 - **검증 AC**: LC-AC3 (브라우저-S3 직결, 백엔드 미경유)
-- **구현**:
-  - E2E: `e2e/tests/transcript-direct-download.spec.ts` — 실제 브라우저에서 세션을 로드하며 발생한 모든 요청을 백엔드(`/api/*`) vs presigned S3(`X-Amz-Signature`)로 분류해, ⓐ 백엔드는 해당 세션 매니페스트 1건만 GET되고 ⓑ 백엔드 오리진이 트랜스크립트 바이트(presigned·`.jsonl`)를 서빙하지 않으며 ⓒ main·서브에이전트가 각자의 presigned S3 URL에서 직결 다운로드되고(파일당 1건) ⓓ 파일 수가 늘어도(main+2 서브에이전트 vs main-only) 백엔드 매니페스트 요청은 1건으로 고정임을 단정한다.
-  - 컴포넌트/유닛: `frontend/src/utils/loadTranscript.test.ts`(`describe('loadTranscript')` 내 라우팅 2케이스; CI의 `pnpm --filter @claude-transcript-viewer/frontend test:unit`로 실행)
-- **비고**: 기존 `loadTranscript.test.ts`는 파일이 로드·파싱되는 happy-path와 presigned URL이 "하나라도" 쓰였음만 단정하고, AC 이름 그대로인 LC-AC3의 핵심 보장 — 트랜스크립트 바이트가 백엔드를 경유하지 않고 각 파일이 자신의 presigned URL에서 직결 다운로드된다는 것(=V3 "크기 무관한 가벼움"의 근거) — 은 실측 검증되지 않았다. 요청 URL을 백엔드 vs S3로 분류해 단정하는 위 2케이스로 이 공백을 해소했다. (소스를 서브에이전트 다운로드가 백엔드를 경유하도록 변조하면 두 케이스가 즉시 실패함을 확인.) 이후 동일한 백엔드-vs-S3 분류를 **실제 브라우저**에서 수행하는 전용 E2E(`transcript-direct-download.spec.ts`)를 추가해, LC-AC3가 프론트 유닛뿐 아니라 E2E로도 직접 커버되도록 했다(기존에는 룩업/타임라인 E2E의 실사용 경유만 있었다).
+- **구현**: `e2e/tests/transcript-direct-download.spec.ts` — 실제 브라우저에서 세션을 로드하며 발생한 모든 요청을 백엔드(`/api/*`) vs presigned S3(`X-Amz-Signature`)로 분류해, ⓐ 백엔드는 해당 세션 매니페스트 1건만 GET되고 ⓑ 백엔드 오리진이 트랜스크립트 바이트(presigned·`.jsonl`)를 서빙하지 않으며 ⓒ main·서브에이전트가 각자의 presigned S3 URL에서 직결 다운로드되고(파일당 1건) ⓓ 파일 수가 늘어도(main+2 서브에이전트 vs main-only) 백엔드 매니페스트 요청은 1건으로 고정임을 단정한다.
