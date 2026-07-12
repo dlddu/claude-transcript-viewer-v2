@@ -80,10 +80,23 @@
   - 근거: 제품이 약속하는 단위는 AC이고, 이 단정들은 어떤 AC에도 대응하지 않는다. 이미지 크기·non-root·
     라벨 정합성 등은 실질적 가드였지만, "AC에 없으면 제품 가치가 아니다"를 끝까지 적용해 삭제했다. 되살리려면
     DP AC에 해당 문장을 추가하고 테스트를 매핑하면 된다.
-- **문서 미언급 유닛 테스트(7)**: `parseUuid`, `groupMessages`, `enrichMessages`, `useTranscriptData`,
-  `TranscriptViewer`, `SessionIdLookup`, `MessageUuidLookup`. 이들은 AC 없는 동작을 지키는 게 아니라 AC 구현의
-  단위 테스트이므로 성격이 다르다(문서 누락 문제). 단 `useTranscriptData`의 `caching` 블록은 어떤 AC도 캐싱을
-  요구하지 않으므로 확인이 필요하다.
+- **유닛 테스트 ↔ AC 매핑 방침(2026-07-12): 분리**. 유닛 테스트는 AC와 엮어서 관리하지 않는다. AC 문서
+  (`test-*.md`)는 AC↔E2E만 다루며, 유닛/컴포넌트 테스트는 코드에 공존하되 문서에서 매핑하지 않는다. 이에 따라
+  기존에 문서에 흩어져 있던 유닛/백엔드 테스트 참조를 전부 제거했다(supplementary는 손실 없이 제거 —
+  해당 AC는 이미 E2E가 덮음).
+  - **E2E로 전환(픽스처 한계였던 것)**: VW-AC5의 툴 ID 생략부호 절단은 `truncateToolId`가 8자 초과에서만
+    작동하는데 픽스처 툴 ID가 모두 8자 이하라 E2E에서 안 잡혔다. 픽스처의 DataAnalyzer 툴 ID를 실제 툴 ID처럼
+    긴 값으로 바꿔 E2E(`truncation-and-timestamps.spec.ts`)가 절단을 직접 단정하도록 했다. 유닛 참조 제거.
+  - **파이프라인 E2E로 재프레이밍**: DP-AC4의 seed 재현성은 AC 검증 방법이 "CI 파이프라인에서 seed 기반 E2E
+    통과 확인"이고, `kind-e2e-tests` 잡이 pod에서 `server seed`를 실행한 뒤 E2E 스위트 전체를 돌린다. seed가
+    깨지면 그 스위트가 실패하므로 파이프라인 레벨에서 E2E가 커버한다. 시나리오 4-B를 백엔드 테스트가 아니라 그
+    CI 잡으로 재프레이밍하고 `seed_test.go` 참조 제거(코드에는 결정적 하드닝으로 유지).
+  - **명시적 예외 2건 (E2E 스위트가 초록불이어도 깨질 수 있어 백엔드 테스트가 유일 검증)**:
+    - **LC-AC5** 재시도 안전 삭제 — E2E가 S3 삭제 중간 실패를 주입할 수 없음(`backend/s3_test.go` fault-injection).
+    - **LC-AC3** 매니페스트 TTL 값(300초)·JSON 형태 — E2E는 presigned 동작만 확인, TTL 값은 미검증(`backend/s3_test.go`).
+    - 둘 다 test-lifecycle에 "⚠️ E2E 검증 불가 → 백엔드 테스트가 유일 검증" 마커로 표시.
+  - 판별 기준: **"E2E 스위트가 초록불인데도 이 보장이 깨질 수 있나?"** — 예면 예외로 남기고, 아니면 제거/재프레이밍.
+  - 이전 접근(유닛 테스트를 AC 시나리오에 매핑, PR #92)은 이 방침과 반대라 철회했다.
 
 ### AC↔E2E 1:1 (달성)
 모든 AC가 전용 E2E 스펙 파일 하나를 배타적으로 소유한다(양방향 1:1). 스펙 25개 ↔ AC 25개.
@@ -99,6 +112,9 @@
 - 유지 규칙: 새 스펙을 추가할 때는 먼저 어느 AC를 덮는지 정하고, 그 AC가 이미 스펙을 갖고 있으면
   새 파일을 만들지 말고 기존 파일에 describe를 더한다. 덮을 AC가 없으면 그 테스트는 제품 가치가
   아니므로 작성하지 않는다.
+- 유닛/컴포넌트 테스트는 AC 문서에서 매핑하지 않는다(코드에 공존). AC 문서에 유닛/백엔드 테스트를 적는 경우는
+  "E2E 스위트가 초록불이어도 깨질 수 있어 그 테스트가 유일 검증"인 명시적 예외뿐이며, 반드시 그 사유를
+  ⚠️ 마커로 남긴다. 현재 예외는 LC-AC5·LC-AC3 두 건.
 
 ### 문서 정합성 주의 (신규 기능이 기존 문서에 주는 영향)
 - ✅ **[해소] LK-AC1 "두 탭 표시" ↔ session-list "Sessions" 탭**: SL-AC2가 `LookupTabs`에 세 번째 탭을
@@ -131,3 +147,4 @@
 | 2026-07-09 | AC↔E2E 1:1 정비 3단계 — N:1(스펙 하나가 AC 여러 개) 전량 해소: 얽힘의 축이던 LK-AC4(실패 피드백)·LC-AC4(미등록 404)에 전용 스펙 `lookup-failure-feedback.spec.ts`·`transcript-not-found.spec.ts`를 신설하고, `session-id-lookup`(LK-AC2)·`message-uuid-lookup`(LK-AC3)·`transcript-delete-api`(LC-AC5)에서 해당 단정을 걷어냈다. 함께 `transcript-upload-api.spec.ts`(LC-AC1·AC2 혼재)를 LC-AC1 전용으로 좁히고 LC-AC2를 `transcript-session-prefix.spec.ts`로 분리했다. upload/delete 스펙이 복붙하던 S3 클라이언트·업로드 헬퍼는 `e2e/tests/support/transcript-api.ts`로 추출. 스펙 25개·테스트 109개 수집 확인(`playwright test --list`), 신규/수정 파일 타입 에러 0 | 1:1 12/25, N:1 4건(`session-id-lookup`, `message-uuid-lookup`, `transcript-upload-api`, `transcript-delete-api`) | 1:1 19/25, N:1 0건. 남은 6건은 전부 1:N이며 AC 분할이 선행 과제 |
 | 2026-07-09 | AC 없는 테스트 제거 — `docker-publish-workflow.spec.mjs`(30 단정)·`kind-cluster-workflow.spec.ts`(26 단정) 삭제. 두 스펙은 워크플로 YAML을 자체 파서로 읽어 "워크플로 이름이 정의됐는가", "jobs 섹션이 있는가" 등을 단정했고 어떤 AC에도 대응하지 않았다(후자는 자신을 실행하는 `test.yml`을 검사). CI의 `workflow-validation-tests` job과 `kind-cluster-validation`의 워크플로 검증 스텝을 함께 제거. `k8s-localstack-manifests.spec.ts`를 DP-AC3 → DP-AC4로 재매핑(내용은 전부 LocalStack 매니페스트). 남은 부분 고아 단정(≈100개)은 파일 단위로 처리할 수 없어 백로그에 명시 | 1:1 19/25, 고아 테스트 0건으로 오집계 | 1:1 21/25, 파일 단위 고아 0건. 남은 4건은 전부 1:N이며 스펙 병합으로 처리 예정 |
 | 2026-07-09 | AC↔E2E 1:1 완료 — 마지막 1:N 4건을 스펙 병합으로 해소. `local-kind-script` + `k8s-localstack-manifests` → `kind-localstack-environment`(DP-AC4), `tool-detail-view` + `task-tool-subagent-type` → `tool-call-display`(VW-AC4), `text-truncation` + `message-timestamps` → `truncation-and-timestamps`(VW-AC5), `tool-call-compact` → `mobile-layout`(VW-AC6). AC를 쪼개지 않고 스펙을 합친 이유: AC 문장은 제품이 약속하는 단위이고, 파일 분리는 그 약속을 지키는 수단일 뿐이다. CI는 Playwright가 `workers: 1`이라 병합해도 러닝타임이 같고, `kind-cluster-validation` job은 병합으로 비어 kubectl이 있는 `k8s-manifest-validation` job으로 흡수했다(job 8 → 7). 병합 후 `kind-localstack-environment` 실행 62 tests / 0 fail / 3 skip(kubectl 부재), Playwright 수집 22 파일 109 테스트, 신규 타입 에러 0(잔존 `window` 에러 51건은 main과 동일한 사전 존재분) | 1:1 21/25, 1:N 4건 | **1:1 25/25**, 1:N·N:1·고아 0건 |
+| 2026-07-12 | 유닛 테스트를 AC 문서에서 분리 — AC 문서(`test-*.md`)는 AC↔E2E만 다루기로 하고, 흩어져 있던 유닛/백엔드 테스트 참조를 전부 제거. supplementary(해당 AC를 이미 E2E가 덮음)는 손실 없이 제거. sole-validator 4건은 판별 기준 "E2E 스위트가 초록불인데도 깨질 수 있나?"로 처리: **VW-AC5**(툴 ID 생략부호 절단)는 픽스처 툴 ID를 실제처럼 긴 값으로 바꿔 E2E로 전환, **DP-AC4**(seed 재현)는 `kind-e2e-tests` 잡이 pod에서 `server seed` 후 E2E 스위트 전체를 도는 파이프라인 검증으로 재프레이밍(시나리오 4-B), **LC-AC5**(재시도 안전 삭제)·**LC-AC3**(TTL 값·매니페스트 형태)는 E2E가 초록불이어도 깨질 수 있어 백엔드 테스트를 유일 검증으로 남기고 ⚠️ 마커 표시. 유닛 스위트 292 그린(합성 데이터라 픽스처 무관), 1:1 25/25 유지. 이전 유닛-매핑 시도(PR #92)는 철회 | AC 문서에 유닛/백엔드 참조가 supplementary·sole-validator 섞여 산재 | AC 문서에 유닛/백엔드 참조는 명시적 예외 2건(LC)뿐, 나머지는 E2E거나 코드-only |

@@ -185,10 +185,10 @@ test.describe('Tool Detail View (VW-AC4)', () => {
     // Act - Expand details
     await messageWithTool.click();
 
-    // Assert - Tool ID should be visible
+    // Assert - Tool ID should be visible (long ids render truncated to an 8-char prefix)
     const toolDetail = page.getByTestId('tool-detail-view');
     await expect(toolDetail.getByTestId('tool-id')).toBeVisible();
-    await expect(toolDetail.getByTestId('tool-id')).toContainText('tool-001');
+    await expect(toolDetail.getByTestId('tool-id')).toContainText('toolu_01');
   });
 
   test('should handle multiple tool_use blocks in same message', async ({ page }) => {

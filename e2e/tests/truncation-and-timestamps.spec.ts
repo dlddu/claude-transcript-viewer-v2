@@ -12,14 +12,13 @@ import { test, expect } from '@playwright/test';
  * truncateFilePathsInObject / TruncatedText로 실제 구현되었으나, 스킵된 스펙은
  * (a) 존재하지 않는 testid와 (b) 실제 truncate 규칙과 어긋나는 기대값을 담고 있었다.
  * 지금은 실제 구현과 픽스처에 맞춰, 툴 입력의 파일 경로가 디렉토리를 제거한 파일명 형태로
- * 절단되어 렌더된다는 점을 검증한다. tool-detail-view의 tool-input 단정은 'input.csv' 포함
- * 여부만 보는데 이는 전체 경로 '/data/input.csv'도 substring으로 포함하므로 절단 자체를
- * 검증하지 못한다. 여기서는 원본 디렉토리 경로가 사라졌음을 함께 단정한다.
+ * 절단되어 렌더된다는 점과, 긴 툴 ID가 8자 프리픽스 + 생략부호로 절단된다는 점을 함께 검증한다.
+ * (픽스처의 DataAnalyzer 툴 ID를 실제 툴 ID처럼 긴 값으로 두어 생략부호 절단이 E2E에서 발동한다.)
+ * tool-detail-view의 tool-input 단정은 'input.csv' 포함 여부만 보는데 이는 전체 경로
+ * '/data/input.csv'도 substring으로 포함하므로 절단 자체를 검증하지 못한다. 여기서는 원본
+ * 디렉토리 경로가 사라졌음을 함께 단정한다.
  *
- * 참고: 툴 ID 생략부호 절단과 TruncatedText 툴팁/복사 상호작용은 각각 유닛/컴포넌트
- * 테스트(utils/truncate.test.ts, components/TruncatedText.test.tsx,
- * components/TranscriptViewer.truncation.test.tsx)에서 검증한다. seed 픽스처의
- * 툴 ID는 모두 8자 이하라 생략부호 절단이 발생하지 않으므로 여기서는 다루지 않는다.
+ * 참고: TruncatedText 툴팁/복사 상호작용은 컴포넌트 단위 테스트에서 다룬다(AC 문서 밖).
  *
  * Test Status: ACTIVE
  *
@@ -56,6 +55,24 @@ test.describe('Text Truncation (VW-AC5)', () => {
     await expect(toolInput).toContainText('input.csv');
     await expect(toolInput).not.toContainText('/data/input.csv');
     await expect(toolInput).not.toContainText('/data/');
+  });
+
+  test('긴 툴 ID가 8자 프리픽스 + 생략부호로 절단된다', async ({ page }) => {
+    // 픽스처의 DataAnalyzer 툴 ID는 실제 툴 ID처럼 긴 값(toolu_01A9B8C7D6E5F4G3H2)이다.
+    const timeline = page.getByTestId('timeline-view');
+    const messageWithTool = timeline.locator('[data-testid="timeline-item"]').filter({
+      hasText: /I'd be happy to help you analyze the dataset/i,
+    });
+
+    // 툴 상세 확장
+    await messageWithTool.click();
+
+    const toolId = messageWithTool.getByTestId('tool-id');
+    await expect(toolId).toBeVisible();
+
+    // 8자 프리픽스 + 생략부호만 표시되고, 원본 전체 ID는 표시 영역에 노출되지 않는다.
+    await expect(toolId).toContainText('toolu_01...');
+    await expect(toolId).not.toContainText('toolu_01A9B8C7D6E5F4G3H2');
   });
 
   test('다중 툴 메시지: 각 툴 입력의 경로도 파일명으로 절단된다', async ({ page }) => {
