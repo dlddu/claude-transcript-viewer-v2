@@ -68,14 +68,18 @@
   "how to access" 6개. 모두 파일에 특정 단어가 있는지만 보던 것으로 제품 가치가 아니다. 실제 동작을 보던
   단정(스크립트가 kind/kubectl/docker 설치를 체크하는가, AWS 자격증명·엔드포인트·S3 버킷 생성, 클린업
   `kind delete cluster`, port-forward 구성)은 남겼다.
-- **잔여(부분 고아)**: 아래 스펙들은 AC에 대응하는 단정과 대응하지 않는 단정이 한 파일에 섞여 있다.
-  파일 단위 삭제로는 처리할 수 없어 별도 작업으로 남긴다.
-  - `k8s-manifests.spec.ts`(59) — DP-AC3의 검증 방법은 replica·maxSurge·PVC뿐. Service·ConfigMap·Secret·
-    Label Consistency·Best Practices·File Structure·YAML Validity·kubectl dry-run 약 40 단정은 AC 밖.
-  - `docker-build.spec.ts`(18) — 실제 빌드·서빙 단정은 3개. `.dockerignore` 5, 이미지 300MB 미만, non-root 유저,
-    포트 3000 등은 AC 밖.
-  - `kind-localstack-environment.spec.ts`(62, 구 `local-kind-script` 파트) — "주석에 prerequisites가 있는가",
-    "필요 도구가 문서화됐는가" 등 문서 존재 단정 포함. LocalStack 파트의 File Structure·Label Consistency도 AC 밖.
+- **부분 고아 제거 완료(2026-07-09)**: 파일 안에 섞여 있던 AC 밖 단정을 두 단계로 정리했다.
+  - 순수 주석/문서 존재 단정 7개 삭제(위 항목).
+  - "AC엔 없지만 배포 품질을 지키던" 가드레일 단정 19개 삭제 — **삭제로 결정**(AC 승격 안 함).
+    - `docker-build`(9): `.dockerignore` 존재 + 내용 5개(node_modules·.git·테스트·README 제외),
+      `EXPOSE 3000`, non-root 유저, 이미지 300MB 미만. 남긴 것: 단일 이미지·`VITE_API_URL` 없는 빌드·
+      STATIC_DIR 복사·CGO·entrypoint·빌드·런타임 서빙(전부 DP-AC1).
+    - `k8s-manifests`(6): ConfigMap credential 평문 금지, Label Consistency 2개(app 라벨·selector 매칭),
+      Best Practices 3개(imagePullPolicy·securityContext·namespace).
+    - `kind-localstack-environment`(4): LocalStack Label Consistency 2개, 공식 이미지 사용, `:latest` 금지.
+  - 근거: 제품이 약속하는 단위는 AC이고, 이 단정들은 어떤 AC에도 대응하지 않는다. 이미지 크기·non-root·
+    라벨 정합성 등은 실질적 가드였지만, "AC에 없으면 제품 가치가 아니다"를 끝까지 적용해 삭제했다. 되살리려면
+    DP AC에 해당 문장을 추가하고 테스트를 매핑하면 된다.
 - **문서 미언급 유닛 테스트(7)**: `parseUuid`, `groupMessages`, `enrichMessages`, `useTranscriptData`,
   `TranscriptViewer`, `SessionIdLookup`, `MessageUuidLookup`. 이들은 AC 없는 동작을 지키는 게 아니라 AC 구현의
   단위 테스트이므로 성격이 다르다(문서 누락 문제). 단 `useTranscriptData`의 `caching` 블록은 어떤 AC도 캐싱을

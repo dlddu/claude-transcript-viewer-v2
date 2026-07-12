@@ -566,22 +566,6 @@ describe('K8s Manifests - ConfigMap Configuration', () => {
     // Assert
     assert.ok(content.includes('S3_BUCKET:'), 'ConfigMap should include S3_BUCKET');
   });
-
-  it('should not contain sensitive data like credentials', () => {
-    // Arrange
-    const configmapPath = resolve(K8S_DIR, 'configmap.example.yaml');
-    const content = readFileSync(configmapPath, 'utf-8');
-
-    // Assert
-    const hasSensitiveKeys =
-      content.includes('AWS_ACCESS_KEY_ID') ||
-      content.includes('AWS_SECRET_ACCESS_KEY') ||
-      content.includes('password') ||
-      content.includes('secret');
-
-    assert.strictEqual(hasSensitiveKeys, false,
-      'ConfigMap should not contain sensitive credentials (use Secret instead)');
-  });
 });
 
 describe('K8s Manifests - Secret Configuration', () => {
@@ -707,91 +691,5 @@ describe('K8s Manifests - kubectl dry-run validation', () => {
     assert.doesNotThrow(() => {
       execCommand(`KUBECONFIG=/dev/null kubectl create --dry-run=client --validate=false -f ${K8S_DIR}/ -o yaml`);
     }, 'All manifests should be valid when applied together');
-  });
-});
-
-describe('K8s Manifests - Label Consistency', () => {
-  it('should use consistent app label across deployment, service, and selectors', () => {
-    // Arrange
-    const deploymentPath = resolve(K8S_DIR, 'deployment.yaml');
-    const servicePath = resolve(K8S_DIR, 'service.yaml');
-    const deploymentContent = readFileSync(deploymentPath, 'utf-8');
-    const serviceContent = readFileSync(servicePath, 'utf-8');
-
-    // Extract app labels
-    const deploymentAppMatch = deploymentContent.match(/app:\s*(\S+)/);
-    const serviceAppMatch = serviceContent.match(/app:\s*(\S+)/);
-
-    // Assert
-    assert.ok(deploymentAppMatch, 'Deployment should have app label');
-    assert.ok(serviceAppMatch, 'Service should have app label');
-
-    if (deploymentAppMatch && serviceAppMatch) {
-      assert.strictEqual(
-        deploymentAppMatch[1],
-        serviceAppMatch[1],
-        'Deployment and Service should use the same app label'
-      );
-    }
-  });
-
-  it('should have matching selector labels between deployment and service', () => {
-    // Arrange
-    const deploymentPath = resolve(K8S_DIR, 'deployment.yaml');
-    const servicePath = resolve(K8S_DIR, 'service.yaml');
-    const deploymentContent = readFileSync(deploymentPath, 'utf-8');
-    const serviceContent = readFileSync(servicePath, 'utf-8');
-
-    // Both should have selector sections
-    // Assert
-    assert.ok(containsKey(deploymentContent, 'selector'),
-      'Deployment should have selector');
-    assert.ok(containsKey(serviceContent, 'selector'),
-      'Service should have selector');
-  });
-});
-
-describe('K8s Manifests - Best Practices', () => {
-  it('should specify imagePullPolicy in deployment', () => {
-    // Arrange
-    const deploymentPath = resolve(K8S_DIR, 'deployment.yaml');
-    const content = readFileSync(deploymentPath, 'utf-8');
-
-    // Assert
-    assert.ok(containsKey(content, 'imagePullPolicy'),
-      'Deployment should specify imagePullPolicy');
-  });
-
-  it('should configure security context for container', () => {
-    // Arrange
-    const deploymentPath = resolve(K8S_DIR, 'deployment.yaml');
-    const content = readFileSync(deploymentPath, 'utf-8');
-
-    // Assert
-    const hasSecurityContext =
-      containsKey(content, 'securityContext') ||
-      content.includes('runAsNonRoot') ||
-      content.includes('readOnlyRootFilesystem');
-
-    assert.ok(hasSecurityContext,
-      'Deployment should configure security context for better security');
-  });
-
-  it('should include namespace in metadata (optional but recommended)', () => {
-    // Arrange
-    const deploymentPath = resolve(K8S_DIR, 'deployment.yaml');
-    const servicePath = resolve(K8S_DIR, 'service.yaml');
-    const deploymentContent = readFileSync(deploymentPath, 'utf-8');
-    const serviceContent = readFileSync(servicePath, 'utf-8');
-
-    // This is optional but good practice
-    // Assert - just check that it's considered
-    const hasNamespace =
-      containsKey(deploymentContent, 'namespace') ||
-      containsKey(serviceContent, 'namespace');
-
-    // This test just validates the files exist and are readable
-    assert.ok(deploymentContent.length > 0, 'Deployment file should have content');
-    assert.ok(serviceContent.length > 0, 'Service file should have content');
   });
 });
