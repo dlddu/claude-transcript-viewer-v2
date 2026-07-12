@@ -62,6 +62,12 @@
   둘 다 `.github/workflows/*.yml`을 자체 정규식 파서로 읽어 워크플로 이름·트리거·jobs 섹션·GHCR 태그 규칙 등을
   단정했을 뿐, 어떤 AC의 문장에도 대응하지 않았다. DP-AC1/AC4 배지를 달고 있어 이전 감사에서 "고아 없음"으로
   집계됐다.
+- **부분 고아 정리(2026-07-09)**: 순수 주석/문서 존재 단정 7개를 삭제했다 — `k8s-manifests`의 Secret
+  "usage instructions in comments" 1개, `kind-localstack-environment`(구 kind-script 파트)의 "usage
+  instructions"·"prerequisites in comments"·"required tools"·"setup steps description"·프론트/백엔드
+  "how to access" 6개. 모두 파일에 특정 단어가 있는지만 보던 것으로 제품 가치가 아니다. 실제 동작을 보던
+  단정(스크립트가 kind/kubectl/docker 설치를 체크하는가, AWS 자격증명·엔드포인트·S3 버킷 생성, 클린업
+  `kind delete cluster`, port-forward 구성)은 남겼다.
 - **잔여(부분 고아)**: 아래 스펙들은 AC에 대응하는 단정과 대응하지 않는 단정이 한 파일에 섞여 있다.
   파일 단위 삭제로는 처리할 수 없어 별도 작업으로 남긴다.
   - `k8s-manifests.spec.ts`(59) — DP-AC3의 검증 방법은 replica·maxSurge·PVC뿐. Service·ConfigMap·Secret·
