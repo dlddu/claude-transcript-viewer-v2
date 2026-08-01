@@ -37,10 +37,15 @@ func OpenStore(ctx context.Context, path string) (*Store, error) {
 	// to share a -shm mapping, which a network filesystem does not guarantee, so
 	// stay on the rollback journal. maxSurge=0 on the Deployment keeps this a
 	// single-writer database, which is what the rollback journal assumes.
+	// synchronous is pinned to FULL: on the rollback journal, NORMAL does not
+	// guarantee that committed transactions survive a power loss. FULL is the
+	// SQLite default, but pinning it keeps a driver-default change or a future
+	// tuning pass from silently weakening durability.
 	for _, pragma := range []string{
 		"PRAGMA journal_mode=DELETE",
 		"PRAGMA busy_timeout=5000",
 		"PRAGMA foreign_keys=ON",
+		"PRAGMA synchronous=FULL",
 	} {
 		if _, err := db.ExecContext(ctx, pragma); err != nil {
 			db.Close()
