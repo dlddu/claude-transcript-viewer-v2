@@ -53,5 +53,6 @@
 - **실행 단계**: pod 안에서 앱의 `server seed --dir /tmp/fixtures`(`e2e/fixtures` 복사본)를 실행해 LocalStack S3·SQLite를 채운 뒤, 그 클러스터에 대해 E2E 스위트 전체를 실행
 - **기대 결과**: seed가 서버와 동일한 코드 경로로 픽스처를 업로드·매핑했으므로, seeded 환경에 의존하는 E2E들 — `session-abc123`과 두 서브에이전트를 조회하는 lookup·timeline·direct-download 등 — 이 통과한다. seed가 키를 틀리거나·서브에이전트 레이아웃을 누락하거나·매핑을 건너뛰면 이 E2E들이 실패해 재현 실패를 드러낸다.
 - **검증 AC**: DP-AC4 (CI 파이프라인에서 seed 기반 E2E 통과 = 환경 재현성)
+- **커버리지 성격**: ⚠️ **전용 E2E 스펙 불가 → CI 파이프라인이 검증 수단 (시나리오↔E2E 매핑의 명시적 예외)**. 이 시나리오의 기대 결과가 "E2E 스위트 전체가 통과한다" 자체라, 전용 스펙을 만들면 스위트가 자기 자신의 통과를 단정하는 자기참조가 된다. `docs/transcript-viewer-doc-tracker.md`의 「시나리오↔E2E 1:1 (등재)」 예외 목록 3번에 등재돼 있다.
 - **구현**: `.github/workflows/test.yml`의 `kind-e2e-tests` 잡 — step "Seed transcripts into LocalStack and SQLite"가 pod에서 `server seed`를 실행하고, 이어서 `pnpm --filter @claude-transcript-viewer/e2e test`가 E2E 스위트 전체를 실행한다. 개별 스펙은 각자의 AC(LK/VW/LC 등)에 매핑되며, DP-AC4의 검증은 "그 스위트가 seed로 채운 환경에서 통과함" 자체다.
 - **비고**: 이 방식은 DP-AC4의 검증 방법("CI 파이프라인에서 seed 기반 E2E 통과 확인")을 그대로 실현한다. seed 로직(`seedDir`/`seedSubagents`)의 결정적 단위 커버리지는 AC↔E2E 매핑 밖의 코드 레벨에서 유지된다.
