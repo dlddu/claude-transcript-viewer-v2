@@ -6,6 +6,7 @@
 - Acceptance Criteria: 25개 (가치 연결됨: 25개 / 미연결: 0개)
 - 테스트 문서: 5개 (AC 커버됨: 25개 / 미커버: 0개 — SL-AC1~6 검증 완료)
 - AC↔E2E 1:1: **25/25** ✅ (모든 AC가 전용 E2E 스펙 파일 하나를 배타적으로 소유. 1:N·N:1·고아 스펙 모두 0건)
+- 시나리오↔E2E 1:1: ✅ 불변식 성립 — 집계·예외 목록·구현 대기 표는 아래 「시나리오↔E2E 1:1 (등재)」 절이 정본이다(수치는 그 절에만 둔다). AC 축과는 **판정 축이 다르다.**
 - **건강 상태**: ⚠️ 위험 있음 — 고아 가치(소유자 미정) 4건 (미검증 AC 0건)
 
 ## 연결 매트릭스
@@ -116,6 +117,74 @@
   "E2E 스위트가 초록불이어도 깨질 수 있어 그 테스트가 유일 검증"인 명시적 예외뿐이며, 반드시 그 사유를
   ⚠️ 마커로 남긴다. 현재 예외는 LC-AC5·LC-AC3 두 건.
 
+### 시나리오↔E2E 1:1 (등재)
+
+위의 「AC↔E2E 1:1」과는 **판정 축이 다르다.** 이 절은 테스트 문서의 **시나리오**
+(`docs/transcript-viewer-test-*.md`의 `### 시나리오 N:` 헤딩, `0-A`·`4-B` 같은 보조 번호 포함)와
+**매칭 단위 파일**(`e2e/tests/` 하위 `*.spec.*`, `support/*.ts` 헬퍼 제외)의 1:1을 다룬다.
+두 축은 서로를 대체하지 않는다 — 아래 예외 목록에 DP-AC4가 등장하지만 AC 축 예외 목록에는 없는데,
+그것이 오류가 아니라 **구조**인 이유는 예외 3의 비고에 적었다.
+
+**매핑의 SSOT는 이 문서가 아니라 각 시나리오의 `구현` 항목이다.** 여기에 25행짜리 매핑 표를
+복제하지 않는 것은 의도적이다 — 사본을 두면 스펙이 갈리거나 병합될 때마다 두 곳을 lockstep으로
+갱신해야 하고, 한쪽이 조용히 낡는다. 매핑을 확인하려면 해당 시나리오의 `구현` 항목을 읽는다.
+⚠️ 그때 **`- **구현**:` 다음 줄의 하위 항목까지** 읽어야 한다. `test-viewer.md`의 시나리오 1·5는
+경로를 `- E2E:` 하위 줄에 적으므로, 한 줄만 보는 파서는 이 둘을 놓쳐 25가 아니라 23을 센다.
+
+#### 집계 (2026-09-09 실측)
+
+| 항목 | 값 |
+|------|---:|
+| 시나리오 전집 (문서 5개: deployment 5 · lifecycle 7 · lookup 4 · session-list 6 · viewer 6) | 28 |
+| 예외 등재 (아래 표) | 3 |
+| 구현 대기 등재 (아래 표) | 0 |
+| 1:1 대상 (시나리오 − 예외 − 구현 대기) | 25 |
+| 시나리오 매칭 spec 파일 | 25 |
+| **공백 (1:1 대상 중 파일 없음)** | **0** — 공백 목록 없음 |
+
+**불변식: 28 − 3 − 0 = 25 = 매칭 파일 25 ✅** — 1:N 0건, N:1 0건, 고아 스펙 0건,
+문서가 지목하는데 실재하지 않는 스펙 0건. 판정은 항상 이 불변식으로 하며 위 절대 수치는 스냅샷이다.
+시나리오나 스펙이 늘고 줄면 이 표를 함께 갱신한다.
+
+#### 예외 목록 (E2E 자동 검증이 곤란 — 영구 면제)
+
+매칭 단위(`e2e/tests/**/*.spec.*`)로 검증할 수 없어 대체 수단이 유일 검증인 시나리오다.
+판별 기준은 AC 축과 같다: **"E2E 스위트가 초록불인데도 이 보장이 깨질 수 있나?"** — 예면 예외다.
+**"아직 구현되지 않았다"는 이 표의 사유가 아니다**(그건 아래 구현 대기 표). 세 건 모두 기능은
+구현돼 있고, 예외 판단 자체는 2026-07-12에 이미 내려져 변경 이력에 적혀 있었다 — 이번에
+**시나리오 축으로 등재**했을 뿐이다.
+
+| # | 시나리오 | 사유 (왜 E2E로 못 사는가) | 대체 검증 수단 |
+|---|----------|---------------------------|----------------|
+| 1 | `transcript-viewer-test-lifecycle.md#시나리오 1-B` (삭제 순서와 재시도 안전성, LC-AC5) | 삭제 순서(객체→매핑)와 중단 후 재시도 안전성은 S3 `DeleteObject`에 **실패를 주입해야** 관측되는데, 실브라우저 E2E로는 스토리지 중간 실패를 주입할 수 없다 | `backend/s3_test.go` — `TestDeleteTranscriptBySessionId_DeletesObjectsBeforeMapping`(순서·실패 시 매핑 잔존), `TestDeleteTranscriptBySessionId_InterruptedDeleteIsRetrySafe`(재시도 완결). CI `unit-tests` 잡의 `go test ./...` |
+| 2 | `transcript-viewer-test-lifecycle.md#시나리오 3` (매니페스트 구조와 단기 presigned GET, LC-AC3) | 매니페스트 JSON 형태와 presigned GET의 TTL 값(기본 300초)은 **응답 바디·서명 파라미터를 정밀 검사**해야 확인된다. 브라우저는 presigned가 동작하는 것만 보여 줄 뿐 TTL 값을 드러내지 않는다 (LC-AC3의 브라우저-S3 직결 측면은 시나리오 3-B가 E2E로 덮는다) | `backend/s3_test.go` — `TestGetTranscriptFiles_ReturnsPresignedMain`, `TestGetTranscriptFiles_UsesShortDownloadTTL`(기본 300초·커스텀 TTL), `TestGetTranscriptFiles_DiscoversSubagentsInSessionDir`; `backend/s3_integration_test.go`(`X-Amz-Expires`·실다운로드); `backend/server_test.go`(`TestHandleGetBySession_ReturnsFileManifest`) |
+| 3 | `transcript-viewer-test-deployment.md#시나리오 4-B` (seed가 채운 환경에서 E2E 스위트가 통과, DP-AC4) | 이 시나리오의 기대 결과가 **"E2E 스위트 전체가 통과한다" 자체**다. 전용 스펙을 만들면 스위트가 자기 자신의 통과를 단정하는 자기참조가 된다 — 검증 수단은 스위트를 **돌리는 파이프라인**일 수밖에 없다 | `.github/workflows/test.yml`의 `kind-e2e-tests` 잡 — step "Seed transcripts into LocalStack and SQLite"가 pod에서 `server seed`를 실행하고, 이어 `pnpm --filter @claude-transcript-viewer/e2e test`가 스위트 전체를 실행한다 |
+
+> **예외 3의 비고 — AC 축에 이 예외가 없는 것은 옳다.** AC 축에서 DP-AC4는 시나리오 4의
+> `kind-localstack-environment.spec.ts`가 배타적으로 소유하므로 AC 축 예외 목록(LC-AC5·LC-AC3
+> 두 건)에 DP-AC4가 없는 것이 정확하다. DP-AC4에 **시나리오가 둘(4와 4-B)**이고 그중 4-B만
+> 파일이 없다는 사실은 **시나리오 축에서만 보인다.** 두 목록의 길이가 다른 것을 불일치로 읽지 말 것.
+
+#### 구현 대기 (미구현이라 검증 대상 자체가 없음 — 임시 보류)
+
+| 시나리오 | 미구현 근거 | 담당 | 해제 조건 |
+|----------|-------------|------|-----------|
+| _(없음 — 현재 0건)_ | | | |
+
+예외 목록과 **의도적으로 분리된 표**다: 영구 면제(위)와 임시 보류(여기)를 섞으면 "언젠가 풀릴 것"과
+"영영 E2E로 못 살 것"이 구분되지 않는다. 구현이 착지하면 그 시나리오는 이 표에서 빠지고 자동으로
+1:1 판정 대상으로 돌아온다. 이 레포에는 자매 `docs-impl` 모델이 없으므로 등재 시 담당에
+"모델 미등록(백로그)"을 적는다.
+
+#### 이 절이 낡지 않게 하는 것
+
+이 축을 검사하는 **CI 게이트는 레포에 없다**(워크플로는 `docker-publish.yml`·`test.yml` 둘뿐이고
+`docs/` 밖에서 이 문서를 읽는 코드는 0개다). 대신 정합성 루프가 관측자다 — 모델
+`tbm_claude-transcript-viewer-v2-scenario-e2e`의 추적 대상이 **`test-*.md` 5개의 지문 + 이 문서의
+blob 해시**라, 시나리오가 늘거나 줄거나 이 절이 손대지면 다음 감지 주기가 깨어나 위 집계와 실제
+상태의 불일치를 문다. **따라서 시나리오를 추가·삭제·개명할 때는 이 절의 집계를 같은 PR에서
+갱신해야 한다.**
+
 ### 문서 정합성 주의 (신규 기능이 기존 문서에 주는 영향)
 - ✅ **[해소] LK-AC1 "두 탭 표시" ↔ session-list "Sessions" 탭**: SL-AC2가 `LookupTabs`에 세 번째 탭을
   추가함에 따라 2026-07-05 정합성을 맞췄다. prd-lookup LK-AC1 서술을 "세 탭"으로 갱신(룩업 두 탭 +
@@ -149,3 +218,4 @@
 | 2026-07-09 | AC↔E2E 1:1 완료 — 마지막 1:N 4건을 스펙 병합으로 해소. `local-kind-script` + `k8s-localstack-manifests` → `kind-localstack-environment`(DP-AC4), `tool-detail-view` + `task-tool-subagent-type` → `tool-call-display`(VW-AC4), `text-truncation` + `message-timestamps` → `truncation-and-timestamps`(VW-AC5), `tool-call-compact` → `mobile-layout`(VW-AC6). AC를 쪼개지 않고 스펙을 합친 이유: AC 문장은 제품이 약속하는 단위이고, 파일 분리는 그 약속을 지키는 수단일 뿐이다. CI는 Playwright가 `workers: 1`이라 병합해도 러닝타임이 같고, `kind-cluster-validation` job은 병합으로 비어 kubectl이 있는 `k8s-manifest-validation` job으로 흡수했다(job 8 → 7). 병합 후 `kind-localstack-environment` 실행 62 tests / 0 fail / 3 skip(kubectl 부재), Playwright 수집 22 파일 109 테스트, 신규 타입 에러 0(잔존 `window` 에러 51건은 main과 동일한 사전 존재분) | 1:1 21/25, 1:N 4건 | **1:1 25/25**, 1:N·N:1·고아 0건 |
 | 2026-07-12 | 유닛 테스트를 AC 문서에서 분리 — AC 문서(`test-*.md`)는 AC↔E2E만 다루기로 하고, 흩어져 있던 유닛/백엔드 테스트 참조를 전부 제거. supplementary(해당 AC를 이미 E2E가 덮음)는 손실 없이 제거. sole-validator 4건은 판별 기준 "E2E 스위트가 초록불인데도 깨질 수 있나?"로 처리: **VW-AC5**(툴 ID 생략부호 절단)는 픽스처 툴 ID를 실제처럼 긴 값으로 바꿔 E2E로 전환, **DP-AC4**(seed 재현)는 `kind-e2e-tests` 잡이 pod에서 `server seed` 후 E2E 스위트 전체를 도는 파이프라인 검증으로 재프레이밍(시나리오 4-B), **LC-AC5**(재시도 안전 삭제)·**LC-AC3**(TTL 값·매니페스트 형태)는 E2E가 초록불이어도 깨질 수 있어 백엔드 테스트를 유일 검증으로 남기고 ⚠️ 마커 표시. 유닛 스위트 292 그린(합성 데이터라 픽스처 무관), 1:1 25/25 유지. 이전 유닛-매핑 시도(PR #92)는 철회 | AC 문서에 유닛/백엔드 참조가 supplementary·sole-validator 섞여 산재 | AC 문서에 유닛/백엔드 참조는 명시적 예외 2건(LC)뿐, 나머지는 E2E거나 코드-only |
 | 2026-07-12 | E2E↔AC 인코드 추적성 정비(PR): 코드에 AC 태그가 없던 `docker-build.spec.ts`(→ DP-AC1)·`k8s-manifests.spec.ts`(→ DP-AC3) 헤더에 소유 AC 태그를 달고, `lookup-tabs.spec.ts`의 낡은 "SKIPPED (TDD Red Phase)" 헤더를 실제 상태(ACTIVE, `.skip` 없음 — 4 test 활성)로 정정하며 `(LK-AC1)` 부여, `session-id-lookup.spec.ts` describe 제목에 `(LK-AC2)` 추가(헤더엔 기존재). 이로써 25개 스펙 전부가 헤더에 소유 AC 태그를 보유. 또 `playwright.config.ts`의 testIgnore가 `docker-build`만 제외하던 것을 node:test 스타일 3개(`docker-build`·`k8s-manifests`·`kind-localstack-environment`) 모두 제외로 확장 — 이 셋은 `pnpm tsx --test`(잡 `docker-e2e-tests`·`k8s-manifest-validation`)로 실행되어 Playwright 수집 대상이 아니다. AC↔E2E 매핑·커버리지는 불변(주석·설정만 변경), 1:1 25/25 유지 | 3개 스펙이 코드에 AC 태그 없음 + lookup-tabs 헤더 오기재(SKIPPED) + testIgnore 비대칭 | 25개 스펙 전부 헤더 AC 태그 보유, lookup-tabs 헤더 정정, testIgnore가 node:test 3파일 모두 제외 |
+| 2026-09-09 | 시나리오↔E2E 축 등재 — 판정 축이 AC에서 **시나리오**로 바뀌었으나(모델 개정 2026-09-08) 등재 SSOT에는 시나리오 축 집계도 예외 목록도 없던 상태 발견. 선언 층은 이미 전단사였다(시나리오 28개 전부가 `구현` 항목 보유, 그중 25개가 실재 spec과 1:1 · 중복 0 · 고아 0). 매칭 단위 밖 검증 수단을 지목하는 3건 — `test-deployment.md#시나리오 4-B`(DP-AC4, 검증 수단이 `kind-e2e-tests` 잡), `test-lifecycle.md#시나리오 1-B`(LC-AC5), `test-lifecycle.md#시나리오 3`(LC-AC3) — 을 사유·대체 검증 수단과 함께 예외로 등재하고, 구현 대기 표(현재 0건)를 별도 표로 신설. 예외 판단 자체는 2026-07-12에 이미 내려져 있었고 이번에 시나리오 축으로 옮겨 적은 것이다. 매핑 표는 복제하지 않고 각 시나리오의 `구현` 항목을 SSOT로 가리킨다(lockstep 사본 방지). `구현` 항목·spec 파일·제품 코드 무변경 | 시나리오 축 미등재: 28 − 0 − 0 = 28 ≠ 25 (규칙 4·5 위반) | **시나리오 축 등재 완료: 28 − 3 − 0 = 25 = 25** ✅, 공백 0건 |
