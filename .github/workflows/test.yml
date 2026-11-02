@@ -64,7 +64,7 @@ jobs:
             -p 9000:9000 \
             -e MINIO_ROOT_USER=minioadmin \
             -e MINIO_ROOT_PASSWORD=minioadmin \
-            minio/minio:latest server /data
+            cgr.dev/chainguard/minio:latest server /data
 
       - name: Wait for MinIO to be ready
         run: |
@@ -134,7 +134,7 @@ jobs:
             -p 9000:9000 \
             -e MINIO_ROOT_USER=minioadmin \
             -e MINIO_ROOT_PASSWORD=minioadmin \
-            minio/minio:latest server /data
+            cgr.dev/chainguard/minio:latest server /data
 
       - name: Wait for MinIO
         run: |
