@@ -64,7 +64,7 @@ jobs:
             -p 9000:9000 \
             -e MINIO_ROOT_USER=minioadmin \
             -e MINIO_ROOT_PASSWORD=minioadmin \
-            minio/minio:latest server /data
+            cgr.dev/chainguard/minio:latest server /data
 
       - name: Wait for MinIO to be ready
         run: |
@@ -134,7 +134,7 @@ jobs:
             -p 9000:9000 \
             -e MINIO_ROOT_USER=minioadmin \
             -e MINIO_ROOT_PASSWORD=minioadmin \
-            minio/minio:latest server /data
+            cgr.dev/chainguard/minio:latest server /data
 
       - name: Wait for MinIO
         run: |
@@ -339,13 +339,11 @@ jobs:
             --from-literal=S3_BUCKET=test-transcripts \
             --from-literal=AWS_ENDPOINT_URL=http://localstack:4566
 
-          # Secret (consumed via envFrom in the Deployment)
+          # Credentials only (settings come from the ConfigMap above; both
+          # are consumed via envFrom in the Deployment)
           kubectl create secret generic claude-transcript-viewer-secrets \
             --from-literal=AWS_ACCESS_KEY_ID=test \
-            --from-literal=AWS_SECRET_ACCESS_KEY=test \
-            --from-literal=AWS_REGION=us-east-1 \
-            --from-literal=S3_BUCKET=test-transcripts \
-            --from-literal=AWS_ENDPOINT_URL=http://localstack:4566
+            --from-literal=AWS_SECRET_ACCESS_KEY=test
 
       - name: Deploy LocalStack to kind cluster
         run: kubectl apply -f k8s/localstack/
