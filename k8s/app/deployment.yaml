@@ -44,8 +44,18 @@ spec:
             - name: DB_PATH
               value: /data/transcripts.db
           envFrom:
+            # Non-secret settings (AWS_REGION, S3_BUCKET, S3_PREFIX,
+            # AWS_ASSUME_ROLE_ARN, endpoint overrides). In production
+            # external-secrets renders this ConfigMap from SSM; locally and in
+            # CI it is created by hand (see configmap.example.yaml).
+            - configMapRef:
+                name: claude-transcript-viewer-config
+            # Static AWS credentials, only where there is no IRSA (kind /
+            # LocalStack). Production authenticates by IRSA + assume-role and
+            # has no such Secret, hence optional.
             - secretRef:
                 name: claude-transcript-viewer-secrets
+                optional: true
           volumeMounts:
             - name: data
               mountPath: /data

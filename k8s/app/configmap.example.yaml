@@ -4,10 +4,14 @@ metadata:
   name: claude-transcript-viewer-config
   labels:
     app: claude-transcript-viewer
+# Consumed via envFrom by the Deployment. In production external-secrets renders
+# it from SSM /flux-cd/claude-transcript-viewer (flux-cd-apps).
 data:
   PORT: "3000"
   AWS_REGION: "us-east-1"
   S3_BUCKET: "your-s3-bucket-name"
+  # S3_PREFIX: "prefix"
+  # AWS_ASSUME_ROLE_ARN: "arn:aws:iam::123456789012:role/transcript-viewer"
   # Lifetime of presigned download URLs handed to browsers (default 300).
   # DOWNLOAD_URL_TTL_SECONDS: "300"
   # Endpoint used only for presigning browser-facing URLs, when the backend

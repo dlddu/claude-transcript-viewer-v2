@@ -102,7 +102,9 @@ kind load docker-image localstack/localstack:3.0 --name "$CLUSTER_NAME"
 echo_step "Deploying LocalStack to kind cluster..."
 kubectl apply -f "$REPO_ROOT/k8s/localstack/"
 
-# Create ConfigMap and Secret pointing the app at LocalStack
+# Create ConfigMap and Secret pointing the app at LocalStack.
+# AWS_PUBLIC_ENDPOINT_URL makes presigned URLs resolve for the browser via
+# the port-forwarded LocalStack (kubectl port-forward svc/localstack 4566:4566).
 echo_step "Creating app ConfigMap and Secret for LocalStack..."
 kubectl create configmap claude-transcript-viewer-config \
   --from-literal=PORT=3000 \
@@ -112,15 +114,10 @@ kubectl create configmap claude-transcript-viewer-config \
   --from-literal=AWS_PUBLIC_ENDPOINT_URL=http://localhost:4566 \
   --dry-run=client -o yaml | kubectl apply -f -
 
-# AWS_PUBLIC_ENDPOINT_URL makes presigned URLs resolve for the browser via
-# the port-forwarded LocalStack (kubectl port-forward svc/localstack 4566:4566).
+# Credentials only — LocalStack has no IRSA. Settings live in the ConfigMap.
 kubectl create secret generic claude-transcript-viewer-secrets \
   --from-literal=AWS_ACCESS_KEY_ID=test \
   --from-literal=AWS_SECRET_ACCESS_KEY=test \
-  --from-literal=AWS_REGION=us-east-1 \
-  --from-literal=S3_BUCKET=test-transcripts \
-  --from-literal=AWS_ENDPOINT_URL=http://localstack:4566 \
-  --from-literal=AWS_PUBLIC_ENDPOINT_URL=http://localhost:4566 \
   --dry-run=client -o yaml | kubectl apply -f -
 
 # Deploy the application (single workload)
