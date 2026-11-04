@@ -3,11 +3,9 @@ kind: Cluster
 nodes:
   - role: control-plane
     extraPortMappings:
-      # HTTP
       - containerPort: 80
         hostPort: 8080
         protocol: TCP
-      # HTTPS
       - containerPort: 443
         hostPort: 8443
         protocol: TCP

@@ -10,28 +10,11 @@ import (
 	"testing"
 )
 
-// These tests cover the `server seed` subcommand (DP-AC4). CI reproduces its
-// E2E environment by running `./backend/server seed --dir e2e/fixtures`, which
-// must upload the fixtures to their Hive-partitioned S3 keys and record the
-// session -> prefix mapping using the SAME code paths the running server relies
-// on. Prior to these tests that behavior was only asserted indirectly (the E2E
-// suite depends on seed having run) and by static string checks over the CI
-// workflow and kind-setup.sh; the seed logic itself (seedDir / seedSubagents)
-// had no deterministic coverage, so a regression in seed's key computation,
-// mapping, or subagent discovery would not have been caught by `go test ./...`.
-
-// hivePrefixRE matches a session's Hive partition prefix (relative to any
-// configured S3 base prefix) ending in the session's own directory.
 func hivePrefixRE(sessionID string) *regexp.Regexp {
 	return regexp.MustCompile(`^year=\d{4}/month=\d{2}/day=\d{2}/hour=\d{2}/session_id=` +
 		regexp.QuoteMeta(sessionID) + `/$`)
 }
 
-// TestSeedDir_PopulatesStorageForServerReadPath seeds a purpose-built fixtures
-// directory that exercises every subagent layout the seed subcommand promises
-// to handle, then asserts the resulting objects, mapping, and — the crux of
-// DP-AC4 — that the seeded state is resolvable through the server's own read
-// path (GetTranscriptFiles, what GET /api/transcript/session/{id} calls).
 func TestSeedDir_PopulatesStorageForServerReadPath(t *testing.T) {
 	ctx := context.Background()
 
@@ -46,10 +29,6 @@ func TestSeedDir_PopulatesStorageForServerReadPath(t *testing.T) {
 		}
 	}
 
-	// Three sessions:
-	//   - main transcript only (no subagents)
-	//   - agent-*.jsonl files directly in the session dir (legacy layout)
-	//   - files under a subagents/ subdirectory (canonical layout)
 	mainOnlyBody := `{"sessionId":"session-main-only","uuid":"m1"}` + "\n"
 	agentsMainBody := `{"sessionId":"session-with-agents","uuid":"a-main"}` + "\n"
 	agentAlpha := `{"sessionId":"session-with-agents","uuid":"alpha"}` + "\n"
@@ -66,8 +45,6 @@ func TestSeedDir_PopulatesStorageForServerReadPath(t *testing.T) {
 	writeFixture("session-subdir/subagents/worker-1.jsonl", worker1)
 	writeFixture("session-subdir/subagents/worker-2.jsonl", worker2)
 
-	// Wire a service over an in-memory S3 and a real (temp) SQLite store, then
-	// run the exact function the seed subcommand runs.
 	mock := &mockS3Client{objects: map[string]string{}}
 	store := newTestStore(t)
 	svc := NewS3ServiceWithClient(mock, &fakePresigner{}, store, "test-transcripts", "")
@@ -92,8 +69,6 @@ func TestSeedDir_PopulatesStorageForServerReadPath(t *testing.T) {
 		}},
 	}
 
-	// (1) Each session is mapped to a Hive prefix, and each object was uploaded
-	//     to that prefix with the exact fixture bytes.
 	wantKeys := map[string]bool{}
 	for sessionID, w := range cases {
 		prefix, err := store.GetSessionPrefix(ctx, sessionID)
@@ -119,7 +94,6 @@ func TestSeedDir_PopulatesStorageForServerReadPath(t *testing.T) {
 		}
 	}
 
-	// (2) Seed uploads nothing beyond the fixtures — no stray objects.
 	if len(mock.objects) != len(wantKeys) {
 		gotKeys := make([]string, 0, len(mock.objects))
 		for k := range mock.objects {
@@ -130,10 +104,6 @@ func TestSeedDir_PopulatesStorageForServerReadPath(t *testing.T) {
 			len(mock.objects), len(wantKeys), gotKeys)
 	}
 
-	// (3) The crux of DP-AC4: seeded storage is resolvable through the server's
-	//     own read path. If GetTranscriptFiles returns each session's main plus
-	//     every subagent, the seed subcommand has reproduced exactly the state
-	//     the running server (and thus the E2E suite in CI) depends on.
 	for sessionID, w := range cases {
 		resp, err := svc.GetTranscriptFiles(ctx, sessionID)
 		if err != nil {
@@ -163,12 +133,6 @@ func TestSeedDir_PopulatesStorageForServerReadPath(t *testing.T) {
 	}
 }
 
-// TestSeedDir_RealFixturesReproduceServerEnvironment seeds the very directory CI
-// feeds to `server seed --dir e2e/fixtures` and asserts every fixture session
-// becomes resolvable through the server read path, including the subagent case
-// (session-abc123) the E2E timeline tests rely on. This guards against a fixture
-// added in a layout seed doesn't handle, or a seed regression, silently breaking
-// the reproducible environment DP-AC4 promises.
 func TestSeedDir_RealFixturesReproduceServerEnvironment(t *testing.T) {
 	ctx := context.Background()
 	dir := fixturesDir(t)
@@ -181,7 +145,6 @@ func TestSeedDir_RealFixturesReproduceServerEnvironment(t *testing.T) {
 		t.Fatalf("seedDir(e2e/fixtures): %v", err)
 	}
 
-	// The mapped sessions are exactly the top-level *.jsonl fixtures.
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		t.Fatalf("read fixtures dir: %v", err)
@@ -206,7 +169,6 @@ func TestSeedDir_RealFixturesReproduceServerEnvironment(t *testing.T) {
 		t.Fatalf("seeded sessions = %v, want %v", gotSessions, wantSessions)
 	}
 
-	// Every seeded session resolves through the server read path.
 	for _, sessionID := range wantSessions {
 		resp, err := svc.GetTranscriptFiles(ctx, sessionID)
 		if err != nil {
@@ -219,8 +181,6 @@ func TestSeedDir_RealFixturesReproduceServerEnvironment(t *testing.T) {
 		}
 	}
 
-	// The one fixture that ships subagents (session-abc123, agent-* layout)
-	// exposes both of them — the subagent case the timeline E2E tests depend on.
 	resp, err := svc.GetTranscriptFiles(ctx, "session-abc123")
 	if err != nil {
 		t.Fatalf("GetTranscriptFiles(session-abc123): %v", err)
@@ -236,11 +196,7 @@ func TestSeedDir_RealFixturesReproduceServerEnvironment(t *testing.T) {
 	}
 }
 
-// TestSeedDir_RecordsDeterministicNewestFirstOrder asserts seed stamps each
-// session with a distinct created_at ordered by fixture position, so a seeded
-// store lists sessions newest-first deterministically — the ordering the
-// session-list E2E asserts against. Fixtures are processed in name order
-// (os.ReadDir sorts), so the alphabetically-last fixture is recorded newest.
+// Fixtures are processed in name order (os.ReadDir sorts), so the alphabetically-last fixture is recorded newest.
 func TestSeedDir_RecordsDeterministicNewestFirstOrder(t *testing.T) {
 	ctx := context.Background()
 	dir := t.TempDir()
@@ -267,7 +223,6 @@ func TestSeedDir_RecordsDeterministicNewestFirstOrder(t *testing.T) {
 		t.Fatalf("ListSessions: %v", err)
 	}
 
-	// Newest-first: the alphabetically-last fixture (charlie) is the newest.
 	wantOrder := []string{"session-charlie", "session-bravo", "session-alpha"}
 	if len(got) != len(wantOrder) {
 		t.Fatalf("got %d sessions, want %d: %+v", len(got), len(wantOrder), got)
@@ -277,7 +232,6 @@ func TestSeedDir_RecordsDeterministicNewestFirstOrder(t *testing.T) {
 			t.Errorf("index %d: session_id = %q, want %q (full: %+v)", i, got[i].SessionID, want, got)
 		}
 	}
-	// created_at is strictly descending (hence distinct) across the list.
 	for i := 0; i+1 < len(got); i++ {
 		if !got[i].CreatedAt.After(got[i+1].CreatedAt) {
 			t.Errorf("created_at not strictly descending at %d: %v then %v",
@@ -286,9 +240,6 @@ func TestSeedDir_RecordsDeterministicNewestFirstOrder(t *testing.T) {
 	}
 }
 
-// TestRunSeed_RequiresDir pins the subcommand's CLI contract: `server seed`
-// without --dir fails fast (before touching the store or S3) with a message
-// naming the missing flag.
 func TestRunSeed_RequiresDir(t *testing.T) {
 	err := runSeed(context.Background(), nil)
 	if err == nil {

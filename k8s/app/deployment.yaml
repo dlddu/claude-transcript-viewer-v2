@@ -30,8 +30,6 @@ spec:
         fsGroup: 1000
       containers:
         - name: app
-          # Single image: the Go server serves the API under /api and the
-          # built frontend bundle (baked into the image) on all other routes.
           image: ghcr.io/dlddu/claude-transcript-viewer-v2:latest
           imagePullPolicy: Always
           ports:

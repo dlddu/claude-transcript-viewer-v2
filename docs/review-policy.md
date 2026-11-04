@@ -27,7 +27,7 @@
 |---|---|---|
 | MA1 | 제품 문서 — 가치·PRD·테스트: `docs/transcript-viewer-values.md` · `docs/transcript-viewer-prd-*.md` · `docs/transcript-viewer-test-*.md` 의 **모든** 변경(개명은 옛 경로와 새 경로 둘 다 판정 입력이 된다). 사용자 여정 문서는 아직 없다 — 생기면 이 케이스에 경로를 더한다 | 제품이 무엇을 왜 하는가의 결정이고, 소유자는 사용자다(`docs/transcript-viewer-values.md` 「제품 소유자」). 정합성 루프(reconciler docs-impl·scenario-e2e 등)가 어긋남을 「문서를 구현에 맞추는」 방향으로 닫으면 제품 결정이 사람 눈 없이 바뀐다. 테스트 문서는 AC 의 검증 기준을 정하므로 함께 건다. 집계(doc-tracker)·목업은 결정을 옮겨 적을 뿐이라 대상이 아니다 |
 | MA2 | 판정기·워크플로·정책 자신 — `scripts/review-policy/` · `.github/workflows/review-policy.yml` · `docs/review-policy.md` | 워크플로가 `pull_request_target` 이라 PR 은 **base 쪽 판정기**로 판정된다 — PR 이 규칙을 고쳐 자기를 통과시킬 수는 없지만, 그 변경 자체(케이스를 줄이거나 자기 경로를 빼는 편집)는 옛 판정기가 보지 못한 채 다음 PR 부터 효력을 가진다. 그래서 이 경로의 변경은 사람 눈에 올린다 |
-| MA3 | 저장·삭제 로직 — `backend/store.go` · `backend/s3.go` · `backend/seed.go` 의 모든 변경 | 세션 → S3 접두사 매핑 SQLite 는 마이그레이션 장치 없이 `CREATE TABLE IF NOT EXISTS` 로 만들어지고 EFS 용 내구성 설정(journal_mode·synchronous)이 고정돼 있다. 세션 삭제는 S3 객체를 지운 뒤 매핑 행을 지우는 **되돌릴 수 없는** 경로이고, Hive 파티션 키 배치(`hiveSessionPrefix`)와 「첫 매핑이 이긴다」(`ON CONFLICT DO NOTHING`) 규칙이 바뀌면 이미 쌓인 대화록에 닿을 수 없게 된다 |
+| MA3 | 저장·삭제 로직 — `backend/store.go` · `backend/s3.go` · `backend/seed.go` · `backend/migrations/` 의 모든 변경. `backend/migrations/` 는 아직 없다 — 생기면 「앵커」 블록에 더한다 | 세션 → S3 접두사 매핑 SQLite 는 마이그레이션 장치 없이 `CREATE TABLE IF NOT EXISTS` 로 만들어지고 EFS 용 내구성 설정(journal_mode·synchronous)이 고정돼 있다. 세션 삭제는 S3 객체를 지운 뒤 매핑 행을 지우는 **되돌릴 수 없는** 경로이고, Hive 파티션 키 배치(`hiveSessionPrefix`)와 「첫 매핑이 이긴다」(`ON CONFLICT DO NOTHING`) 규칙이 바뀌면 이미 쌓인 대화록에 닿을 수 없게 된다. 마이그레이션 진입점(`backend/migrations/` — reconciler `tbm_claude-transcript-viewer-v2-data-model` 이 인라인 DDL 을 옮겨 도입한다)이 생기면 스키마는 그 디렉터리의 파일로 바뀌므로 미리 건다 — `store.go` 를 건드리지 않는 인덱스 추가 마이그레이션도 운영 DB(EFS·단일 writer)에 잠금과 쓰기 비용을 준다 |
 
 ## 위험 표면
 
@@ -37,7 +37,7 @@
 scope: docs backend
 exclude: ^docs/transcript-viewer-doc-tracker\.md$|_test\.go$
 ere: ^### ([A-Z]+-)?AC[-.0-9A-Z]*|^## 제품 가치|^## Acceptance Criteria|^### 시나리오|^## 테스트 시나리오|^## 검증 대상 AC
-ere: CREATE TABLE|ALTER TABLE|DROP TABLE|DELETE FROM|DeleteObjects?\(|journal_mode
+ere: CREATE TABLE|ALTER TABLE|DROP TABLE|CREATE (UNIQUE )?INDEX|DROP INDEX|DELETE FROM|DeleteObjects?\(|journal_mode
 ```
 
 ## 앵커
