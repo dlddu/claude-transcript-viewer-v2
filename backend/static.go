@@ -8,8 +8,6 @@ import (
 	"strings"
 )
 
-// spaHandler serves the built frontend from a directory. Paths that do not
-// resolve to a file fall back to index.html so client-side routing works.
 type spaHandler struct {
 	root  string
 	files http.Handler

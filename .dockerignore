@@ -1,18 +1,14 @@
-# Dependencies
 node_modules
 **/node_modules
 
-# Build artifacts
 frontend/dist
 backend/server
 backend/*.db
 
-# Git
 .git
 .gitignore
 .github
 
-# Test files and tooling not needed in the image
 **/*.test.*
 **/*.spec.*
 **/*_test.go
@@ -25,28 +21,23 @@ e2e/test-results
 scripts
 k8s
 
-# Documentation
 README.md
 **/*.md
 
-# Environment files
 .env
 .env.*
 **/.env
 **/.env.*
 
-# IDE
 .vscode
 .idea
 *.swp
 *.swo
 *~
 
-# OS files
 .DS_Store
 Thumbs.db
 
-# Logs
 *.log
 npm-debug.log*
 pnpm-debug.log*

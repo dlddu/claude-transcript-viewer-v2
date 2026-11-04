@@ -11,9 +11,7 @@ type TranscriptFileRef struct {
 	URL  string `json:"url"`
 }
 
-// TranscriptFilesResponse is returned for a session lookup. Clients download
-// the referenced files directly from S3 and parse/render them locally; the
-// backend never proxies transcript bytes.
+// TranscriptFilesResponse is returned for a session lookup; the backend never proxies transcript bytes.
 type TranscriptFilesResponse struct {
 	SessionID string              `json:"session_id"`
 	ExpiresIn int                 `json:"expires_in"`
@@ -21,10 +19,7 @@ type TranscriptFilesResponse struct {
 	Subagents []TranscriptFileRef `json:"subagents"`
 }
 
-// SessionSummary is one entry in the session list returned by
-// GET /api/transcripts. CreatedAt is an RFC3339 UTC timestamp of when the
-// session was first recorded; the list is ordered newest-first so clients can
-// render the most recently uploaded sessions at the top without re-sorting.
+// SessionSummary is one entry in the session list returned by GET /api/transcripts.
 type SessionSummary struct {
 	SessionID string `json:"session_id"`
 	CreatedAt string `json:"created_at"`

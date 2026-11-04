@@ -19,20 +19,11 @@ import (
 	s3types "github.com/aws/aws-sdk-go-v2/service/s3/types"
 )
 
-// mockS3Client implements S3API backed by an in-memory map keyed by S3 key.
-// pageSize, when > 0, paginates ListObjectsV2 responses to exercise
-// continuation-token handling.
 type mockS3Client struct {
-	objects  map[string]string
-	pageSize int
-	// deleteObjectErr, when non-nil, is consulted before each DeleteObject.
-	// If it returns a non-nil error for the given key the delete fails and the
-	// object is left in place, letting tests simulate an interrupted delete.
+	objects         map[string]string
+	pageSize        int
 	deleteObjectErr func(key string) error
-	// deletedKeys records, in invocation order, every key DeleteObject was
-	// asked to remove (including ones whose delete was made to fail), so tests
-	// can assert the order in which objects are swept.
-	deletedKeys []string
+	deletedKeys     []string
 }
 
 func (m *mockS3Client) GetObject(_ context.Context, in *s3.GetObjectInput, _ ...func(*s3.Options)) (*s3.GetObjectOutput, error) {
@@ -56,7 +47,6 @@ func (m *mockS3Client) ListObjectsV2(_ context.Context, in *s3.ListObjectsV2Inpu
 	}
 	sort.Strings(keys)
 
-	// Resume after the continuation token (the last key of the prior page).
 	if token := aws.ToString(in.ContinuationToken); token != "" {
 		start := 0
 		for i, k := range keys {
@@ -110,8 +100,6 @@ func (m *mockS3Client) DeleteObject(_ context.Context, in *s3.DeleteObjectInput,
 	return &s3.DeleteObjectOutput{}, nil
 }
 
-// fakePresigner records the keys it was asked to sign and returns
-// deterministic URLs.
 type fakePresigner struct {
 	lastKey        string
 	getKeys        []string
@@ -198,8 +186,6 @@ func xyzFixture(t *testing.T) sessionFixture {
 	return sessionFixture{main: readFixture(t, "session-xyz789.jsonl")}
 }
 
-// newServiceWithSessions seeds the mock S3 (objects under each session's Hive
-// prefix) and the store (session→prefix mapping), then returns a wired service.
 func newServiceWithSessions(t *testing.T, sessions map[string]sessionFixture) (*S3Service, *fakePresigner, *Store) {
 	t.Helper()
 	store := newTestStore(t)
@@ -226,8 +212,6 @@ func abcService(t *testing.T) *S3Service {
 	return svc
 }
 
-// --- ListTranscripts --------------------------------------------------------
-
 func TestListTranscripts_ReturnsMappedSessionSummaries(t *testing.T) {
 	svc, _, _ := newServiceWithSessions(t, map[string]sessionFixture{
 		"session-abc123": xyzFixture(t),
@@ -246,7 +230,6 @@ func TestListTranscripts_ReturnsMappedSessionSummaries(t *testing.T) {
 		if !want[s.SessionID] {
 			t.Errorf("unexpected session id %q", s.SessionID)
 		}
-		// Every entry carries a parseable RFC3339 created_at.
 		if _, err := time.Parse(time.RFC3339, s.CreatedAt); err != nil {
 			t.Errorf("session %q created_at %q is not RFC3339: %v", s.SessionID, s.CreatedAt, err)
 		}
@@ -265,11 +248,6 @@ func TestListTranscripts_EmptyStore(t *testing.T) {
 	}
 }
 
-// TestListTranscripts_OrderedNewestFirst asserts the service surfaces sessions
-// newest-first with the created_at the store recorded. Timestamps are injected
-// through PutSessionAt (the deterministic seam) in an order that is neither
-// chronological nor lexical, so only a real created_at DESC sort — carried up
-// from the store through the RFC3339 projection — yields the expected result.
 func TestListTranscripts_OrderedNewestFirst(t *testing.T) {
 	store := newTestStore(t)
 	base := time.Date(2026, 7, 5, 10, 0, 0, 0, time.UTC)
@@ -305,8 +283,6 @@ func TestListTranscripts_OrderedNewestFirst(t *testing.T) {
 		t.Errorf("newest created_at = %q, want %q", got[0].CreatedAt, wantCreated)
 	}
 }
-
-// --- CreateUploadURL --------------------------------------------------------
 
 func TestCreateUploadURL_NewSessionUsesHiveKeyAndStoresMapping(t *testing.T) {
 	svc, presigner, store := newServiceWithSessions(t, nil)
@@ -350,7 +326,6 @@ func TestCreateUploadURL_ReusesPrefixForSubagentUpload(t *testing.T) {
 	calls := 0
 	svc.now = func() time.Time {
 		calls++
-		// Different clock per call: a stable prefix proves reuse, not the clock.
 		return time.Date(2026, 5, 24, 10+calls, 0, 0, 0, time.UTC)
 	}
 
@@ -428,8 +403,6 @@ func TestCreateUploadURL_AcceptsSubagentsSubdir(t *testing.T) {
 	}
 }
 
-// --- GetTranscriptFiles ------------------------------------------------------
-
 func TestGetTranscriptFiles_NotMappedReturnsNotFound(t *testing.T) {
 	svc := abcService(t)
 	_, err := svc.GetTranscriptFiles(context.Background(), "session-unmapped")
@@ -447,7 +420,6 @@ func TestGetTranscriptFiles_EmptySessionIDRequired(t *testing.T) {
 }
 
 func TestGetTranscriptFiles_MissingMainReturnsNotFound(t *testing.T) {
-	// Session mapped and subagent present, but no "<session>.jsonl" main file.
 	store := newTestStore(t)
 	prefix := hivePrefixFor("session-nomain")
 	if err := store.PutSession(context.Background(), "session-nomain", prefix); err != nil {
@@ -538,7 +510,6 @@ func TestGetTranscriptFiles_DiscoversSubagentsInSessionDir(t *testing.T) {
 	if len(got.Subagents) != 2 {
 		t.Fatalf("expected 2 subagents, got %d", len(got.Subagents))
 	}
-	// sort.Strings on keys makes the order deterministic.
 	wantIDs := []string{"agent-a1b2c3d", "agent-xyz789"}
 	for i, sub := range got.Subagents {
 		if sub.ID != wantIDs[i] {
@@ -551,7 +522,6 @@ func TestGetTranscriptFiles_DiscoversSubagentsInSessionDir(t *testing.T) {
 			t.Errorf("subagent url %q should be presigned for %q", sub.URL, sub.Key)
 		}
 	}
-	// Main + 2 subagents signed.
 	if len(presigner.getKeys) != 3 {
 		t.Errorf("expected 3 presigned keys, got %v", presigner.getKeys)
 	}
@@ -634,8 +604,6 @@ func TestGetTranscriptFiles_FollowsListPagination(t *testing.T) {
 	}
 }
 
-// --- DeleteTranscriptBySessionId -------------------------------------------
-
 func TestDeleteTranscriptBySessionId_RemovesObjectsAndMapping(t *testing.T) {
 	svc, _, store := newServiceWithSessions(t, map[string]sessionFixture{
 		"session-abc123": abcFixture(t),
@@ -643,7 +611,6 @@ func TestDeleteTranscriptBySessionId_RemovesObjectsAndMapping(t *testing.T) {
 	mock := svc.client.(*mockS3Client)
 	prefix := hivePrefixFor("session-abc123")
 
-	// Sanity: the main transcript and both subagents are seeded.
 	if len(mock.objects) < 3 {
 		t.Fatalf("expected at least 3 seeded objects, got %d", len(mock.objects))
 	}
@@ -706,12 +673,8 @@ func TestDeleteTranscriptBySessionId_LeavesOtherSessionsIntact(t *testing.T) {
 	}
 }
 
-// TestDeleteTranscriptBySessionId_DeletesObjectsBeforeMapping locks in LC-AC5's
-// ordering guarantee: every object under the session's Hive directory is swept
-// before the SQLite mapping is dropped, so the mapping is removed strictly last.
-// It fails the main transcript's delete (swept last, since agent-* keys sort
-// ahead of session-abc123.jsonl) and asserts that the earlier subagent objects
-// were already gone while the mapping — and thus the session — survives.
+// The main transcript's delete is swept last (agent-* keys sort ahead of
+// session-abc123.jsonl), so failing it leaves the subagent objects already gone.
 func TestDeleteTranscriptBySessionId_DeletesObjectsBeforeMapping(t *testing.T) {
 	svc, _, store := newServiceWithSessions(t, map[string]sessionFixture{
 		"session-abc123": abcFixture(t),
@@ -735,8 +698,6 @@ func TestDeleteTranscriptBySessionId_DeletesObjectsBeforeMapping(t *testing.T) {
 		t.Fatalf("err = %v, want it to wrap the injected S3 failure", err)
 	}
 
-	// The whole object sweep runs before the mapping is touched, and the main
-	// transcript is swept last of all.
 	if n := len(mock.deletedKeys); n != 3 {
 		t.Fatalf("attempted object deletes = %d (%v), want 3 (full sweep)", n, mock.deletedKeys)
 	}
@@ -744,27 +705,19 @@ func TestDeleteTranscriptBySessionId_DeletesObjectsBeforeMapping(t *testing.T) {
 		t.Errorf("last deleted key = %q, want the main object %q swept last", last, mainKey)
 	}
 
-	// The subagent objects were removed before the failure...
 	for _, k := range []string{subKeyA, subKeyB} {
 		if _, ok := mock.objects[k]; ok {
 			t.Errorf("subagent object %q should have been deleted before the main object", k)
 		}
 	}
-	// ...the main object (whose delete failed) is still present...
 	if _, ok := mock.objects[mainKey]; !ok {
 		t.Error("main object whose delete failed should remain in storage")
 	}
-	// ...and crucially the mapping is intact: it is dropped only after a fully
-	// successful object sweep, never midway through one.
 	if _, err := store.GetSessionPrefix(context.Background(), "session-abc123"); err != nil {
 		t.Errorf("mapping must survive an interrupted object sweep: %v", err)
 	}
 }
 
-// TestDeleteTranscriptBySessionId_InterruptedDeleteIsRetrySafe locks in LC-AC5's
-// retry-safety guarantee: an object delete that fails partway leaves the session
-// fully resolvable, and simply retrying the delete once the transient failure
-// clears removes everything — objects and mapping alike.
 func TestDeleteTranscriptBySessionId_InterruptedDeleteIsRetrySafe(t *testing.T) {
 	svc, _, store := newServiceWithSessions(t, map[string]sessionFixture{
 		"session-abc123": abcFixture(t),
@@ -772,8 +725,6 @@ func TestDeleteTranscriptBySessionId_InterruptedDeleteIsRetrySafe(t *testing.T) 
 	mock := svc.client.(*mockS3Client)
 	prefix := hivePrefixFor("session-abc123")
 
-	// First attempt is interrupted on the very first object delete, so nothing
-	// is removed at all.
 	firstKey := prefix + "agent-a1b2c3d.jsonl"
 	boom := errors.New("simulated transient S3 failure")
 	mock.deleteObjectErr = func(key string) error {
@@ -786,9 +737,6 @@ func TestDeleteTranscriptBySessionId_InterruptedDeleteIsRetrySafe(t *testing.T) 
 		t.Fatalf("first delete err = %v, want the injected failure", err)
 	}
 
-	// The session survives the interruption intact: the mapping is present and
-	// the full manifest (main + both subagents) still resolves, so the delete
-	// is safe to retry.
 	if _, err := store.GetSessionPrefix(context.Background(), "session-abc123"); err != nil {
 		t.Errorf("mapping should survive an interrupted delete: %v", err)
 	}
@@ -800,8 +748,6 @@ func TestDeleteTranscriptBySessionId_InterruptedDeleteIsRetrySafe(t *testing.T) 
 		t.Errorf("subagents still resolvable = %d, want 2", len(files.Subagents))
 	}
 
-	// Retry with the transient failure cleared: the delete now completes and
-	// removes every object plus the mapping.
 	mock.deleteObjectErr = nil
 	if err := svc.DeleteTranscriptBySessionId(context.Background(), "session-abc123"); err != nil {
 		t.Fatalf("retry delete should succeed: %v", err)
@@ -827,8 +773,6 @@ func TestDeleteTranscriptBySessionId_RejectsInvalidInput(t *testing.T) {
 	}
 }
 
-// --- prefix normalization ---------------------------------------------------
-
 func TestPrefixNormalization(t *testing.T) {
 	cases := []struct {
 		in, want string
@@ -847,8 +791,6 @@ func TestPrefixNormalization(t *testing.T) {
 	}
 }
 
-// --- hive partition path ----------------------------------------------------
-
 func TestHiveSessionPrefix(t *testing.T) {
 	got := hiveSessionPrefix("session-abc", time.Date(2026, 5, 24, 9, 15, 0, 0, time.UTC))
 	want := "year=2026/month=05/day=24/hour=09/session_id=session-abc/"
@@ -865,8 +807,6 @@ func TestHiveSessionPrefix_NormalizesToUTC(t *testing.T) {
 		t.Errorf("hiveSessionPrefix = %q, want %q", got, want)
 	}
 }
-
-// --- AssumeRole construction ------------------------------------------------
 
 func TestNewS3Service_DoesNotFailWithoutAssumeRole(t *testing.T) {
 	_, err := NewS3Service(context.Background(), S3ServiceConfig{
