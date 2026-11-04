@@ -7,7 +7,7 @@
 | — | `.dockerignore` | 9 | `e270f42bd1b4` | — | — |
 | — | `.env.example` | 32 | `738bec47bffd` | — | — |
 | — | `.github/workflows/docker-publish.yml` | 2 | `a5915a1f638e` | — | — |
-| — | `.github/workflows/test.yml` | 21 | `5e0e6f08df3d` | — | — |
+| — | `.github/workflows/test.yml` | 25 | `6200cfb786c9` | — | — |
 | — | `.gitignore` | 11 | `9a8c0ccb91e8` | — | — |
 | — | `Dockerfile` | 18 | `09b86aff75c0` | — | — |
 | — | `backend/.env.example` | 36 | `c143d877d184` | — | — |
@@ -38,7 +38,8 @@
 | — | `e2e/tests/session-list-search.spec.ts` | 9 | `679dd8984924` | — | — |
 | — | `e2e/tests/session-list-states.spec.ts` | 20 | `c55cc89615d3` | — | — |
 | — | `e2e/tests/static-cache-headers.spec.ts` | 24 | `1b42f564f5db` | — | — |
-| — | `e2e/tests/support/empty-backend.ts` | 13 | `3752f1f4934c` | — | — |
+| — | `e2e/tests/support/backend-instance.ts` | 15 | `762e6dc10ab9` | — | — |
+| — | `e2e/tests/support/empty-backend.ts` | 7 | `9b7ff335e14a` | — | — |
 | — | `e2e/tests/support/session-list.ts` | 22 | `9087aa52a500` | — | — |
 | — | `e2e/tests/support/timeline.ts` | 14 | `adff08f96e63` | — | — |
 | — | `e2e/tests/support/transcript-api.ts` | 22 | `cccc470257de` | — | — |
@@ -46,7 +47,7 @@
 | — | `e2e/tests/timeline-expand-collapse.spec.ts` | 17 | `99957490a5f1` | — | — |
 | — | `e2e/tests/timeline-unified.spec.ts` | 28 | `2c7a3a00274a` | — | — |
 | — | `e2e/tests/tool-call-display.spec.ts` | 101 | `850bc9ca562a` | — | — |
-| — | `e2e/tests/transcript-delete-api.spec.ts` | 35 | `f94fcb3ba38a` | — | — |
+| — | `e2e/tests/transcript-delete-api.spec.ts` | 50 | `2a508b28fb33` | — | — |
 | — | `e2e/tests/transcript-direct-download.spec.ts` | 42 | `7509990326cd` | — | — |
 | — | `e2e/tests/transcript-not-found.spec.ts` | 18 | `e26acaacc946` | — | — |
 | — | `e2e/tests/transcript-session-prefix.spec.ts` | 24 | `174a458a4db8` | — | — |
