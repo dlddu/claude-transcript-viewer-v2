@@ -20,33 +20,29 @@
 | 2026-11-04 | `backend/store_test.go` | 2 | `ab1e1876656f` | 완료 | 유지 2줄 (이전 13줄) — [2026-11-04-backend-config-k8s](passes/2026-11-04-backend-config-k8s.md) |
 | 2026-11-04 | `backend/types.go` | 6 | `699ddd3b110e` | 완료 | 유지 6줄 (이전 11줄) — [2026-11-04-backend-config-k8s](passes/2026-11-04-backend-config-k8s.md) |
 | 2026-11-04 | `e2e/playwright.config.ts` | 4 | `06192f594c56` | 완료 | 유지 4줄 (이전 4줄) — [2026-11-04-backend-config-k8s](passes/2026-11-04-backend-config-k8s.md) |
-| — | `e2e/tests/docker-build.spec.ts` | 33 | `c8de7ac0f9c8` | — | — |
+| 2026-11-04 | `e2e/tests/docker-build.spec.ts` | 1 | `c84652f2f192` | 완료 | 유지 1줄 (이전 33줄) — [2026-11-04-e2e-specs](passes/2026-11-04-e2e-specs.md) |
 | 2026-11-04 | `e2e/tests/k8s-manifests.spec.ts` | 10 | `2f91e0d4ea7e` | 완료 | 유지 10줄 (이전 125줄) — [2026-11-04-e2e-layout-k8s](passes/2026-11-04-e2e-layout-k8s.md) |
 | 2026-11-04 | `e2e/tests/kind-localstack-environment.spec.ts` | 6 | `7c30f5e423ae` | 완료 | 유지 6줄 (이전 120줄) — [2026-11-04-e2e-layout-k8s](passes/2026-11-04-e2e-layout-k8s.md) |
-| — | `e2e/tests/lookup-failure-feedback.spec.ts` | 24 | `96534883dc4e` | — | — |
-| — | `e2e/tests/lookup-tabs.spec.ts` | 31 | `13cd088ac758` | — | — |
-| — | `e2e/tests/message-uuid-lookup.spec.ts` | 48 | `5048d9453bf3` | — | — |
+| 2026-11-04 | `e2e/tests/lookup-failure-feedback.spec.ts` | 2 | `ad617162d0e6` | 완료 | 유지 2줄 (이전 24줄) — [2026-11-04-e2e-specs](passes/2026-11-04-e2e-specs.md) |
+| 2026-11-04 | `e2e/tests/lookup-tabs.spec.ts` | 1 | `3a7eba894659` | 완료 | 유지 1줄 (이전 31줄) — [2026-11-04-e2e-specs](passes/2026-11-04-e2e-specs.md) |
+| 2026-11-04 | `e2e/tests/message-uuid-lookup.spec.ts` | 1 | `6d0bf1b234fc` | 완료 | 유지 1줄 (이전 48줄) — [2026-11-04-e2e-specs](passes/2026-11-04-e2e-specs.md) |
 | 2026-11-04 | `e2e/tests/mobile-layout.spec.ts` | 2 | `712501d4dab2` | 완료 | 유지 2줄 (이전 132줄) — [2026-11-04-e2e-layout-k8s](passes/2026-11-04-e2e-layout-k8s.md) |
-| — | `e2e/tests/session-id-lookup.spec.ts` | 62 | `4fea98abb774` | — | — |
+| 2026-11-04 | `e2e/tests/session-id-lookup.spec.ts` | 2 | `7c09669873ad` | 완료 | 유지 2줄 (이전 62줄) — [2026-11-04-e2e-specs](passes/2026-11-04-e2e-specs.md) |
 | 2026-11-04 | `e2e/tests/session-list-api.spec.ts` | 3 | `07345f46bfd7` | 완료 | 유지 3줄 (이전 21줄) — [2026-11-04-e2e-layout-k8s](passes/2026-11-04-e2e-layout-k8s.md) |
-| — | `e2e/tests/session-list-delete.spec.ts` | 18 | `db71aa27f6c1` | — | — |
-| — | `e2e/tests/session-list-open.spec.ts` | 10 | `0d80422a42fd` | — | — |
-| — | `e2e/tests/session-list-order.spec.ts` | 17 | `9b4ac84da6da` | — | — |
-| — | `e2e/tests/session-list-search.spec.ts` | 9 | `679dd8984924` | — | — |
-| — | `e2e/tests/session-list-states.spec.ts` | 20 | `c55cc89615d3` | — | — |
-| — | `e2e/tests/static-cache-headers.spec.ts` | 24 | `1b42f564f5db` | — | — |
+| 2026-11-04 | `e2e/tests/session-list-delete.spec.ts` | 3 | `833e688e06dc` | 완료 | 유지 3줄 (이전 18줄) — [2026-11-04-e2e-specs](passes/2026-11-04-e2e-specs.md) |
+| 2026-11-04 | `e2e/tests/session-list-order.spec.ts` | 2 | `95b62ef11d68` | 완료 | 유지 2줄 (이전 17줄) — [2026-11-04-e2e-specs](passes/2026-11-04-e2e-specs.md) |
+| 2026-11-04 | `e2e/tests/static-cache-headers.spec.ts` | 2 | `cf9c38244421` | 완료 | 유지 2줄 (이전 24줄) — [2026-11-04-e2e-specs](passes/2026-11-04-e2e-specs.md) |
 | — | `e2e/tests/support/empty-backend.ts` | 13 | `3752f1f4934c` | — | — |
 | — | `e2e/tests/support/session-list.ts` | 22 | `9087aa52a500` | — | — |
 | — | `e2e/tests/support/timeline.ts` | 14 | `adff08f96e63` | — | — |
 | — | `e2e/tests/support/transcript-api.ts` | 22 | `cccc470257de` | — | — |
-| — | `e2e/tests/timeline-distinction.spec.ts` | 14 | `39f2b8519753` | — | — |
-| — | `e2e/tests/timeline-expand-collapse.spec.ts` | 17 | `99957490a5f1` | — | — |
-| — | `e2e/tests/timeline-unified.spec.ts` | 28 | `2c7a3a00274a` | — | — |
+| 2026-11-04 | `e2e/tests/timeline-expand-collapse.spec.ts` | 1 | `808efe6fcd4b` | 완료 | 유지 1줄 (이전 17줄) — [2026-11-04-e2e-specs](passes/2026-11-04-e2e-specs.md) |
+| 2026-11-04 | `e2e/tests/timeline-unified.spec.ts` | 2 | `09b74a0f3c52` | 완료 | 유지 2줄 (이전 28줄) — [2026-11-04-e2e-specs](passes/2026-11-04-e2e-specs.md) |
 | — | `e2e/tests/tool-call-display.spec.ts` | 101 | `850bc9ca562a` | — | — |
 | — | `e2e/tests/transcript-delete-api.spec.ts` | 35 | `f94fcb3ba38a` | — | — |
 | — | `e2e/tests/transcript-direct-download.spec.ts` | 42 | `7509990326cd` | — | — |
-| — | `e2e/tests/transcript-not-found.spec.ts` | 18 | `e26acaacc946` | — | — |
-| — | `e2e/tests/transcript-session-prefix.spec.ts` | 24 | `174a458a4db8` | — | — |
+| 2026-11-04 | `e2e/tests/transcript-not-found.spec.ts` | 1 | `337f94c36c47` | 완료 | 유지 1줄 (이전 18줄) — [2026-11-04-e2e-specs](passes/2026-11-04-e2e-specs.md) |
+| 2026-11-04 | `e2e/tests/transcript-session-prefix.spec.ts` | 2 | `2e9f0a80644e` | 완료 | 유지 2줄 (이전 24줄) — [2026-11-04-e2e-specs](passes/2026-11-04-e2e-specs.md) |
 | — | `e2e/tests/transcript-upload-api.spec.ts` | 27 | `91b4f9578191` | — | — |
 | — | `e2e/tests/truncation-and-timestamps.spec.ts` | 46 | `4799201f4ecd` | — | — |
 | 2026-11-04 | `frontend/.env.example` | 5 | `e50978a86bfd` | 완료 | 유지 5줄 (이전 7줄) — [2026-11-04-backend-config-k8s](passes/2026-11-04-backend-config-k8s.md) |
@@ -86,8 +82,6 @@
 |---|---|---|---|---|---|
 | 2026-11-04 | `backend/s3_test.go` | 1 | `35f64c49f9c9` | 완료 | 유지 1줄 (이전 1줄) — [2026-11-04-backend-config-k8s](passes/2026-11-04-backend-config-k8s.md) |
 | 2026-11-04 | `backend/seed_test.go` | 1 | `442e71803f41` | 완료 | 유지 1줄 (이전 1줄) — [2026-11-04-backend-config-k8s](passes/2026-11-04-backend-config-k8s.md) |
-| — | `e2e/tests/lookup-failure-feedback.spec.ts` | 1 | `997560fab8eb` | — | — |
-| — | `e2e/tests/session-id-lookup.spec.ts` | 1 | `9ab0be88efb3` | — | — |
 | — | `e2e/tests/tool-call-display.spec.ts` | 1 | `95bba09839ed` | — | — |
 | — | `e2e/tests/truncation-and-timestamps.spec.ts` | 2 | `1bb1fd7caebc` | — | — |
 | 2026-11-04 | `frontend/src/components/TranscriptViewer.truncation.test.tsx` | 1 | `e491de62fc79` | 완료 | 유지 1줄 (이전 3줄) — [2026-11-04-frontend-components](passes/2026-11-04-frontend-components.md) |

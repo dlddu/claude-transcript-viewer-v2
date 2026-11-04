@@ -1,26 +1,5 @@
 import { test, expect } from '@playwright/test';
 
-/**
- * Lookup Failure Feedback (LK-AC4)
- *
- * Purpose: when a lookup cannot produce a transcript, the user is told why —
- * and never left staring at a stale or half-rendered viewer:
- *
- * - a session ID with no stored transcript surfaces the backend's not-found
- *   error (the API side of that 404 is LC-AC4, `transcript-not-found.spec.ts`),
- * - pasted text with no UUID v4 in it shows "No UUID found" before any request
- *   is made,
- * - a well-formed but unknown UUID extracts successfully (badge shown) and then
- *   surfaces the API error,
- * - before any lookup, a guidance message tells the user what to enter.
- *
- * The happy paths live in `session-id-lookup.spec.ts` (LK-AC2) and
- * `message-uuid-lookup.spec.ts` (LK-AC3).
- *
- * Test Status: ACTIVE
- */
-
-// "Message UUID" is the default active tab; the Session ID tab needs a click.
 async function openSessionIdTab(page: import('@playwright/test').Page): Promise<void> {
   await page.goto('/');
   const sessionIdTab = page.getByRole('tab', { name: 'Session ID' });
@@ -29,11 +8,9 @@ async function openSessionIdTab(page: import('@playwright/test').Page): Promise<
   }
 }
 
-// Text that contains no UUID v4 whatsoever.
 const MESSAGE_WITHOUT_UUID =
   'Hello, I would like to see a transcript but I forgot the identifier.';
 
-// A well-formed UUID v4 that does not match any transcript in the test server.
 const UNKNOWN_UUID = '00000000-0000-4000-8000-000000000000';
 const MESSAGE_WITH_UNKNOWN_UUID = `The session reference is ${UNKNOWN_UUID}, please retrieve it.`;
 
@@ -46,7 +23,6 @@ test.describe('Lookup Failure Feedback (LK-AC4)', () => {
 
     await expect(page.getByText(/session.*not.*found|no.*transcript.*found/i)).toBeVisible();
 
-    // No transcript content leaks through on failure.
     await expect(page.getByText(/Can you help me analyze this dataset/i)).not.toBeVisible();
   });
 
@@ -58,7 +34,7 @@ test.describe('Lookup Failure Feedback (LK-AC4)', () => {
   });
 
   test('shows "No UUID found" when the pasted text contains no UUID v4', async ({ page }) => {
-    await page.goto('/'); // "Message UUID" is the default tab.
+    await page.goto('/');
 
     await page.getByRole('textbox').fill(MESSAGE_WITHOUT_UUID);
     await page.getByRole('button', { name: 'Extract & Search' }).click();
