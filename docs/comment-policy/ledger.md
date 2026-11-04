@@ -24,14 +24,14 @@
 | — | `backend/types.go` | 11 | `3fd64534dbd2` | — | — |
 | — | `e2e/playwright.config.ts` | 4 | `06192f594c56` | — | — |
 | — | `e2e/tests/docker-build.spec.ts` | 33 | `c8de7ac0f9c8` | — | — |
-| — | `e2e/tests/k8s-manifests.spec.ts` | 125 | `6e459312794e` | — | — |
-| — | `e2e/tests/kind-localstack-environment.spec.ts` | 120 | `54d8d1c2b1cb` | — | — |
+| 2026-11-04 | `e2e/tests/k8s-manifests.spec.ts` | 10 | `2f91e0d4ea7e` | 완료 | 유지 10줄 (이전 125줄) — [2026-11-04-e2e-layout-k8s](passes/2026-11-04-e2e-layout-k8s.md) |
+| 2026-11-04 | `e2e/tests/kind-localstack-environment.spec.ts` | 6 | `7c30f5e423ae` | 완료 | 유지 6줄 (이전 120줄) — [2026-11-04-e2e-layout-k8s](passes/2026-11-04-e2e-layout-k8s.md) |
 | — | `e2e/tests/lookup-failure-feedback.spec.ts` | 24 | `96534883dc4e` | — | — |
 | — | `e2e/tests/lookup-tabs.spec.ts` | 31 | `13cd088ac758` | — | — |
 | — | `e2e/tests/message-uuid-lookup.spec.ts` | 48 | `5048d9453bf3` | — | — |
-| — | `e2e/tests/mobile-layout.spec.ts` | 132 | `eaef95b471aa` | — | — |
+| 2026-11-04 | `e2e/tests/mobile-layout.spec.ts` | 2 | `712501d4dab2` | 완료 | 유지 2줄 (이전 132줄) — [2026-11-04-e2e-layout-k8s](passes/2026-11-04-e2e-layout-k8s.md) |
 | — | `e2e/tests/session-id-lookup.spec.ts` | 62 | `4fea98abb774` | — | — |
-| — | `e2e/tests/session-list-api.spec.ts` | 21 | `201f00f3ef8d` | — | — |
+| 2026-11-04 | `e2e/tests/session-list-api.spec.ts` | 3 | `07345f46bfd7` | 완료 | 유지 3줄 (이전 21줄) — [2026-11-04-e2e-layout-k8s](passes/2026-11-04-e2e-layout-k8s.md) |
 | — | `e2e/tests/session-list-delete.spec.ts` | 18 | `db71aa27f6c1` | — | — |
 | — | `e2e/tests/session-list-open.spec.ts` | 10 | `0d80422a42fd` | — | — |
 | — | `e2e/tests/session-list-order.spec.ts` | 17 | `9b4ac84da6da` | — | — |
