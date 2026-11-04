@@ -8,7 +8,7 @@ POLICY = "docs/review-policy.md"
 CASES = (
     ("MA1", ('docs/transcript-viewer-values.md', 'docs/transcript-viewer-prd-*.md', 'docs/transcript-viewer-test-*.md'), ()),
     ("MA2", ('scripts/review-policy/', '.github/workflows/review-policy.yml', 'docs/review-policy.md'), ()),
-    ("MA3", ('backend/store.go', 'backend/s3.go', 'backend/seed.go'), ()),
+    ("MA3", ('backend/store.go', 'backend/s3.go', 'backend/seed.go', 'backend/migrations/'), ()),
 )
 
 
