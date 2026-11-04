@@ -5,7 +5,7 @@ export interface Subagent {
   content?: string;
   invoked_at?: string;
   transcript_file?: string;
-  messages?: TranscriptMessage[]; // Parsed messages from subagent transcript
+  messages?: TranscriptMessage[];
 }
 
 export interface ToolUsage {
@@ -19,7 +19,6 @@ export interface TranscriptMetadata {
   duration_ms?: number;
 }
 
-// Message content can be a string or an array of content blocks
 export type MessageContent = string | Array<{
   type: string;
   text?: string;
@@ -31,14 +30,13 @@ export type MessageContent = string | Array<{
   is_error?: boolean;
 }>;
 
-// Individual message in a transcript (JSONL line)
 export interface TranscriptMessage {
   type: 'user' | 'assistant' | 'queue-operation';
   sessionId: string;
   timestamp: string;
   uuid: string;
   parentUuid: string | null;
-  agentId?: string; // Identifies which agent (main or subagent) this message belongs to
+  agentId?: string;
   message?: {
     role: 'user' | 'assistant';
     content: MessageContent;

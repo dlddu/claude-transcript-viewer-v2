@@ -21,7 +21,6 @@ export function SessionIdLookup({
   const [validationError, setValidationError] = useState('');
   const hasAutoLookup = useRef(false);
 
-  // Auto-populate and trigger lookup from URL parameter
   useEffect(() => {
     if (initialSessionId && autoLookup && !hasAutoLookup.current) {
       hasAutoLookup.current = true;
@@ -31,7 +30,6 @@ export function SessionIdLookup({
     }
   }, [initialSessionId, autoLookup, onLookup]);
 
-  // Clear input on successful lookup
   useEffect(() => {
     if (clearOnSuccess) {
       setSessionId('');
@@ -41,16 +39,13 @@ export function SessionIdLookup({
   const handleLookup = () => {
     const trimmedSessionId = sessionId.trim();
 
-    // Validation
     if (!trimmedSessionId) {
       setValidationError('Please enter a session ID');
       return;
     }
 
-    // Clear validation error
     setValidationError('');
 
-    // Trigger lookup callback
     if (onLookup) {
       onLookup(trimmedSessionId);
     }
@@ -58,7 +53,6 @@ export function SessionIdLookup({
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setSessionId(e.target.value);
-    // Clear validation error when user starts typing
     if (validationError) {
       setValidationError('');
     }
@@ -67,7 +61,6 @@ export function SessionIdLookup({
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Enter') {
       const trimmedSessionId = sessionId.trim();
-      // Only trigger lookup if there's a valid session ID
       if (trimmedSessionId) {
         handleLookup();
       }

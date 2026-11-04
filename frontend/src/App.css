@@ -123,7 +123,6 @@ header {
   padding-top: 4px;
 }
 
-/* session-id-lookup styles (reference pattern) */
 .session-id-lookup {
   display: flex;
   flex-direction: column;
@@ -178,7 +177,6 @@ header {
   font-size: 0.9em;
 }
 
-/* message-uuid-lookup styles */
 .message-uuid-lookup {
   display: flex;
   flex-direction: column;
@@ -254,7 +252,6 @@ header {
   font-size: 0.9em;
 }
 
-/* session-list styles */
 .session-list {
   display: flex;
   flex-direction: column;
@@ -367,9 +364,6 @@ header {
   font-size: 0.9em;
 }
 
-/* session master-detail: opening a session from the list replaces the list and
-   tabs with a full-screen transcript view plus a control to return, so a large
-   session count never has to be scrolled past to read a session's content. */
 .session-detail {
   display: flex;
   flex-direction: column;

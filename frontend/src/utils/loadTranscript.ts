@@ -21,13 +21,9 @@ export async function fetchTranscriptManifest(sessionId: string): Promise<Transc
 
   if (!response.ok) {
     let errorMessage = `Failed to fetch transcript: ${response.statusText}`;
-    try {
-      const errorData = await response.json();
-      if (errorData.error) {
-        errorMessage = errorData.error;
-      }
-    } catch {
-      // Use default error message if response body is not JSON
+    const errorData = await response.json().catch(() => null);
+    if (errorData?.error) {
+      errorMessage = errorData.error;
     }
     throw new Error(errorMessage);
   }

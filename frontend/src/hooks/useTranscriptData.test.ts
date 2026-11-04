@@ -22,7 +22,6 @@ const MAIN_JSONL = [
   '{"type":"assistant","sessionId":"%ID%","timestamp":"2026-02-01T05:00:05Z","uuid":"msg-002","parentUuid":"msg-001","message":{"role":"assistant","content":"Hi"}}',
 ].join('\n');
 
-// Routes manifest requests to the API mock and presigned URLs to file bodies.
 function mockTranscriptFetch(sessionId: string) {
   const mockFetch = vi.fn(async (input: RequestInfo | URL) => {
     const url = String(input);
@@ -59,13 +58,10 @@ describe('useTranscriptData', () => {
 
   describe('data fetching', () => {
     it('should fetch the manifest and download transcript files from S3', async () => {
-      // Arrange
       const mockFetch = mockTranscriptFetch('test-1');
 
-      // Act
       const { result } = renderHook(() => useTranscriptData('test-1'));
 
-      // Assert
       await waitFor(() => {
         expect(result.current.data).toBeDefined();
         expect(result.current.data).not.toBeNull();
@@ -73,14 +69,12 @@ describe('useTranscriptData', () => {
       expect(mockFetch).toHaveBeenCalledWith(
         expect.stringContaining('/api/transcript/session/test-1')
       );
-      // The transcript bytes come straight from the presigned S3 URL.
       expect(mockFetch).toHaveBeenCalledWith(expect.stringContaining('X-Amz-Signature'));
       expect(result.current.data?.session_id).toBe('test-1');
       expect(result.current.data?.messages).toHaveLength(2);
     });
 
     it('should return loading state initially', async () => {
-      // Arrange - use a delayed promise to ensure we can check loading state
       let resolvePromise: (value: { ok: boolean; status: number; json: () => Promise<unknown> }) => void;
       const mockFetch = vi.fn().mockImplementation(() => {
         return new Promise((resolve) => {
@@ -89,10 +83,8 @@ describe('useTranscriptData', () => {
       });
       global.fetch = mockFetch;
 
-      // Act
       const { result } = renderHook(() => useTranscriptData('test-2'));
 
-      // Assert - check initial loading state
       expect(result.current.isLoading).toBe(true);
       expect(result.current.data).toBeNull();
 
@@ -107,14 +99,11 @@ describe('useTranscriptData', () => {
     });
 
     it('should handle fetch errors gracefully', async () => {
-      // Arrange
       const mockFetch = vi.fn().mockRejectedValue(new Error('Network error'));
       global.fetch = mockFetch;
 
-      // Act
       const { result } = renderHook(() => useTranscriptData('test-error'));
 
-      // Assert
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
       });
@@ -126,7 +115,6 @@ describe('useTranscriptData', () => {
     });
 
     it('should surface the backend error message on a not-found session', async () => {
-      // Arrange
       const mockFetch = vi.fn().mockResolvedValue({
         ok: false,
         status: 404,
@@ -134,10 +122,8 @@ describe('useTranscriptData', () => {
       });
       global.fetch = mockFetch;
 
-      // Act
       const { result } = renderHook(() => useTranscriptData('test-missing'));
 
-      // Assert
       await waitFor(() => {
         expect(result.current.isLoading).toBe(false);
       });
@@ -147,10 +133,8 @@ describe('useTranscriptData', () => {
 
   describe('caching', () => {
     it('should cache transcript data after first fetch', async () => {
-      // Arrange
       const mockFetch = mockTranscriptFetch('test-cache');
 
-      // Act - first render
       const { result, rerender } = renderHook(
         ({ id }) => useTranscriptData(id),
         { initialProps: { id: 'test-cache' } }
@@ -163,15 +147,12 @@ describe('useTranscriptData', () => {
 
       const callCountAfterFirst = mockFetch.mock.calls.length;
 
-      // Re-render with same ID
       rerender({ id: 'test-cache' });
 
-      // Assert - no additional network calls
       expect(mockFetch).toHaveBeenCalledTimes(callCountAfterFirst);
     });
 
     it('should reuse the cache when a new hook instance mounts for the same id', async () => {
-      // Arrange
       const mockFetch = mockTranscriptFetch('test-cache-2');
 
       const first = renderHook(() => useTranscriptData('test-cache-2'));
@@ -181,13 +162,11 @@ describe('useTranscriptData', () => {
       const callCountAfterFirst = mockFetch.mock.calls.length;
       first.unmount();
 
-      // Act - a fresh mount for the same transcript
       const second = renderHook(() => useTranscriptData('test-cache-2'));
       await waitFor(() => {
         expect(second.result.current.data).not.toBeNull();
       });
 
-      // Assert - served from cache, no new fetches
       expect(mockFetch).toHaveBeenCalledTimes(callCountAfterFirst);
     });
   });
