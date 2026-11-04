@@ -26,8 +26,6 @@ interface Routes {
   del?: (sessionId: string) => Partial<Response> | Promise<Partial<Response>>;
 }
 
-// Installs a fetch mock that routes the list GET and the per-session DELETE.
-// Returns the mock so tests can assert on the exact calls made.
 function installFetch(routes: Routes) {
   const mock = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
     const url = String(input);
@@ -60,7 +58,6 @@ async function settle() {
   });
 }
 
-// Renders SessionList and waits for its initial list load to settle.
 async function renderList(props: Parameters<typeof SessionList>[0] = {}) {
   const result = render(<SessionList {...props} />);
   await settle();
@@ -92,7 +89,6 @@ describe('SessionList', () => {
       installFetch({ list: () => jsonResponse(SESSIONS) });
       await renderList();
 
-      // 2026-07-05T12:30:00Z -> "2026-07-05 12:30 UTC"
       expect(screen.getByText('2026-07-05 12:30 UTC')).toBeInTheDocument();
       expect(screen.getByText('2026-07-05 11:00 UTC')).toBeInTheDocument();
     });
@@ -136,7 +132,6 @@ describe('SessionList', () => {
       const user = userEvent.setup();
       await renderList({ onSessionLookup });
 
-      // Clicking the row's id opens it (the id span sits inside the open button).
       await user.click(screen.getByText('session-middle'));
 
       expect(onSessionLookup).toHaveBeenCalledTimes(1);
@@ -155,9 +150,7 @@ describe('SessionList', () => {
       await settle();
 
       expect(screen.queryByText('session-middle')).not.toBeInTheDocument();
-      // Other sessions remain.
       expect(screen.getByText('session-newest')).toBeInTheDocument();
-      // The DELETE went to the right endpoint.
       const deleteCall = fetchMock.mock.calls.find(([, init]) => (init as RequestInit)?.method === 'DELETE');
       expect(deleteCall).toBeTruthy();
       expect(String(deleteCall?.[0])).toContain('/api/transcript/session/session-middle');
@@ -187,7 +180,6 @@ describe('SessionList', () => {
       await settle();
 
       expect(screen.getByTestId('session-delete-error')).toHaveTextContent('Failed to delete transcript');
-      // The row is retained so the delete can be retried.
       expect(screen.getByText('session-middle')).toBeInTheDocument();
     });
   });
@@ -203,7 +195,6 @@ describe('SessionList', () => {
     });
 
     it('shows a loading state while the list request is in flight', () => {
-      // A never-resolving list keeps the component in its loading state.
       installFetch({ list: () => new Promise<Partial<Response>>(() => {}) });
       render(<SessionList />);
 

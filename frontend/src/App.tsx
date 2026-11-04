@@ -29,13 +29,9 @@ function App() {
     return () => window.removeEventListener('popstate', handleNavigation);
   }, []);
 
-  // Parse route: /transcript/:id
   const transcriptMatch = route.match(/^\/transcript\/([^/]+)$/);
   const transcriptId = transcriptMatch?.[1];
 
-  // Fetches the presigned-URL manifest, then downloads and parses the transcript
-  // files directly from S3 in the browser. `detail` selects the full-screen
-  // master-detail view (Sessions list) over inline display (identifier lookups).
   const openSession = async (sessionId: string, detail: boolean) => {
     try {
       setIsLoading(true);
