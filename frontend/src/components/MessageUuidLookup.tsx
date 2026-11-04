@@ -33,7 +33,6 @@ export function MessageUuidLookup({
 
   const handleTextChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setText(e.target.value);
-    // Clear local error/badge state when user starts typing
     if (noUuidError) {
       setNoUuidError(false);
     }

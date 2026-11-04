@@ -27,7 +27,6 @@ export async function fetchTranscriptManifest(sessionId: string): Promise<Transc
         errorMessage = errorData.error;
       }
     } catch {
-      // Use default error message if response body is not JSON
     }
     throw new Error(errorMessage);
   }

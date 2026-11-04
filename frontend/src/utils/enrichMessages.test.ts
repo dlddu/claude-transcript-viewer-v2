@@ -2,7 +2,6 @@ import { describe, it, expect } from 'vitest';
 import { enrichMessages } from './enrichMessages';
 import type { TranscriptMessage, Subagent } from '../types/transcript';
 
-// Helper to create a minimal TranscriptMessage
 function makeMessage(overrides: Partial<TranscriptMessage> & { uuid: string }): TranscriptMessage {
   return {
     type: 'assistant',
@@ -17,33 +16,27 @@ function makeMessage(overrides: Partial<TranscriptMessage> & { uuid: string }): 
 describe('enrichMessages', () => {
   describe('filtering', () => {
     it('should filter out queue-operation messages', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({ uuid: 'msg-1', type: 'assistant' }),
         makeMessage({ uuid: 'msg-2', type: 'queue-operation' }),
         makeMessage({ uuid: 'msg-3', type: 'user', message: { role: 'user', content: 'hello' } }),
       ];
 
-      // Act
       const result = enrichMessages(messages);
 
-      // Assert
       expect(result).toHaveLength(2);
       expect(result[0].raw.uuid).toBe('msg-1');
       expect(result[1].raw.uuid).toBe('msg-3');
     });
 
     it('should filter out messages without message field', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({ uuid: 'msg-1' }),
         { type: 'user', sessionId: 'session-1', timestamp: '2026-02-01T00:00:00Z', uuid: 'msg-2', parentUuid: null },
       ];
 
-      // Act
       const result = enrichMessages(messages);
 
-      // Assert
       expect(result).toHaveLength(1);
       expect(result[0].raw.uuid).toBe('msg-1');
     });
@@ -51,20 +44,16 @@ describe('enrichMessages', () => {
 
   describe('text extraction', () => {
     it('should extract text from string content', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({ uuid: 'msg-1', message: { role: 'user', content: 'hello world' } }),
       ];
 
-      // Act
       const result = enrichMessages(messages);
 
-      // Assert
       expect(result[0].text).toBe('hello world');
     });
 
     it('should extract text from content block array', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({
           uuid: 'msg-1',
@@ -78,15 +67,12 @@ describe('enrichMessages', () => {
         }),
       ];
 
-      // Act
       const result = enrichMessages(messages);
 
-      // Assert
       expect(result[0].text).toBe('first part\nsecond part');
     });
 
     it('should ignore non-text blocks when extracting text', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({
           uuid: 'msg-1',
@@ -100,15 +86,12 @@ describe('enrichMessages', () => {
         }),
       ];
 
-      // Act
       const result = enrichMessages(messages);
 
-      // Assert
       expect(result[0].text).toBe('visible text');
     });
 
     it('should return empty string when content array has no text blocks', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({
           uuid: 'msg-1',
@@ -121,56 +104,44 @@ describe('enrichMessages', () => {
         }),
       ];
 
-      // Act
       const result = enrichMessages(messages);
 
-      // Assert
       expect(result[0].text).toBe('');
     });
   });
 
   describe('subagent detection', () => {
     it('should mark message as subagent when agentId differs from sessionId', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({ uuid: 'msg-1', agentId: 'agent-sub-1' }),
       ];
 
-      // Act
       const result = enrichMessages(messages, 'session-main');
 
-      // Assert
       expect(result[0].isSubagent).toBe(true);
     });
 
     it('should not mark message as subagent when agentId matches sessionId', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({ uuid: 'msg-1', agentId: 'session-main' }),
       ];
 
-      // Act
       const result = enrichMessages(messages, 'session-main');
 
-      // Assert
       expect(result[0].isSubagent).toBe(false);
     });
 
     it('should not mark message as subagent when agentId is undefined', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({ uuid: 'msg-1' }),
       ];
 
-      // Act
       const result = enrichMessages(messages, 'session-main');
 
-      // Assert
       expect(result[0].isSubagent).toBe(false);
     });
 
     it('should resolve subagent name from subagents array', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({ uuid: 'msg-1', agentId: 'agent-sub-1' }),
       ];
@@ -178,15 +149,12 @@ describe('enrichMessages', () => {
         { id: 'agent-sub-1', name: 'Data Analyzer' },
       ];
 
-      // Act
       const result = enrichMessages(messages, 'session-main', subagents);
 
-      // Assert
       expect(result[0].subagentName).toBe('Data Analyzer');
     });
 
     it('should fall back to agentId when subagent not found in subagents array', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({ uuid: 'msg-1', agentId: 'agent-unknown' }),
       ];
@@ -194,43 +162,34 @@ describe('enrichMessages', () => {
         { id: 'agent-other', name: 'Other Agent' },
       ];
 
-      // Act
       const result = enrichMessages(messages, 'session-main', subagents);
 
-      // Assert
       expect(result[0].subagentName).toBe('agent-unknown');
     });
 
     it('should set subagentName to null for main agent messages', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({ uuid: 'msg-1', agentId: 'session-main' }),
       ];
 
-      // Act
       const result = enrichMessages(messages, 'session-main');
 
-      // Assert
       expect(result[0].subagentName).toBeNull();
     });
   });
 
   describe('tool use aggregation', () => {
     it('should return empty toolUses for messages without tool_use blocks', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({ uuid: 'msg-1', message: { role: 'user', content: 'hello' } }),
       ];
 
-      // Act
       const result = enrichMessages(messages);
 
-      // Assert
       expect(result[0].toolUses).toEqual([]);
     });
 
     it('should extract tool_use blocks with matched tool_result and filter out the tool_result-only message', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({
           uuid: 'msg-1',
@@ -254,10 +213,8 @@ describe('enrichMessages', () => {
         }),
       ];
 
-      // Act
       const result = enrichMessages(messages);
 
-      // Assert — msg-2 (tool_result only, fully matched) is filtered out
       expect(result).toHaveLength(1);
       expect(result[0].raw.uuid).toBe('msg-1');
       expect(result[0].toolUses).toHaveLength(1);
@@ -274,7 +231,6 @@ describe('enrichMessages', () => {
     });
 
     it('should handle tool_result with is_error flag', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({
           uuid: 'msg-1',
@@ -297,10 +253,8 @@ describe('enrichMessages', () => {
         }),
       ];
 
-      // Act
       const result = enrichMessages(messages);
 
-      // Assert
       expect(result).toHaveLength(1);
       expect(result[0].toolUses[0].result).toEqual({
         content: 'command failed',
@@ -310,7 +264,6 @@ describe('enrichMessages', () => {
     });
 
     it('should set result to null when no matching tool_result exists', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({
           uuid: 'msg-1',
@@ -323,16 +276,13 @@ describe('enrichMessages', () => {
         }),
       ];
 
-      // Act
       const result = enrichMessages(messages);
 
-      // Assert
       expect(result[0].toolUses).toHaveLength(1);
       expect(result[0].toolUses[0].result).toBeNull();
     });
 
     it('should handle multiple tool_use blocks in a single message', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({
           uuid: 'msg-1',
@@ -357,10 +307,8 @@ describe('enrichMessages', () => {
         }),
       ];
 
-      // Act
       const result = enrichMessages(messages);
 
-      // Assert
       expect(result).toHaveLength(1);
       expect(result[0].toolUses).toHaveLength(2);
       expect(result[0].toolUses[0].name).toBe('Read');
@@ -370,7 +318,6 @@ describe('enrichMessages', () => {
     });
 
     it('should track sourceMessageUuid correctly for cross-message references', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({
           uuid: 'assistant-msg',
@@ -393,10 +340,8 @@ describe('enrichMessages', () => {
         }),
       ];
 
-      // Act
       const result = enrichMessages(messages);
 
-      // Assert
       expect(result).toHaveLength(1);
       expect(result[0].toolUses[0].result?.sourceMessageUuid).toBe('user-response-msg');
     });
@@ -404,7 +349,6 @@ describe('enrichMessages', () => {
 
   describe('tool_result message filtering', () => {
     it('should filter out tool_result-only message when all tool_use_ids are matched', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({
           uuid: 'msg-1',
@@ -429,16 +373,13 @@ describe('enrichMessages', () => {
         }),
       ];
 
-      // Act
       const result = enrichMessages(messages);
 
-      // Assert
       expect(result).toHaveLength(1);
       expect(result[0].raw.uuid).toBe('msg-1');
     });
 
     it('should keep tool_result-only message when a tool_use_id has no matching tool_use', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({
           uuid: 'msg-1',
@@ -462,16 +403,13 @@ describe('enrichMessages', () => {
         }),
       ];
 
-      // Act
       const result = enrichMessages(messages);
 
-      // Assert — msg-2 is kept because tool-orphan has no matching tool_use
       expect(result).toHaveLength(2);
       expect(result[1].raw.uuid).toBe('msg-2');
     });
 
     it('should keep tool_result-only message when none of its tool_use_ids match', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({
           uuid: 'msg-1',
@@ -485,16 +423,13 @@ describe('enrichMessages', () => {
         }),
       ];
 
-      // Act
       const result = enrichMessages(messages);
 
-      // Assert
       expect(result).toHaveLength(1);
       expect(result[0].raw.uuid).toBe('msg-1');
     });
 
     it('should not filter messages with mixed content (text + tool_result)', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({
           uuid: 'msg-1',
@@ -518,10 +453,8 @@ describe('enrichMessages', () => {
         }),
       ];
 
-      // Act
       const result = enrichMessages(messages);
 
-      // Assert — msg-2 has text content, so it should not be filtered
       expect(result).toHaveLength(2);
       expect(result[1].raw.uuid).toBe('msg-2');
       expect(result[1].text).toBe('some user text');
@@ -530,7 +463,6 @@ describe('enrichMessages', () => {
 
   describe('raw data preservation', () => {
     it('should preserve the original message in raw field', () => {
-      // Arrange
       const original = makeMessage({
         uuid: 'msg-1',
         cwd: '/app',
@@ -539,10 +471,8 @@ describe('enrichMessages', () => {
       });
       const messages: TranscriptMessage[] = [original];
 
-      // Act
       const result = enrichMessages(messages);
 
-      // Assert
       expect(result[0].raw).toBe(original);
       expect(result[0].raw.cwd).toBe('/app');
       expect(result[0].raw.version).toBe('2.1.0');
@@ -552,38 +482,30 @@ describe('enrichMessages', () => {
 
   describe('edge cases', () => {
     it('should return empty array for empty messages input', () => {
-      // Act
       const result = enrichMessages([]);
 
-      // Assert
       expect(result).toEqual([]);
     });
 
     it('should handle undefined sessionId and subagents', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({ uuid: 'msg-1', agentId: 'any-agent' }),
       ];
 
-      // Act
       const result = enrichMessages(messages);
 
-      // Assert
       expect(result).toHaveLength(1);
       expect(result[0].isSubagent).toBe(true);
       expect(result[0].subagentName).toBe('any-agent');
     });
 
     it('should handle string content in messages (no tool_use possible)', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({ uuid: 'msg-1', message: { role: 'user', content: 'plain string' } }),
       ];
 
-      // Act
       const result = enrichMessages(messages);
 
-      // Assert
       expect(result[0].toolUses).toEqual([]);
       expect(result[0].text).toBe('plain string');
     });
@@ -591,7 +513,6 @@ describe('enrichMessages', () => {
 
   describe('Task tool subagent_type extraction', () => {
     it('should extract subagentType from Task tool input', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({
           uuid: 'msg-1',
@@ -610,16 +531,13 @@ describe('enrichMessages', () => {
         }),
       ];
 
-      // Act
       const result = enrichMessages(messages);
 
-      // Assert
       expect(result[0].toolUses).toHaveLength(1);
       expect(result[0].toolUses[0].subagentType).toBe('test-writer');
     });
 
     it('should set subagentType to undefined when Task tool has no subagent_type', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({
           uuid: 'msg-1',
@@ -637,15 +555,12 @@ describe('enrichMessages', () => {
         }),
       ];
 
-      // Act
       const result = enrichMessages(messages);
 
-      // Assert
       expect(result[0].toolUses[0].subagentType).toBeUndefined();
     });
 
     it('should not extract subagentType from non-Task tools', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({
           uuid: 'msg-1',
@@ -663,15 +578,12 @@ describe('enrichMessages', () => {
         }),
       ];
 
-      // Act
       const result = enrichMessages(messages);
 
-      // Assert
       expect(result[0].toolUses[0].subagentType).toBeUndefined();
     });
 
     it('should handle Task tool with null subagent_type', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({
           uuid: 'msg-1',
@@ -689,15 +601,12 @@ describe('enrichMessages', () => {
         }),
       ];
 
-      // Act
       const result = enrichMessages(messages);
 
-      // Assert
       expect(result[0].toolUses[0].subagentType).toBeUndefined();
     });
 
     it('should handle Task tool with empty string subagent_type', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({
           uuid: 'msg-1',
@@ -715,15 +624,12 @@ describe('enrichMessages', () => {
         }),
       ];
 
-      // Act
       const result = enrichMessages(messages);
 
-      // Assert
       expect(result[0].toolUses[0].subagentType).toBeUndefined();
     });
 
     it('should preserve subagentType for multiple Task tools in same message', () => {
-      // Arrange
       const messages: TranscriptMessage[] = [
         makeMessage({
           uuid: 'msg-1',
@@ -747,10 +653,8 @@ describe('enrichMessages', () => {
         }),
       ];
 
-      // Act
       const result = enrichMessages(messages);
 
-      // Assert
       expect(result[0].toolUses).toHaveLength(2);
       expect(result[0].toolUses[0].subagentType).toBe('analyzer');
       expect(result[0].toolUses[1].subagentType).toBe('formatter');

@@ -86,7 +86,6 @@ export function enrichMessages(
       const toolUses: EnrichedToolUse[] = toolBlocks.map(block => {
         let subagentType: string | undefined = undefined;
 
-        // Extract subagent_type for Task tools
         if (block.name === 'Task' &&
             typeof block.input === 'object' &&
             block.input !== null &&

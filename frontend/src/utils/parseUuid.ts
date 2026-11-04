@@ -1,12 +1,6 @@
 const UUID_REGEX = /\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/gi;
 
-/**
- * Extracts all UUIDs from a string.
- * Returns lowercase, deduplicated UUIDs in insertion order.
- *
- * @param text - The text to parse for UUIDs
- * @returns Array of unique lowercase UUID strings
- */
+/** Extracts every UUID from text as lowercase, deduplicated values in first-seen order. */
 export function parseUuids(text: string): string[] {
   if (!text || typeof text !== 'string') {
     return [];
@@ -31,13 +25,7 @@ export function parseUuids(text: string): string[] {
   return result;
 }
 
-/**
- * Returns the first UUID found in the text, in lowercase.
- * Returns null if no UUID is found or input is invalid.
- *
- * @param text - The text to parse for a UUID
- * @returns The first UUID as a lowercase string, or null
- */
+/** Returns the first UUID in text as lowercase, or null when there is none. */
 export function parseFirstUuid(text: string): string | null {
   if (!text || typeof text !== 'string') {
     return null;

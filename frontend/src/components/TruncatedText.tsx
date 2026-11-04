@@ -78,13 +78,11 @@ export function TruncatedText({ text, truncatedText, className = '' }: Truncated
     };
   }, [isTooltipVisible]);
 
-  // Position tooltip properly on small screens
   useEffect(() => {
     if (isTooltipVisible && tooltipRef.current) {
       const tooltipRect = tooltipRef.current.getBoundingClientRect();
       const viewportWidth = window.innerWidth;
 
-      // If tooltip overflows right edge, adjust position
       if (tooltipRect.right > viewportWidth) {
         setTooltipPosition((prev) => ({
           ...prev,
