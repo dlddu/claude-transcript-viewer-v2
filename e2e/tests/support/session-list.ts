@@ -26,6 +26,7 @@ export interface SessionSummary {
 }
 
 /** The list endpoint the "Sessions" tab reads. Also the route intercepted for SL-AC6. */
+// mock-exception: ERR/LAT — intercept target of the two SL-AC6 exceptions (loading, failure); same entries as in the policy allowlist
 export const LIST_ROUTE = '**/api/transcripts';
 
 function transcriptLine(sessionId: string, uuid: string, text: string, timestamp: string): string {
