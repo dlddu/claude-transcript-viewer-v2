@@ -7,7 +7,7 @@
 | — | `.dockerignore` | 9 | `e270f42bd1b4` | — | — |
 | — | `.env.example` | 32 | `738bec47bffd` | — | — |
 | — | `.github/workflows/docker-publish.yml` | 2 | `a5915a1f638e` | — | — |
-| — | `.github/workflows/test.yml` | 18 | `efc428c40d33` | — | — |
+| — | `.github/workflows/test.yml` | 21 | `5e0e6f08df3d` | — | — |
 | — | `.gitignore` | 11 | `9a8c0ccb91e8` | — | — |
 | — | `Dockerfile` | 18 | `09b86aff75c0` | — | — |
 | — | `backend/.env.example` | 36 | `c143d877d184` | — | — |
@@ -36,8 +36,9 @@
 | — | `e2e/tests/session-list-open.spec.ts` | 10 | `0d80422a42fd` | — | — |
 | — | `e2e/tests/session-list-order.spec.ts` | 17 | `9b4ac84da6da` | — | — |
 | — | `e2e/tests/session-list-search.spec.ts` | 9 | `679dd8984924` | — | — |
-| — | `e2e/tests/session-list-states.spec.ts` | 19 | `36f83ef5c249` | — | — |
+| — | `e2e/tests/session-list-states.spec.ts` | 20 | `c55cc89615d3` | — | — |
 | — | `e2e/tests/static-cache-headers.spec.ts` | 24 | `1b42f564f5db` | — | — |
+| — | `e2e/tests/support/empty-backend.ts` | 13 | `3752f1f4934c` | — | — |
 | — | `e2e/tests/support/session-list.ts` | 22 | `9087aa52a500` | — | — |
 | — | `e2e/tests/support/timeline.ts` | 14 | `adff08f96e63` | — | — |
 | — | `e2e/tests/support/transcript-api.ts` | 22 | `cccc470257de` | — | — |
