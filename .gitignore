@@ -1,53 +1,42 @@
-# Dependencies
 node_modules/
 .pnpm-store/
 
-# Build outputs
 dist/
 build/
 .vite/
 backend/server
 backend/backend
 
-# Test coverage
 coverage/
 .nyc_output/
 
-# ESLint cache
 .eslintcache
 
-# Playwright
 e2e/playwright-report/
 e2e/test-results/
 e2e/playwright/.cache/
 test-results/
 
-# Lock files from non-primary package managers
 e2e/package-lock.json
 
-# Environment variables
 .env
 .env.local
 .env.*.local
 
-# IDEs
 .vscode/
 .idea/
 *.swp
 *.swo
 *~
 
-# OS
 .DS_Store
 Thumbs.db
 
-# Logs
 logs/
 *.log
 npm-debug.log*
 pnpm-debug.log*
 
-# Temporary files
 tmp/
 temp/
 *.tmp

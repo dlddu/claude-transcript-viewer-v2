@@ -134,8 +134,6 @@ func TestIntegration_TranscriptFilesViaMapping(t *testing.T) {
 		t.Errorf("main key = %q, want %q", got.Main.Key, mainKey)
 	}
 
-	// The presigned URL must be usable without credentials and return the
-	// exact bytes that were uploaded.
 	body := getFromPresignedURL(t, got.Main.URL)
 	if body != fixture {
 		t.Errorf("downloaded body differs from fixture (%d vs %d bytes)", len(body), len(fixture))
@@ -221,9 +219,6 @@ func TestIntegration_DownloadURLHonorsConfiguredTTL(t *testing.T) {
 	}
 }
 
-// TestIntegration_UploadURLRoundTrip exercises the full flow: request a
-// presigned upload URL, PUT a transcript to it, then fetch the download
-// manifest and GET the file back through its presigned URL.
 func TestIntegration_UploadURLRoundTrip(t *testing.T) {
 	client := newRealS3Client(t)
 	store := newIntegrationStore(t)
@@ -251,9 +246,6 @@ func TestIntegration_UploadURLRoundTrip(t *testing.T) {
 	}
 }
 
-// TestIntegration_UploadSubagentRoundTrip uploads a main transcript and a
-// subagent under subagents/ via presigned URLs, then verifies the subagent is
-// discovered and downloadable through the manifest.
 func TestIntegration_UploadSubagentRoundTrip(t *testing.T) {
 	client := newRealS3Client(t)
 	store := newIntegrationStore(t)
@@ -297,9 +289,6 @@ func TestIntegration_UploadSubagentRoundTrip(t *testing.T) {
 	}
 }
 
-// TestIntegration_DeleteTranscriptRemovesAllFiles uploads a main transcript and
-// a subagent, deletes the session, and verifies both the S3 objects and the
-// SQLite mapping are gone.
 func TestIntegration_DeleteTranscriptRemovesAllFiles(t *testing.T) {
 	store := newIntegrationStore(t)
 	svc := newIntegrationService(t, store, "")
@@ -320,7 +309,6 @@ func TestIntegration_DeleteTranscriptRemovesAllFiles(t *testing.T) {
 	}
 	putToPresignedURL(t, subResp.URL, readFixtureFile(t, "session-abc123/agent-a1b2c3d.jsonl"))
 
-	// It reads back before deletion.
 	if _, err := svc.GetTranscriptFiles(context.Background(), sessionID); err != nil {
 		t.Fatalf("GetTranscriptFiles before delete: %v", err)
 	}
@@ -329,7 +317,6 @@ func TestIntegration_DeleteTranscriptRemovesAllFiles(t *testing.T) {
 		t.Fatalf("DeleteTranscriptBySessionId: %v", err)
 	}
 
-	// Read reports not found, mapping is gone, and the session is no longer listed.
 	if _, err := svc.GetTranscriptFiles(context.Background(), sessionID); err != ErrNoSessionTranscriptFound {
 		t.Errorf("read after delete err = %v, want ErrNoSessionTranscriptFound", err)
 	}
@@ -346,7 +333,6 @@ func TestIntegration_DeleteTranscriptRemovesAllFiles(t *testing.T) {
 		}
 	}
 
-	// And nothing remains in S3 under the session prefix.
 	client := newRealS3Client(t)
 	prefix := strings.TrimSuffix(mainResp.Key, mainTranscriptName(sessionID))
 	out, err := client.ListObjectsV2(context.Background(), &s3.ListObjectsV2Input{

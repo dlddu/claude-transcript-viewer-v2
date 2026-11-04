@@ -9,8 +9,7 @@ import (
 	"strings"
 )
 
-// TranscriptService is the interface the HTTP layer needs from the
-// underlying storage. Tests use a fake; production wires in *S3Service.
+// TranscriptService is the storage interface the HTTP layer depends on.
 type TranscriptService interface {
 	GetTranscriptFiles(ctx context.Context, sessionID string) (TranscriptFilesResponse, error)
 	ListTranscripts(ctx context.Context) ([]SessionSummary, error)
@@ -27,8 +26,7 @@ type Server struct {
 // ServerOption configures optional Server behavior.
 type ServerOption func(*Server)
 
-// WithStaticDir serves the built frontend from dir on non-/api routes, with
-// an index.html fallback for client-side routing.
+// WithStaticDir serves the built frontend from dir on non-/api routes.
 func WithStaticDir(dir string) ServerOption {
 	return func(s *Server) { s.staticDir = dir }
 }

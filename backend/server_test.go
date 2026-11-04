@@ -11,7 +11,6 @@ import (
 	"testing"
 )
 
-// fakeService implements TranscriptService for handler tests.
 type fakeService struct {
 	getTranscriptFiles        func(ctx context.Context, sessionID string) (TranscriptFilesResponse, error)
 	listTranscripts           func(ctx context.Context) ([]SessionSummary, error)
@@ -97,8 +96,6 @@ func doDelete(t *testing.T, server http.Handler, path string) *httptest.Response
 	server.ServeHTTP(rec, req)
 	return rec
 }
-
-// --- /api/transcript/session/:sessionId -------------------------------------
 
 func TestHandleGetBySession_ReturnsFileManifest(t *testing.T) {
 	sessionID := "session-abc123"
@@ -231,8 +228,6 @@ func TestHandleGetBySession_TrimsWhitespace(t *testing.T) {
 	}
 }
 
-// --- DELETE /api/transcript/session/:sessionId ------------------------------
-
 func TestHandleDeleteBySession_Success(t *testing.T) {
 	var gotID string
 	fake := &fakeService{
@@ -307,8 +302,6 @@ func TestHandleDeleteBySession_BothBasePrefixes(t *testing.T) {
 		}
 	}
 }
-
-// --- /api/transcript/upload-url ---------------------------------------------
 
 func TestHandleCreateUploadURL_ReturnsPresignedURL(t *testing.T) {
 	var gotReq UploadURLRequest
@@ -395,13 +388,6 @@ func TestHandleCreateUploadURL_InvalidSessionReturns400(t *testing.T) {
 	}
 }
 
-// --- GET /api/transcripts (session list) ------------------------------------
-
-// TestHandleList_ReturnsSessionSummaries pins the list endpoint's response
-// schema (SL-AC1): a JSON array of {session_id, created_at} objects, emitted in
-// the order the service returns them (newest-first) without the handler
-// re-sorting. This is the contract the frontend SessionList and the
-// upload/delete E2E specs read against.
 func TestHandleList_ReturnsSessionSummaries(t *testing.T) {
 	fake := &fakeService{
 		listTranscripts: func(_ context.Context) ([]SessionSummary, error) {
@@ -425,12 +411,10 @@ func TestHandleList_ReturnsSessionSummaries(t *testing.T) {
 		if len(got) != 2 {
 			t.Fatalf("%s: got %d entries, want 2: %v", base, len(got), got)
 		}
-		// Order is preserved (newest-first from the service).
 		if got[0]["session_id"] != "session-newer" || got[1]["session_id"] != "session-older" {
 			t.Errorf("%s: order = [%v, %v], want [session-newer, session-older]",
 				base, got[0]["session_id"], got[1]["session_id"])
 		}
-		// Each entry carries both contract fields.
 		for _, entry := range got {
 			if _, ok := entry["session_id"].(string); !ok {
 				t.Errorf("%s: entry missing session_id: %v", base, entry)
@@ -459,8 +443,6 @@ func TestHandleList_ServiceErrorReturns500(t *testing.T) {
 	}
 }
 
-// --- /api/health ------------------------------------------------------------
-
 func TestHandleHealth_ReturnsHealthy(t *testing.T) {
 	server := NewServer(&fakeService{})
 	rec := doRequest(t, server, "/api/health")
@@ -472,8 +454,6 @@ func TestHandleHealth_ReturnsHealthy(t *testing.T) {
 		t.Errorf("status field = %v, want %q", body["status"], "healthy")
 	}
 }
-
-// --- Both /api/transcript and /api/transcripts prefixes work ---------------
 
 func TestBothBasePrefixes_Work(t *testing.T) {
 	sessionID := "session-abc123"
