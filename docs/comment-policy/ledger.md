@@ -53,19 +53,16 @@
 | — | `e2e/tests/transcript-upload-api.spec.ts` | 27 | `91b4f9578191` | — | — |
 | — | `e2e/tests/truncation-and-timestamps.spec.ts` | 46 | `4799201f4ecd` | — | — |
 | — | `frontend/.env.example` | 7 | `cb1a6c42df24` | — | — |
-| — | `frontend/src/App.tsx` | 14 | `a56bca449e4d` | — | — |
-| — | `frontend/src/components/LookupTabs.test.tsx` | 82 | `30ef50a71c80` | — | — |
+| 2026-11-04 | `frontend/src/App.tsx` | 10 | `4241d66e7268` | 완료 | 유지 10줄 (이전 14줄) — [2026-11-04-frontend-components](passes/2026-11-04-frontend-components.md) |
+| 2026-11-04 | `frontend/src/components/LookupTabs.test.tsx` | 2 | `1f21cb06af85` | 완료 | 유지 2줄 (이전 82줄) — [2026-11-04-frontend-components](passes/2026-11-04-frontend-components.md) |
 | 2026-11-04 | `frontend/src/components/LookupTabs.tsx` | 3 | `0090804ab6f1` | 완료 | 유지 3줄 (이전 3줄) — [2026-11-04-frontend-utils](passes/2026-11-04-frontend-utils.md) |
-| — | `frontend/src/components/MessageUuidLookup.test.tsx` | 82 | `61d8d1c01fd7` | — | — |
-| — | `frontend/src/components/SessionIdLookup.test.tsx` | 67 | `a2ee59597c25` | — | — |
-| — | `frontend/src/components/SessionList.test.tsx` | 17 | `294e503b9130` | — | — |
+| 2026-11-04 | `frontend/src/components/MessageUuidLookup.test.tsx` | 1 | `ca93d17d6db6` | 완료 | 유지 1줄 (이전 82줄) — [2026-11-04-frontend-components](passes/2026-11-04-frontend-components.md) |
+| 2026-11-04 | `frontend/src/components/SessionList.test.tsx` | 8 | `fedf17a6a372` | 완료 | 유지 8줄 (이전 17줄) — [2026-11-04-frontend-components](passes/2026-11-04-frontend-components.md) |
 | — | `frontend/src/components/SessionList.tsx` | 19 | `589c453178f2` | — | — |
 | — | `frontend/src/components/TranscriptViewer.css` | 6 | `bec59778582d` | — | — |
-| — | `frontend/src/components/TranscriptViewer.no-subagents.test.tsx` | 33 | `5b075034c15f` | — | — |
+| 2026-11-04 | `frontend/src/components/TranscriptViewer.no-subagents.test.tsx` | 2 | `5ce7e028848e` | 완료 | 유지 2줄 (이전 33줄) — [2026-11-04-frontend-components](passes/2026-11-04-frontend-components.md) |
 | — | `frontend/src/components/TranscriptViewer.test.tsx` | 139 | `f81b1554f810` | — | — |
-| — | `frontend/src/components/TranscriptViewer.truncation.test.tsx` | 19 | `ee040932758a` | — | — |
 | — | `frontend/src/components/TranscriptViewer.tsx` | 13 | `8c6b58c746dd` | — | — |
-| — | `frontend/src/components/TruncatedText.test.tsx` | 72 | `b80656ea68e2` | — | — |
 | 2026-11-04 | `frontend/src/hooks/useTranscriptData.test.ts` | 1 | `bff5131fbd22` | 완료 | 유지 1줄 (이전 22줄) — [2026-11-04-frontend-utils](passes/2026-11-04-frontend-utils.md) |
 | 2026-11-04 | `frontend/src/hooks/useTranscriptData.ts` | 2 | `3cf93d364811` | 완료 | 유지 2줄 (이전 2줄) — [2026-11-04-frontend-utils](passes/2026-11-04-frontend-utils.md) |
 | 2026-11-04 | `frontend/src/types/transcript.ts` | 8 | `921fdeb467e9` | 완료 | 유지 8줄 (이전 10줄) — [2026-11-04-frontend-utils](passes/2026-11-04-frontend-utils.md) |
@@ -97,7 +94,7 @@
 | — | `e2e/tests/session-id-lookup.spec.ts` | 1 | `9ab0be88efb3` | — | — |
 | — | `e2e/tests/tool-call-display.spec.ts` | 1 | `95bba09839ed` | — | — |
 | — | `e2e/tests/truncation-and-timestamps.spec.ts` | 2 | `1bb1fd7caebc` | — | — |
-| — | `frontend/src/components/TranscriptViewer.truncation.test.tsx` | 3 | `89c9438debf9` | — | — |
+| 2026-11-04 | `frontend/src/components/TranscriptViewer.truncation.test.tsx` | 1 | `e491de62fc79` | 완료 | 유지 1줄 (이전 3줄) — [2026-11-04-frontend-components](passes/2026-11-04-frontend-components.md) |
 | — | `scripts/kind-setup.sh` | 1 | `b64d62033db7` | — | — |
 
 ## docstring (D)
