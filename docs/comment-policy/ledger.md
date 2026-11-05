@@ -9,6 +9,7 @@
 | — | `.github/workflows/test.yml` | 25 | `6200cfb786c9` | — | — |
 | 2026-11-04 | `Dockerfile` | 6 | `280e38b60476` | 완료 | 유지 6줄 (이전 18줄) — [2026-11-04-backend-config-k8s](passes/2026-11-04-backend-config-k8s.md) |
 | 2026-11-04 | `backend/.env.example` | 29 | `bccf7514c649` | 완료 | 유지 29줄 (이전 36줄) — [2026-11-04-backend-config-k8s](passes/2026-11-04-backend-config-k8s.md) |
+| — | `backend/migrations/migrations.go` | 1 | `214e7ebd4092` | — | — |
 | — | `backend/s3.go` | 61 | `af6162ee32f9` | — | — |
 | 2026-11-04 | `backend/s3_test.go` | 8 | `d898240a495f` | 완료 | 유지 8줄 (이전 61줄) — [2026-11-04-backend-config-k8s](passes/2026-11-04-backend-config-k8s.md) |
 | — | `backend/seed.go` | 19 | `48526761f866` | — | — |
