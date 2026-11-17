@@ -63,6 +63,7 @@ backend/migrations/*
 
 | 대상 | 사유 | 재개 조건 | 소관 |
 |---|---|---|---|
+| `docs/data-model/README.md` (`data-model-scope` 블록의 `sql:` 줄) | 표면 토큰 `DELETE FROM` 은 SQL 문이 아니라 data-model 체커가 쿼리 지점을 판별하는 정규식 안의 글자다. 이 블록은 `backend/cmd/datamodelcheck` 만 읽고 운영 코드는 읽지 않으므로, 바꿔도 운영 DB·대화록에 닿지 않는다. 스키마·삭제를 실제로 바꾸는 경로는 MA3(`backend/migrations/` · `store.go` · `s3.go` · `seed.go`)가 덮는다 | `git grep -l "data-model-scope" -- backend ":!backend/cmd/datamodelcheck/" ":!*_test.go"` 가 파일을 내놓는다(운영 코드가 이 블록을 읽기 시작함) | reconciler `tbm_claude-transcript-viewer-v2-data-model` |
 
 ## 미탐 원장
 
