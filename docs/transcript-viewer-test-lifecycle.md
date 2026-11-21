@@ -11,6 +11,9 @@
 > (`transcript-upload-api` / `transcript-session-prefix` / `transcript-direct-download` /
 > `transcript-not-found` / `transcript-delete-api`). 이전에는 업로드 스펙이 LC-AC1·AC2를,
 > 삭제 스펙이 LC-AC4·AC5를 함께 덮었다. 공유 헬퍼는 `e2e/tests/support/transcript-api.ts`에 있다(스펙 아님).
+> 2026-11-21 기준 **LC-AC5는 시나리오 축 분할로 스펙 2개**(`transcript-delete-api` = 시나리오 1,
+> `transcript-delete-retry-safety` = 시나리오 1-B)를 갖는다 — 한 스펙 파일이 한 시나리오만
+> 주검증해야 하기 때문이며(시나리오↔E2E 1:1), AC 층의 파일 대입 관례는 별도 축이다.
 
 ## 테스트 시나리오
 
@@ -42,7 +45,7 @@
 - **기대 결과**: `{"status":"deleted"}` 응답, 세션 Hive 디렉토리의 전 객체 제거,
   이후 동일 세션 GET 시 404(매핑이 마지막에 제거됐다는 증거), 목록에서 제외, 다른 세션 무영향
 - **검증 AC**: LC-AC5
-- **구현**: `e2e/tests/transcript-delete-api.spec.ts`(LC-AC5 전용)
+- **구현**: `e2e/tests/transcript-delete-api.spec.ts`(시나리오 1 전용 — 삭제 후 매핑 미해석·목록 제외·버킷 객체 제거·다른 세션 무영향)
 - **비고**: 미등록 세션의 404 응답 계약 자체는 LC-AC4(`transcript-not-found.spec.ts`) 소관이다. 여기서 단정하는
   404는 "매핑이 실제로 제거됐다"는 증거로 읽는다.
 
@@ -53,7 +56,7 @@
   - **순서(객체 → 매핑)**: 객체 삭제가 실패하면 SQLite 매핑은 그대로 남는다. 객체를 먼저 지우고 매핑을 마지막에 제거하는 순서이기 때문이다.
   - **재시도 안전성**: 실패한 삭제는 세션을 여전히 조회 가능한 상태로 남긴다(삭제 API 500 · 매핑 유지 + 매니페스트가 메인·서브에이전트 전량 해석 · 버킷의 객체 전량 잔존). 실패가 해소된 뒤 동일 삭제를 재시도하면 객체와 매핑이 모두 제거된다(버킷에 객체 없음 · 조회 404).
 - **검증 AC**: LC-AC5 (삭제 순서 객체→매핑, 중단 시 재시도 안전)
-- **구현**: `e2e/tests/transcript-delete-api.spec.ts`의 「Retry-Safe Delete under S3 DeleteObject failure」(LC-AC5 전용 스펙 파일 안; 거부 인스턴스는 `e2e/tests/support/backend-instance.ts`로 띄우고, 거부 자격증명은 CI `e2e-tests` 잡이 MinIO에 만든다). 스토리지 정책을 강제하지 않는 LocalStack(`kind-e2e-tests` 잡)에서는 자격증명 환경변수가 없어 건너뛴다. 스윕 도중(일부 객체만 삭제된 뒤) 실패하는 변형은 `backend/s3_test.go`(`TestDeleteTranscriptBySessionId_DeletesObjectsBeforeMapping`, `TestDeleteTranscriptBySessionId_InterruptedDeleteIsRetrySafe`)가 보강한다
+- **구현**: `e2e/tests/transcript-delete-retry-safety.spec.ts`(시나리오 1-B 전용 — 거부 인스턴스는 `e2e/tests/support/backend-instance.ts`로 띄우고, 거부 자격증명은 CI `e2e-tests` 잡이 MinIO에 만든다). 스토리지 정책을 강제하지 않는 LocalStack(`kind-e2e-tests` 잡)에서는 자격증명 환경변수가 없어 건너뛴다. 스윕 도중(일부 객체만 삭제된 뒤) 실패하는 변형은 `backend/s3_test.go`(`TestDeleteTranscriptBySessionId_DeletesObjectsBeforeMapping`, `TestDeleteTranscriptBySessionId_InterruptedDeleteIsRetrySafe`)가 보강한다
 - **비고**: 이 시나리오는 E2E로 검증된다. 이전에는 S3 `DeleteObject` 실패를 주입할 치환이 없어 백엔드 fault-injection 테스트가 유일 검증이었으나, 실 스토리지의 권한 거부로 실패를 실제로 내는 방식으로 대체했다(모킹이 아님 — `docs/e2e-mocking-policy.md`).
 
 ### 시나리오 2: 미등록 세션 조회
