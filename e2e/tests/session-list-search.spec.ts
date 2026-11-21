@@ -1,17 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { openSessionsTab } from './support/session-list';
 
-/**
- * Session List Search & Filter (SL-AC3)
- *
- * Purpose: the search box filters the rendered list by session-id substring
- * (case-insensitive), restores the full list when cleared, and shows the
- * "no matching sessions" message when nothing matches. Filtering is client-side
- * over the already-loaded list, so no refetch is expected.
- *
- * Test Status: ACTIVE
- */
-
 test.describe('Session List Search (SL-AC3)', () => {
   test('narrows the list on partial match and restores on clear', async ({ page }) => {
     await openSessionsTab(page);
