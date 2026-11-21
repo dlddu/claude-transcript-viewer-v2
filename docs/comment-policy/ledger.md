@@ -45,7 +45,8 @@
 | — | `e2e/tests/timeline-expand-collapse.spec.ts` | 17 | `99957490a5f1` | — | — |
 | — | `e2e/tests/timeline-unified.spec.ts` | 28 | `2c7a3a00274a` | — | — |
 | — | `e2e/tests/tool-call-display.spec.ts` | 101 | `850bc9ca562a` | — | — |
-| — | `e2e/tests/transcript-delete-api.spec.ts` | 50 | `2a508b28fb33` | — | — |
+| — | `e2e/tests/transcript-delete-api.spec.ts` | 38 | `0d59da1bfa44` | — | — |
+| — | `e2e/tests/transcript-delete-retry-safety.spec.ts` | 21 | `e3b060af35b7` | — | — |
 | — | `e2e/tests/transcript-direct-download.spec.ts` | 42 | `7509990326cd` | — | — |
 | — | `e2e/tests/transcript-not-found.spec.ts` | 18 | `e26acaacc946` | — | — |
 | — | `e2e/tests/transcript-session-prefix.spec.ts` | 24 | `174a458a4db8` | — | — |
