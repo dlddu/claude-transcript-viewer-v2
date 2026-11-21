@@ -78,10 +78,11 @@ export async function uploadFile(
   request: APIRequestContext,
   sessionId: string,
   body: string,
-  fileName?: string
+  fileName?: string,
+  apiUrl: string = API_URL
 ): Promise<string> {
   const query = fileName ? `?file_name=${encodeURIComponent(fileName)}` : '';
-  const urlResp = await request.post(`${API_URL}/api/transcripts/upload-url/${sessionId}${query}`);
+  const urlResp = await request.post(`${apiUrl}/api/transcripts/upload-url/${sessionId}${query}`);
   expect(urlResp.ok(), `upload-url for ${sessionId} ${fileName ?? '(main)'}`).toBeTruthy();
   const { url, key } = await urlResp.json();
 

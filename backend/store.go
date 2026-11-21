@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/dlddu/claude-transcript-viewer-v2/backend/migrations"
 	_ "modernc.org/sqlite"
 )
 
@@ -62,14 +63,8 @@ func OpenStore(ctx context.Context, path string) (*Store, error) {
 }
 
 func (s *Store) migrate(ctx context.Context) error {
-	const schema = `
-CREATE TABLE IF NOT EXISTS transcript_sessions (
-	session_id TEXT PRIMARY KEY,
-	s3_prefix  TEXT NOT NULL,
-	created_at TEXT NOT NULL
-);`
-	if _, err := s.db.ExecContext(ctx, schema); err != nil {
-		return fmt.Errorf("create schema: %w", err)
+	if err := migrations.Apply(ctx, s.db); err != nil {
+		return fmt.Errorf("migrate schema: %w", err)
 	}
 	return nil
 }

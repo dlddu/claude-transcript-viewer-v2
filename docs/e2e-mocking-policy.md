@@ -27,10 +27,11 @@ E2E(Playwright)는 실 Go 백엔드(실 SQLite) + 실 S3 호환 스토리지(Min
 
 SL-AC6 빈 상태는 등재 대상이 아니다 — 빈 DB의 실 백엔드 인스턴스로 대체했다.
 
+LC-AC5 삭제 실패도 등재 대상이 아니다 — `s3:DeleteObject`만 거부하는 MinIO 사용자의 자격증명으로 띄운 실 백엔드 인스턴스(`e2e/tests/support/backend-instance.ts`)로 실제 AccessDenied를 낸다(`transcript-delete-api.spec.ts`). 테스트 전용 플래그는 쓰지 않으며 자격증명은 `DELETE_DENIED_*` 환경변수로 받는다.
+
 ## 차단 요인 원장
 
 차단 요인의 해소 주체는 항상 `tbm_claude-transcript-viewer-v2-e2e-mock-policy` 모델이다(소관 칸 없음). 선행이 「없음」이면 착수 가능 행이다.
 
 | ID | 차단 요인 | 해소 방향 | 선행 | 재검토 시점 |
 |---|---|---|---|---|
-| BL1 | `test-lifecycle.md#시나리오 1-B`(LC-AC5 삭제 순서·재시도 안전성): S3 `DeleteObject` 실패를 주입할 치환이 없어 E2E가 그 경로를 밟지 못한다. 현재 검증은 `backend/s3_test.go` 단위 fault-injection뿐이다 | 실환경 대체 — 실 스토리지(MinIO/LocalStack)에서 `DeleteObject`만 거부하는 버킷 정책·접두사로 격리한 별도 백엔드 인스턴스로 실제 삭제 실패를 낸다 | 없음 | 2027-01-15 |
