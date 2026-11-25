@@ -8,7 +8,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"runtime/debug"
@@ -33,17 +32,16 @@ type violation struct {
 	Expected  string `json:"expected,omitempty"`
 }
 
-type site struct {
-	File string `json:"file"`
-	Text string `json:"text"`
-}
+type site = codeSite
 
 type report struct {
-	Engine     string      `json:"engine"`
-	Tables     int         `json:"tables"`
-	Violations []violation `json:"violations"`
-	Sites      []site      `json:"sites"`
-	Status     string      `json:"status"`
+	Engine      string      `json:"engine"`
+	Tables      int         `json:"tables"`
+	Patterns    int         `json:"patterns"`
+	ManualForms int         `json:"manual_forms"`
+	Violations  []violation `json:"violations"`
+	Sites       []site      `json:"sites"`
+	Status      string      `json:"status"`
 }
 
 type scope struct {
@@ -115,12 +113,19 @@ func run(root string) (*report, error) {
 	}
 	rep.Violations = append(rep.Violations, diffElements(actual, documented)...)
 
-	rep.Sites, err = findSites(root, sc)
+	cat, err := parseCatalog(filepath.Join(dir, "query-patterns.md"))
 	if err != nil {
 		return nil, err
 	}
+	rep.Patterns = len(cat.Patterns)
+	rep.ManualForms = len(cat.Manual)
+
+	rep.Sites, err = collectSites(root, sc)
+	if err != nil {
+		return nil, err
+	}
+	rep.Violations = append(rep.Violations, judgeCatalog(cat, rep.Sites)...)
 	rep.Violations = append(rep.Violations,
-		violation{2, "unimplemented", "query-patterns.md comparison", fmt.Sprintf("%d site candidate(s) have no catalog check yet", len(rep.Sites))},
 		violation{3, "unimplemented", "query-plan comparison", ""},
 	)
 	sort.SliceStable(rep.Violations, func(i, j int) bool {
@@ -578,42 +583,16 @@ func diffElements(actual, documented map[string]element) []violation {
 	return vs
 }
 
-func findSites(root string, sc *scope) ([]site, error) {
-	siteRE := regexp.MustCompile(sc.site)
-	excl := regexp.MustCompile(sc.exclude)
-	args := append([]string{"-C", root, "ls-files", "--"}, sc.paths...)
-	listed, err := exec.Command("git", args...).Output()
-	if err != nil {
-		return nil, fmt.Errorf("git ls-files: %w", err)
-	}
-	var out []site
-	for _, f := range strings.Split(strings.TrimSpace(string(listed)), "\n") {
-		if f == "" || excl.MatchString(f) {
-			continue
-		}
-		body, err := os.ReadFile(filepath.Join(root, f))
-		if err != nil {
-			return nil, err
-		}
-		for _, line := range strings.Split(string(body), "\n") {
-			if siteRE.MatchString(line) {
-				out = append(out, site{f, strings.Join(strings.Fields(line), " ")})
-			}
-		}
-	}
-	sort.Slice(out, func(i, j int) bool {
-		if out[i].File != out[j].File {
-			return out[i].File < out[j].File
-		}
-		return out[i].Text < out[j].Text
-	})
-	return out, nil
-}
-
 func printReport(w io.Writer, rep *report) {
-	fmt.Fprintf(w, "engine: %s\ntables: %d\nsite candidates: %d\n", rep.Engine, rep.Tables, len(rep.Sites))
+	fmt.Fprintf(w, "engine: %s\ntables: %d\npattern rows: %d\nmanual forms: %d\nsite candidates: %d\n",
+		rep.Engine, rep.Tables, rep.Patterns, rep.ManualForms, len(rep.Sites))
 	for _, s := range rep.Sites {
-		fmt.Fprintf(w, "  site %s: %s\n", s.File, s.Text)
+		fmt.Fprintf(w, "  site %s\n", s.Call)
+		if s.Shape != "" {
+			fmt.Fprintf(w, "    form: %s\n", s.Shape)
+		} else {
+			fmt.Fprintf(w, "    unextractable: %s\n", s.Reason)
+		}
 	}
 	fmt.Fprintf(w, "status: %s (%d violation(s))\n", rep.Status, len(rep.Violations))
 	for _, v := range rep.Violations {
