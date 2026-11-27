@@ -6,17 +6,10 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
- * Starts an additional, real backend instance next to the shared one.
- *
  * Some states cannot be reached through the shared seeded backend — an empty
  * DB, or storage credentials that are denied some S3 action. They are produced
  * by running the real server with its own `DB_PATH` and/or `env` instead of
- * intercepting requests (docs/e2e-mocking-policy.md). The instance serves the
- * same built frontend and inherits the S3 settings from the environment unless
- * `env` overrides them.
- *
- * Env: `SERVER_BIN` (default `backend/server`) and `STATIC_DIR` (default
- * `frontend/dist`) point at the built binary and frontend bundle.
+ * intercepting requests (docs/e2e-mocking-policy.md).
  */
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../..');
@@ -47,7 +40,7 @@ async function waitHealthy(baseURL: string, child: ChildProcess): Promise<void> 
       const resp = await fetch(`${baseURL}/api/health`);
       if (resp.ok) return;
     } catch {
-      // not listening yet
+      // the server may not be listening yet — expected while it starts
     }
     await new Promise((r) => setTimeout(r, 250));
   }
@@ -55,9 +48,7 @@ async function waitHealthy(baseURL: string, child: ChildProcess): Promise<void> 
 }
 
 export interface BackendOptions {
-  /** SQLite file to use; a fresh empty DB in a temp dir when omitted. */
   dbPath?: string;
-  /** Extra env for the server process (e.g. restricted S3 credentials). */
   env?: Record<string, string>;
 }
 

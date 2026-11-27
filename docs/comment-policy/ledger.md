@@ -36,21 +36,21 @@
 | — | `e2e/tests/session-list-search.spec.ts` | 9 | `679dd8984924` | — | — |
 | — | `e2e/tests/session-list-states.spec.ts` | 20 | `c55cc89615d3` | — | — |
 | — | `e2e/tests/static-cache-headers.spec.ts` | 24 | `1b42f564f5db` | — | — |
-| — | `e2e/tests/support/backend-instance.ts` | 15 | `762e6dc10ab9` | — | — |
-| — | `e2e/tests/support/empty-backend.ts` | 7 | `9b7ff335e14a` | — | — |
-| — | `e2e/tests/support/session-list.ts` | 22 | `9087aa52a500` | — | — |
-| — | `e2e/tests/support/timeline.ts` | 14 | `adff08f96e63` | — | — |
-| — | `e2e/tests/support/transcript-api.ts` | 22 | `cccc470257de` | — | — |
+| 2026-11-27 | `e2e/tests/support/backend-instance.ts` | 6 | `fa09eb80f690` | 완료 | 유지 6줄 (이전 15줄) — [2026-11-27-e2e-specs-and-support](passes/2026-11-27-e2e-specs-and-support.md) |
+| 2026-11-27 | `e2e/tests/support/empty-backend.ts` | 5 | `c96242107cf0` | 완료 | 유지 5줄 (이전 7줄) — [2026-11-27-e2e-specs-and-support](passes/2026-11-27-e2e-specs-and-support.md) |
+| 2026-11-27 | `e2e/tests/support/session-list.ts` | 11 | `d2137b065115` | 완료 | 유지 11줄 (이전 22줄) — [2026-11-27-e2e-specs-and-support](passes/2026-11-27-e2e-specs-and-support.md) |
+| 2026-11-27 | `e2e/tests/support/timeline.ts` | 2 | `515abb071e19` | 완료 | 유지 2줄 (이전 14줄) — [2026-11-27-e2e-specs-and-support](passes/2026-11-27-e2e-specs-and-support.md) |
+| 2026-11-27 | `e2e/tests/support/transcript-api.ts` | 12 | `6b81121689b7` | 완료 | 유지 12줄 (이전 22줄) — [2026-11-27-e2e-specs-and-support](passes/2026-11-27-e2e-specs-and-support.md) |
 | — | `e2e/tests/timeline-distinction.spec.ts` | 14 | `39f2b8519753` | — | — |
 | — | `e2e/tests/timeline-expand-collapse.spec.ts` | 17 | `99957490a5f1` | — | — |
 | — | `e2e/tests/timeline-unified.spec.ts` | 28 | `2c7a3a00274a` | — | — |
-| — | `e2e/tests/tool-call-display.spec.ts` | 101 | `850bc9ca562a` | — | — |
+| 2026-11-27 | `e2e/tests/tool-call-display.spec.ts` | 2 | `afc7377211d5` | 완료 | 유지 2줄 (이전 101줄) — [2026-11-27-e2e-specs-and-support](passes/2026-11-27-e2e-specs-and-support.md) |
 | — | `e2e/tests/transcript-delete-api.spec.ts` | 50 | `2a508b28fb33` | — | — |
-| — | `e2e/tests/transcript-direct-download.spec.ts` | 42 | `7509990326cd` | — | — |
+| 2026-11-27 | `e2e/tests/transcript-direct-download.spec.ts` | 10 | `e2a76551cd8d` | 완료 | 유지 10줄 (이전 42줄) — [2026-11-27-e2e-specs-and-support](passes/2026-11-27-e2e-specs-and-support.md) |
 | — | `e2e/tests/transcript-not-found.spec.ts` | 18 | `e26acaacc946` | — | — |
 | — | `e2e/tests/transcript-session-prefix.spec.ts` | 24 | `174a458a4db8` | — | — |
-| — | `e2e/tests/transcript-upload-api.spec.ts` | 27 | `91b4f9578191` | — | — |
-| — | `e2e/tests/truncation-and-timestamps.spec.ts` | 46 | `4799201f4ecd` | — | — |
+| 2026-11-27 | `e2e/tests/transcript-upload-api.spec.ts` | 8 | `b6316d32dce2` | 완료 | 유지 8줄 (이전 27줄) — [2026-11-27-e2e-specs-and-support](passes/2026-11-27-e2e-specs-and-support.md) |
+| 2026-11-27 | `e2e/tests/truncation-and-timestamps.spec.ts` | 8 | `8fb58a6b3b32` | 완료 | 유지 8줄 (이전 46줄) — [2026-11-27-e2e-specs-and-support](passes/2026-11-27-e2e-specs-and-support.md) |
 | 2026-11-04 | `frontend/.env.example` | 5 | `e50978a86bfd` | 완료 | 유지 5줄 (이전 7줄) — [2026-11-04-backend-config-k8s](passes/2026-11-04-backend-config-k8s.md) |
 | 2026-11-04 | `frontend/src/App.tsx` | 10 | `4241d66e7268` | 완료 | 유지 10줄 (이전 14줄) — [2026-11-04-frontend-components](passes/2026-11-04-frontend-components.md) |
 | 2026-11-04 | `frontend/src/components/LookupTabs.test.tsx` | 2 | `1f21cb06af85` | 완료 | 유지 2줄 (이전 82줄) — [2026-11-04-frontend-components](passes/2026-11-04-frontend-components.md) |
@@ -90,8 +90,7 @@
 | 2026-11-04 | `backend/seed_test.go` | 1 | `442e71803f41` | 완료 | 유지 1줄 (이전 1줄) — [2026-11-04-backend-config-k8s](passes/2026-11-04-backend-config-k8s.md) |
 | — | `e2e/tests/lookup-failure-feedback.spec.ts` | 1 | `997560fab8eb` | — | — |
 | — | `e2e/tests/session-id-lookup.spec.ts` | 1 | `9ab0be88efb3` | — | — |
-| — | `e2e/tests/tool-call-display.spec.ts` | 1 | `95bba09839ed` | — | — |
-| — | `e2e/tests/truncation-and-timestamps.spec.ts` | 2 | `1bb1fd7caebc` | — | — |
+| 2026-11-27 | `e2e/tests/truncation-and-timestamps.spec.ts` | 2 | `1bb1fd7caebc` | 완료 | 유지 2줄 (이전 2줄) — [2026-11-27-e2e-specs-and-support](passes/2026-11-27-e2e-specs-and-support.md) |
 | 2026-11-04 | `frontend/src/components/TranscriptViewer.truncation.test.tsx` | 1 | `e491de62fc79` | 완료 | 유지 1줄 (이전 3줄) — [2026-11-04-frontend-components](passes/2026-11-04-frontend-components.md) |
 
 ## docstring (D)
