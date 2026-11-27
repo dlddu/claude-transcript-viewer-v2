@@ -9,24 +9,6 @@ import {
   transcriptLine,
 } from './support/transcript-api';
 
-/**
- * Transcript Upload URL API (LC-AC1)
- *
- * Purpose: exercise `POST /api/transcripts/upload-url/{sessionId}` as a
- * first-class contract against a running backend + S3:
- *
- * - the endpoint returns a presigned PUT URL whose key follows the Hive
- *   partition convention,
- * - the PUT lands the object in the bucket at that exact key,
- * - the `session_id → s3_prefix` mapping is persisted (observable because the
- *   download manifest later resolves the same key from SQLite),
- * - malformed `file_name` / session ids are rejected with 400.
- *
- * That a session's *later* files reuse one Hive directory is LC-AC2's job
- * (`transcript-session-prefix.spec.ts`).
- *
- * Test Status: ACTIVE
- */
 
 test.describe('Transcript Upload URL API (LC-AC1)', () => {
   test('should issue a presigned PUT URL with the Hive-partitioned key contract', async ({
@@ -39,7 +21,6 @@ test.describe('Transcript Upload URL API (LC-AC1)', () => {
       expect(resp.status()).toBe(200);
       const body = await resp.json();
 
-      // Response fields of the upload-url contract
       expect(body.method).toBe('PUT');
       expect(body.session_id).toBe(sessionId);
       expect(body.expires_in).toBeGreaterThan(0);
@@ -78,7 +59,6 @@ test.describe('Transcript Upload URL API (LC-AC1)', () => {
       });
       expect(putResp.ok(), 'presigned PUT succeeds').toBeTruthy();
 
-      // The object exists in the bucket at exactly the returned key.
       const stored = await listS3Keys(s3, hiveDirOf(key, sessionId));
       expect(stored).toEqual([key]);
 

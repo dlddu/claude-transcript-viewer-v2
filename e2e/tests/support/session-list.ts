@@ -1,22 +1,13 @@
 import { expect, type APIRequestContext, type Page } from '@playwright/test';
 
-/**
- * Shared support for the session-list E2E specs.
- *
- * Each SL-AC now owns exactly one spec file (SL-AC1 → session-list-api,
- * SL-AC2 → session-list-order, ...), so the fixtures/helpers they all need live
- * here rather than being duplicated. This file is NOT a spec: Playwright's
- * default testMatch only collects `*.spec.ts`, so nothing here is auto-run.
- */
+// Not a spec: Playwright's default testMatch only collects `*.spec.ts`.
 
 export const API_URL = process.env.API_URL || 'http://localhost:3000';
 
 /**
- * Sessions that are always present from the seeded fixtures
- * (`server seed --dir e2e/fixtures`). Their relative newest-first order is
- * asserted by the order spec, derived from the API rather than hardcoded, so it
- * stays robust against throwaway sessions other specs create on the shared
- * backend.
+ * Seeded fixtures always present (`server seed --dir e2e/fixtures`); the order
+ * spec derives their newest-first order from the API, not from this list, so
+ * throwaway sessions other specs create do not break it.
  */
 export const SEEDED_IDS = ['session-abc123', 'session-xyz789', 'session-task-subagent'];
 
@@ -25,7 +16,6 @@ export interface SessionSummary {
   created_at: string;
 }
 
-/** The list endpoint the "Sessions" tab reads. Also the route intercepted for SL-AC6. */
 // mock-exception: ERR/LAT — intercept target of the two SL-AC6 exceptions (loading, failure); same entries as in the policy allowlist
 export const LIST_ROUTE = '**/api/transcripts';
 
@@ -57,9 +47,8 @@ export async function fetchSessionList(request: APIRequestContext): Promise<Sess
 }
 
 /**
- * Uploads a one-line session through the real presigned-PUT path, so a
- * destructive spec never has to touch the read-only seeded fixtures that the
- * other specs depend on.
+ * Uploads a throwaway session through the real presigned-PUT path so a
+ * destructive spec never touches the read-only seeded fixtures other specs use.
  */
 export async function uploadThrowawaySession(
   request: APIRequestContext,
@@ -74,7 +63,6 @@ export async function uploadThrowawaySession(
   expect(putResp.ok(), `presigned PUT for ${sessionId}`).toBeTruthy();
 }
 
-/** Opens the third ("Sessions") lookup tab and waits for the list container. */
 export async function openSessionsTab(page: Page): Promise<void> {
   await page.goto('/');
   await page.getByRole('tab', { name: 'Sessions' }).click();
